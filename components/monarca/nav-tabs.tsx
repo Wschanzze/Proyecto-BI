@@ -1,16 +1,14 @@
 "use client"
 
-import { LayoutDashboard, Table2, LineChart, Upload, BookOpen, type LucideIcon } from "lucide-react"
+import { LayoutDashboard, Table2, LineChart, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type TabId = "dashboard" | "detallado" | "simplificado" | "cargar" | "documentacion"
+export type TabId = "dashboard" | "detallado" | "simplificado"
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "detallado", label: "Cuadro Detallado", icon: Table2 },
   { id: "simplificado", label: "Cuadro Simplificado", icon: LineChart },
-  { id: "cargar", label: "Cargar Datos", icon: Upload },
-  { id: "documentacion", label: "Documentación", icon: BookOpen },
 ]
 
 export function NavTabs({ active, onChange }: { active: TabId; onChange: (id: TabId) => void }) {

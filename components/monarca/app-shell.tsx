@@ -6,8 +6,6 @@ import { NavTabs, type TabId } from "./nav-tabs"
 import { DashboardView } from "./views/dashboard-view"
 import { CuadroDetallado } from "./views/cuadro-detallado"
 import { CuadroSimplificado } from "./views/cuadro-simplificado"
-import { CargarDatos } from "./views/cargar-datos"
-import { Documentacion } from "./views/documentacion"
 import { PERIODO_ACTUAL } from "@/lib/data"
 
 export function AppShell() {
@@ -22,8 +20,7 @@ export function AppShell() {
         {tab === "dashboard" && <DashboardView periodoKey={periodoKey} onPeriodoChange={setPeriodoKey} />}
         {tab === "detallado" && <CuadroDetallado periodoKey={periodoKey} onPeriodoChange={setPeriodoKey} />}
         {tab === "simplificado" && <CuadroSimplificado periodoKey={periodoKey} onPeriodoChange={setPeriodoKey} />}
-        {tab === "cargar" && <CargarDatos />}
-        {tab === "documentacion" && <Documentacion />}
+
       </main>
       <footer className="border-t border-border bg-card py-4">
         <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-1 px-4 text-xs text-muted-foreground md:flex-row md:px-6">

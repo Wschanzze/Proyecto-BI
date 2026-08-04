@@ -1,4 +1,5 @@
-import { User } from "lucide-react"
+import Link from "next/link"
+import { User, Settings } from "lucide-react"
 
 export function TopBar() {
   return (
@@ -31,6 +32,13 @@ export function TopBar() {
             </span>
             Datos de ejemplo
           </span>
+          <Link
+            href="/admin"
+            aria-label="Administración"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-primary-foreground/50 transition-colors hover:text-primary-foreground/90"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
           <button
             type="button"
             aria-label="Perfil de usuario"
