@@ -15,9 +15,6 @@ import {
   AreaChart,
   Area,
   Tooltip,
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
   Bar,
   XAxis,
@@ -44,7 +41,7 @@ function kpiVar(actual: number, anterior: number | undefined | null): number | n
   return ((actual - anterior) / anterior) * 100
 }
 
-const SECTION_COLORS = ["#1e40af", "#ea580c", "#0284c7", "#15803d", "#7c3aed", "#b45309"]
+
 
 // ── Sparkline micro-chart ────────────────────────────────────────────────────
 
@@ -108,33 +105,24 @@ function KPICard({
   const pos = variacion !== null && variacion >= 0
   return (
     <Card className="relative overflow-hidden border border-border/60 shadow-sm">
-      {/* top accent stripe */}
       <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: sparkColor }} />
-      <CardContent className="p-5 pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-            <span className="mt-1 text-2xl font-bold tabular-nums leading-none text-foreground">{value}</span>
-            {sub && <span className="mt-1 text-xs text-muted-foreground">{sub}</span>}
-          </div>
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: `${sparkColor}18` }}
-          >
-            <Icon className="h-4.5 w-4.5" style={{ color: sparkColor }} />
-          </span>
-        </div>
-
-        {/* sparkline */}
-        <div className="mt-3">
-          <Sparkline data={sparkData} color={sparkColor} />
-        </div>
-
-        {/* variación footer */}
-        {variacion !== null && (
-          <div className="mt-1.5 flex items-center gap-1.5 border-t border-border/50 pt-2">
+      <CardContent className="px-4 pt-4 pb-2">
+        {/* header row: icon + label + badge */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <span
-              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+              style={{ background: `${sparkColor}18` }}
+            >
+              <Icon className="h-3.5 w-3.5" style={{ color: sparkColor }} />
+            </span>
+            <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {label}
+            </span>
+          </div>
+          {variacion !== null && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums"
               style={{
                 background: pos ? "#dcfce7" : "#fee2e2",
                 color: pos ? "#15803d" : "#b91c1c",
@@ -143,8 +131,23 @@ function KPICard({
               {pos ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
               {Math.abs(variacion).toFixed(1)}%
             </span>
-            <span className="text-xs text-muted-foreground">{varLabel ?? "vs mes anterior"}</span>
-          </div>
+          )}
+        </div>
+
+        {/* value */}
+        <div className="mt-2">
+          <span className="text-xl font-bold tabular-nums leading-none text-foreground">{value}</span>
+          {sub && <span className="ml-2 text-[11px] text-muted-foreground">{sub}</span>}
+        </div>
+
+        {/* sparkline */}
+        <div className="mt-2">
+          <Sparkline data={sparkData} color={sparkColor} />
+        </div>
+
+        {/* footer label */}
+        {variacion !== null && (
+          <p className="mt-1 text-[10px] text-muted-foreground">{varLabel ?? "vs mes anterior"}</p>
         )}
       </CardContent>
     </Card>
@@ -176,17 +179,6 @@ export function DashboardView({
   const tFact = useMemo(() => tendenciaKPI(periodoKey, "facturacion", 6), [periodoKey])
   const tRdoOp = useMemo(() => tendenciaKPI(periodoKey, "resultadoOperativo", 6), [periodoKey])
   const tRdoFin = useMemo(() => tendenciaKPI(periodoKey, "resultadoFinal", 6), [periodoKey])
-
-  // Donut / pie data for secciones
-  const seccionPieData = useMemo(
-    () =>
-      cuadro.secciones.map((s, i) => ({
-        name: s.nombre,
-        value: s.total.facturacion,
-        color: SECTION_COLORS[i] ?? "#64748b",
-      })),
-    [cuadro],
-  )
 
   // Bar chart: resultado operativo y final por sección
   const seccionBarData = useMemo(
@@ -264,83 +256,58 @@ export function DashboardView({
         />
       </div>
 
-      {/* ── Second row: donut + bar ── */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+      {/* ── Second row: evolución mensual (área) + resultados por sección (barras) ── */}
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
 
-        {/* Donut: participación por sección */}
-        <Card className="lg:col-span-2 border-border/60 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Participación por Sección
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <PieChart width={200} height={180}>
-              <Pie
-                data={seccionPieData}
-                cx={100}
-                cy={90}
-                innerRadius={52}
-                outerRadius={82}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {seccionPieData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} stroke="transparent" />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(val: number) => [formatCurrencyCompact(val), "Facturación"]}
-                contentStyle={{ fontSize: 12, borderRadius: 6 }}
-              />
-            </PieChart>
-            <div className="w-full space-y-2">
-              {seccionPieData.map((s) => {
-                const pct = (s.value / total.facturacion) * 100
-                return (
-                  <div key={s.name} className="flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                    <span className="flex-1 truncate text-sm font-medium">{s.name}</span>
-                    <span className="tabular-nums text-sm text-muted-foreground">{formatPercent(pct)}</span>
-                    <span className="tabular-nums text-xs text-muted-foreground">{formatCurrencyCompact(s.value)}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Bar: resultado por sección */}
+        {/* Evolución de facturación — últimos 6 meses */}
         <Card className="lg:col-span-3 border-border/60 shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-1">
             <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Resultado Operativo y Final por Sección
+              Evolución de Facturación — últimos 6 meses
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={seccionBarData} barCategoryGap="30%" barGap={4}>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={tFact} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="grad-fact" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1e40af" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#1e40af" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  axisLine={false}
-                  tickLine={false}
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrencyCompact(v)} width={58} />
+                <Tooltip
+                  formatter={(v: number) => [formatCurrencyCompact(v), "Facturación"]}
+                  contentStyle={{ fontSize: 12, borderRadius: 6 }}
                 />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => formatCurrencyCompact(v)}
-                  width={60}
-                />
+                <Area type="monotone" dataKey="value" stroke="#1e40af" strokeWidth={2} fill="url(#grad-fact)" dot={{ r: 3, fill: "#1e40af", strokeWidth: 0 }} activeDot={{ r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Resultados por sección — barras */}
+        <Card className="lg:col-span-2 border-border/60 shadow-sm">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Resultado por Sección
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={seccionBarData} layout="vertical" barCategoryGap="25%" barGap={2} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrencyCompact(v)} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={60} />
                 <Tooltip
                   formatter={(v: number, name: string) => [formatCurrencyCompact(v), name]}
                   contentStyle={{ fontSize: 12, borderRadius: 6 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Operativo" fill="#1e40af" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Final" fill="#ea580c" radius={[3, 3, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Operativo" fill="#1e40af" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="Final" fill="#ea580c" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
