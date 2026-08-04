@@ -6,12 +6,14 @@ export function TopBar() {
     <header className="bg-primary text-primary-foreground border-b-4 border-accent">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 md:px-6">
         <div className="flex items-center gap-4">
-          {/* Official logo */}
-          <img
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/monarca-header-full-KHQtz9DKN8TaqYyecT7jiQZcu0tBw6.gif"
-            alt="Monarca"
-            className="h-9 w-auto object-contain"
-          />
+          {/* Official logo — click to go home */}
+          <Link href="/" aria-label="Inicio — Monarca Analytics">
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/monarca-header-full-KHQtz9DKN8TaqYyecT7jiQZcu0tBw6.gif"
+              alt="Monarca"
+              className="h-9 w-auto object-contain transition-opacity hover:opacity-85"
+            />
+          </Link>
           <div className="hidden h-9 w-px bg-primary-foreground/25 sm:block" />
           <div className="hidden flex-col leading-tight sm:flex">
             <div className="flex items-center gap-2">

@@ -563,3 +563,29 @@ export function seriePorCategoria(categoriaId: string, desdeIndex = 6): PuntoSer
 export function todasLasCategorias(): { id: string; nombre: string; seccion: string }[] {
   return CATALOGO.flatMap((s) => s.categorias.map((c) => ({ id: c.id, nombre: c.nombre, seccion: s.nombre })))
 }
+
+// Últimos N periodos para las sparklines de tendencia de los KPIs.
+export interface PuntoTendencia {
+  mes: string // "Ene", "Feb" …
+  value: number
+}
+
+export function tendenciaKPI(
+  periodoKey: string,
+  metrica: "facturacion" | "resultadoOperativo" | "resultadoFinal",
+  ultimos = 6,
+): PuntoTendencia[] {
+  const MESES_CORTO = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
+  const periodo = PERIODOS.find((p) => p.key === periodoKey) ?? PERIODO_ACTUAL
+  const desde = Math.max(0, periodo.index - ultimos + 1)
+  return PERIODOS.filter((p) => p.index >= desde && p.index <= periodo.index).map((p) => {
+    let value = 0
+    for (const sec of CATALOGO) {
+      for (const cat of sec.categorias) {
+        const m = metricsPorCategoria(cat, p)
+        value += m[metrica]
+      }
+    }
+    return { mes: MESES_CORTO[p.mes - 1], value }
+  })
+}
