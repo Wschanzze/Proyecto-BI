@@ -144,8 +144,8 @@ export function CuadroDetallado({
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/60">
-              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2.5 text-left font-semibold text-foreground">
+            <tr className="border-b border-border bg-muted">
+              <th className="sticky left-0 z-10 bg-muted px-4 py-2.5 text-left font-semibold text-foreground min-w-[300px] whitespace-nowrap border-r border-border">
                 Categoría / Grupo / Subgrupo
               </th>
               {COLS.map((c) => (
@@ -170,12 +170,13 @@ export function CuadroDetallado({
             ))}
             {/* Total general */}
             <tr className="border-t-2 border-primary bg-primary text-primary-foreground">
-              <td className="sticky left-0 z-10 bg-primary px-3 py-3 font-bold">TOTAL GENERAL</td>
+              <td className="sticky left-0 z-10 bg-primary px-4 py-3 font-bold min-w-[300px] whitespace-nowrap border-r border-primary/20">TOTAL GENERAL</td>
               <td className="px-3 py-3 text-right font-bold tabular-nums">{formatCurrency(cuadro.total.facturacion)}</td>
               <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
               <td colSpan={2} className="px-3 py-3 text-right tabular-nums">
                 {formatNumber(cuadro.total.articulos)} art.
               </td>
+              <td className="px-3 py-3 text-right tabular-nums text-primary-foreground/60">—</td>
               <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.cmg)}</td>
               <td className="px-3 py-3 text-right font-bold tabular-nums">
                 {formatCurrency(cuadro.total.resultadoOperativo)}
@@ -223,8 +224,8 @@ function SeccionRows({
 }) {
   return (
     <>
-      <tr className="border-b border-border bg-secondary/70">
-        <td colSpan={14} className="sticky left-0 px-3 py-2 text-xs font-bold uppercase tracking-wide text-primary">
+      <tr className="border-b border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--secondary) 70%, var(--card))' }}>
+        <td colSpan={14} className="sticky left-0 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary border-r border-border/10" style={{ backgroundColor: 'color-mix(in srgb, var(--secondary) 70%, var(--card))' }}>
           {seccionNombre}
         </td>
       </tr>
@@ -241,12 +242,12 @@ function SeccionRows({
           />
         )
       })}
-      <tr className="border-b border-border bg-accent/10 font-semibold">
-        <td className="sticky left-0 z-10 bg-accent/10 px-3 py-2.5 text-primary">Ganancia {seccionNombre}</td>
+      <tr className="border-b border-border font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
+        <td className="sticky left-0 z-10 px-4 py-2.5 text-primary min-w-[300px] whitespace-nowrap border-r border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>Ganancia {seccionNombre}</td>
         <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.facturacion)}</td>
         <td colSpan={5} />
         <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.resultadoOperativo)}</td>
-        <td colSpan={4} />
+        <td colSpan={5} />
         <td className={cn("px-3 py-2.5 text-right tabular-nums", varClass(total.resultadoFinal))}>
           {formatCurrency(total.resultadoFinal)}
         </td>
@@ -271,7 +272,7 @@ function FragmentCat({
   return (
     <>
       <tr className="border-b border-border transition-colors hover:bg-muted/40">
-        <td className="sticky left-0 z-10 bg-card px-3 py-2">
+        <td className="sticky left-0 z-10 bg-card px-4 py-2 min-w-[300px] whitespace-nowrap border-r border-border">
           <button
             type="button"
             onClick={() => toggleCat(cat.id)}
@@ -307,7 +308,7 @@ function FragmentGrupo({
   return (
     <>
       <tr className="border-b border-border/60 bg-muted/20 text-[13px]">
-        <td className="sticky left-0 z-10 bg-muted/20 px-3 py-1.5 pl-8">
+        <td className="sticky left-0 z-10 px-3 py-1.5 pl-8 min-w-[300px] whitespace-nowrap border-r border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--muted) 20%, var(--card))' }}>
           {tieneSubgruposVarios ? (
             <button type="button" onClick={() => toggleGrupo(grupo.id)} className="flex items-center gap-1.5 font-medium">
               <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", abierto && "rotate-90")} />
@@ -322,7 +323,7 @@ function FragmentGrupo({
       {tieneSubgruposVarios && abierto &&
         grupo.subgrupos.map((s) => (
           <tr key={s.id} className="border-b border-border/40 text-xs text-muted-foreground">
-            <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-14">{s.nombre}</td>
+            <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-14 min-w-[300px] whitespace-nowrap border-r border-border">{s.nombre}</td>
             <MetricCells m={s.metrics} />
           </tr>
         ))}
