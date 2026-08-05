@@ -300,18 +300,26 @@ function FragmentGrupo({
   abierto: boolean
   toggleGrupo: (id: string) => void
 }) {
+  const tieneSubgruposVarios =
+    grupo.subgrupos.length > 1 ||
+    (grupo.subgrupos.length === 1 && grupo.subgrupos[0].nombre !== grupo.nombre)
+
   return (
     <>
       <tr className="border-b border-border/60 bg-muted/20 text-[13px]">
         <td className="sticky left-0 z-10 bg-muted/20 px-3 py-1.5 pl-8">
-          <button type="button" onClick={() => toggleGrupo(grupo.id)} className="flex items-center gap-1.5 font-medium">
-            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", abierto && "rotate-90")} />
-            {grupo.nombre}
-          </button>
+          {tieneSubgruposVarios ? (
+            <button type="button" onClick={() => toggleGrupo(grupo.id)} className="flex items-center gap-1.5 font-medium">
+              <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", abierto && "rotate-90")} />
+              {grupo.nombre}
+            </button>
+          ) : (
+            <span className="font-medium pl-5">{grupo.nombre}</span>
+          )}
         </td>
         <MetricCells m={grupo.metrics} />
       </tr>
-      {abierto &&
+      {tieneSubgruposVarios && abierto &&
         grupo.subgrupos.map((s) => (
           <tr key={s.id} className="border-b border-border/40 text-xs text-muted-foreground">
             <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-14">{s.nombre}</td>

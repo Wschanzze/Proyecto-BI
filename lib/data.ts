@@ -70,99 +70,259 @@ function sg(
   return { id, nombre, base, articulos, cmg, rrhh, rdoOp, acciones, desde }
 }
 
+function seeded(str: string): number {
+  let h = 2166136261
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 100000) / 100000
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ñ/g, "n")
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function formatName(text: string): string {
+  const lowercaseWords = ["y", "de", "con", "sin", "el", "la", "los", "las", "o", "a", "del", "al", "e"];
+  const formatWord = (w: string): string => {
+    if (w.includes("/")) {
+      return w.split("/").map(formatWord).join("/");
+    }
+    if (w.includes("-") && !w.startsWith("-") && !w.endsWith("-")) {
+      return w.split("-").map(formatWord).join("-");
+    }
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  };
+
+  return text
+    .toLowerCase()
+    .split(" ")
+    .map((word, idx) => {
+      if (idx > 0 && lowercaseWords.includes(word)) {
+        return word;
+      }
+      return formatWord(word);
+    })
+    .join(" ");
+}
+
+const CATEGORY_NAMES_FORMATTED: Record<string, string> = {
+  "ALMACEN": "Almacén",
+  "BEBES Y NIÑOS": "Bebés y Niños",
+  "BEBIDAS CON ALCOHOL": "Bebidas con Alcohol",
+  "BEBIDAS SIN ALCOHOL": "Bebidas sin Alcohol",
+  "CONGELADOS": "Congelados",
+  "DESAYUNO": "Desayuno",
+  "KIOSCO": "Kiosco",
+  "LACTEOS": "Lácteos",
+  "LIMPIEZA": "Limpieza",
+  "MASCOTAS": "Mascotas",
+  "PAPELES": "Papeles",
+  "PERFUMERIA": "Perfumería",
+  "PRODUCTOS DE FIESTA": "Productos de Fiesta",
+  "PRODUCTOS FRESCOS": "Productos Frescos",
+  "SIDRAS": "Sidras"
+};
+
+const REAL_SALON_STRUCT: Record<string, string[]> = {
+  "ALMACEN": [
+    "ACEITES",
+    "ACETOS Y VINAGRES",
+    "ADEREZOS",
+    "ARROCES",
+    "CONSERVAS",
+    "ENCURTIDOS",
+    "HARINAS Y PREMEZCLAS",
+    "LEGUMBRES SECAS",
+    "PANIFICADOS",
+    "PASTAS SECAS",
+    "PURE Y SALSAS DESHIDRATADAS",
+    "REBOZADORES Y PAN RALLADO",
+    "SAL Y OTROS CONDIMENTOS",
+    "SNACKS",
+    "SOPAS CALDOS Y SABORIZADORES",
+    "VENTA A DEPARTAMENTO"
+  ],
+  "BEBES Y NIÑOS": [
+    "ALIMENTOS INFANTILES",
+    "COLONIAS BEBE",
+    "CREMAS EMULSIONES Y ACEITES",
+    "CUIDADO E HIGIENE DEL CABELLO",
+    "JABON DE TOCADOR BEBE",
+    "OTROS DE BEBES Y NIÑOS",
+    "PAÑALES",
+    "TALCOS Y FECULAS BEBE",
+    "TOALLAS HUMEDAS Y PAÑOS BEBE"
+  ],
+  "BEBIDAS CON ALCOHOL": [
+    "APERITIVOS Y COCTEL",
+    "CERVEZAS",
+    "ESPUMANTES",
+    "LICORES",
+    "OTRAS BEBIDAS",
+    "VINOS",
+    "WHISKY Y DESTILADOS"
+  ],
+  "BEBIDAS SIN ALCOHOL": [
+    "AGUAS",
+    "AMARGOS",
+    "GASEOSAS",
+    "ISOTONICAS Y ENERGIZANTES",
+    "JUGOS"
+  ],
+  "CONGELADOS": [
+    "COMIDAS PREPARADAS CONGELADAS",
+    "CONGELADOS DE CARNE",
+    "CONGELADOS DE PESCADO",
+    "CONGELADOS DE POLLO",
+    "HELADOS/POSTRES",
+    "OTROS CONGELADOS",
+    "VERDURAS Y FRUTAS CONGELADAS"
+  ],
+  "DESAYUNO": [
+    "AZUCAR Y EDULCORANTES",
+    "CACAO",
+    "CAFE",
+    "CEREALES",
+    "DULCES Y MERMELADAS",
+    "GALLETITAS",
+    "GELATINAS FLANES Y PREMEZCLAS",
+    "LECHES",
+    "REPOSTERIA",
+    "TE",
+    "YERBA"
+  ],
+  "KIOSCO": [
+    "ADHESIVOS Y PEGAMENTOS",
+    "APOSITOS",
+    "FILOS",
+    "FOSFOROS Y PALILLOS",
+    "GOLOSINAS Y SNACKS",
+    "ILUMINACION",
+    "PILAS Y BATERIAS",
+    "SNACKS SALUDABLES"
+  ],
+  "LACTEOS": [
+    "CREMA DE LECHE",
+    "LECHE FRESCA",
+    "MANTECA Y MARGARINA",
+    "POSTRES DE NIÑOS",
+    "POSTRES Y FLANES",
+    "QUESOS CREMA Y UNTABLES",
+    "YOGURES"
+  ],
+  "LIMPIEZA": [
+    "ACCESORIOS",
+    "BAZAR",
+    "BOLSAS/ROLLOS",
+    "DESODORANTES/DESODORIZANTES",
+    "DETERGENTES",
+    "ESPONJAS Y OVILLOS DE ACERO",
+    "GUANTES",
+    "INSECTICIDAS Y REPELENTES",
+    "LAVANDINAS",
+    "LIMPIADOR HOGAR Y PEQUEÑAS SUPERFICIES",
+    "LIMPIADOR PISOS Y GRANDES SUPERFICIES",
+    "LIMPIEZA DE ROPA",
+    "OTROS DE LIMPIEZA",
+    "PROD. PARA CALZADOS Y CUEROS",
+    "TEXTIL"
+  ],
+  "MASCOTAS": [
+    "ALIMENTO PARA GATOS",
+    "ALIMENTO PARA PERROS",
+    "OTROS PRODUCTOS PARA MASCOTAS"
+  ],
+  "PAPELES": [
+    "PAÑUELOS",
+    "PAPEL HIGIENICO",
+    "ROLLO DE COCINA",
+    "SERVILLETAS",
+    "OTROS TISSUE"
+  ],
+  "PERFUMERIA": [
+    "ALGODÓN Y OTROS",
+    "COLORACION",
+    "COSMETICA",
+    "CREMAS Y EMULSIONES",
+    "CUIDADO E HIGIENE BUCAL",
+    "CUIDADO E HIGIENE CABELLO",
+    "DESODORANTES",
+    "JABONES",
+    "LINEA DE AFEITAR",
+    "OTROS DE PERFUMERIA",
+    "PAÑALES ADULTOS",
+    "PERFUMES Y COLONIAS",
+    "PROTECCION FEMENINA",
+    "SANITIZANTES",
+    "TALCOS"
+  ],
+  "PRODUCTOS DE FIESTA": [
+    "BUDINES FIESTA",
+    "CONFITURAS FIESTA",
+    "HUEVOS DE PASCUA",
+    "PAN DULCE",
+    "TURRONES FIESTA"
+  ],
+  "PRODUCTOS FRESCOS": [
+    "GRASA",
+    "LEVADURA",
+    "MILANESAS DE SOJA",
+    "PASTAS FRESCAS",
+    "SALCHICHAS DE VIENA",
+    "TAPAS Y PREPIZZAS"
+  ],
+  "SIDRAS": [
+    "SIDRAS"
+  ]
+}
+
+function createSubgrupo(id: string, nombre: string): SubgrupoDef {
+  const seedVal = seeded(id)
+  const base = 5_000_000 + Math.round(seedVal * 35_000_000) // 5M a 40M ARS
+  const articulos = 100 + Math.round(seedVal * 1500)
+  const cmg = 15 + Math.round(seedVal * 25)
+  const rrhh = 5 + seedVal * 5
+  const rdoOp = 5 + seedVal * 15
+  const acciones = 1 + seedVal * 4
+  return sg(id, nombre, base, articulos, cmg, rrhh, rdoOp, acciones)
+}
+
+function parseRealSalon(): CategoriaDef[] {
+  return Object.entries(REAL_SALON_STRUCT).map(([catNombre, grupos]) => {
+    const catId = slugify(catNombre)
+    const formattedCatName = CATEGORY_NAMES_FORMATTED[catNombre] || formatName(catNombre)
+    return {
+      id: catId,
+      nombre: formattedCatName,
+      grupos: grupos.map((gNombre) => {
+        const gId = `${catId}-${slugify(gNombre)}`
+        const formattedGName = formatName(gNombre)
+        return {
+          id: gId,
+          nombre: formattedGName,
+          subgrupos: [
+            createSubgrupo(gId, formattedGName)
+          ]
+        }
+      })
+    }
+  })
+}
+
 export const CATALOGO: SeccionDef[] = [
   {
     id: "salon",
     nombre: "Salón",
-    categorias: [
-      {
-        id: "almacen",
-        nombre: "Almacén",
-        grupos: [
-          {
-            id: "almacen-secos",
-            nombre: "Secos",
-            subgrupos: [
-              sg("fideos-arroz", "Fideos y Arroz", 42_000_000, 1240, 24, 6.5, 11, 3.2),
-              sg("aceites", "Aceites", 28_000_000, 420, 19, 5.8, 8.5, 2.8),
-              sg("conservas", "Conservas", 18_500_000, 980, 26, 6.2, 12, 3.5),
-            ],
-          },
-          {
-            id: "almacen-desayuno",
-            nombre: "Desayuno",
-            subgrupos: [
-              sg("infusiones", "Infusiones", 22_000_000, 560, 28, 6.0, 13, 3.6),
-              sg("galletitas", "Galletitas", 19_000_000, 740, 25, 6.4, 11.5, 3.9),
-            ],
-          },
-        ],
-      },
-      {
-        id: "bebidas",
-        nombre: "Bebidas",
-        grupos: [
-          {
-            id: "bebidas-sin",
-            nombre: "Sin Alcohol",
-            subgrupos: [
-              sg("gaseosas", "Gaseosas", 38_000_000, 320, 18, 5.2, 9, 4.5),
-              sg("aguas-jugos", "Aguas y Jugos", 21_000_000, 410, 21, 5.6, 10.5, 3.8),
-            ],
-          },
-          {
-            id: "bebidas-con",
-            nombre: "Con Alcohol",
-            subgrupos: [
-              sg("vinos", "Vinos", 31_000_000, 690, 27, 5.0, 15, 4.0),
-              sg("cervezas", "Cervezas", 26_000_000, 240, 22, 5.4, 12, 4.2),
-            ],
-          },
-        ],
-      },
-      {
-        id: "perfumeria",
-        nombre: "Perfumería",
-        grupos: [
-          {
-            id: "perfumeria-personal",
-            nombre: "Cuidado Personal",
-            subgrupos: [
-              sg("higiene", "Higiene", 17_000_000, 830, 30, 6.8, 14, 4.8),
-              sg("cosmetica", "Cosmética", 12_500_000, 520, 34, 7.2, 16, 5.5),
-            ],
-          },
-        ],
-      },
-      {
-        id: "limpieza",
-        nombre: "Limpieza",
-        grupos: [
-          {
-            id: "limpieza-hogar",
-            nombre: "Hogar",
-            subgrupos: [
-              sg("lavandina-detergentes", "Lavandina y Detergentes", 20_000_000, 610, 23, 6.0, 11, 4.0),
-              sg("papeleria", "Papelería", 24_000_000, 380, 20, 5.5, 9.5, 3.7),
-            ],
-          },
-        ],
-      },
-      {
-        id: "golosinas",
-        nombre: "Golosinas",
-        grupos: [
-          {
-            id: "golosinas-dulces",
-            nombre: "Dulces",
-            subgrupos: [
-              sg("chocolates", "Chocolates", 14_000_000, 470, 32, 6.5, 15, 5.0),
-              sg("caramelos", "Caramelos", 8_000_000, 350, 29, 6.2, 13.5, 4.6),
-            ],
-          },
-        ],
-      },
-    ],
+    categorias: parseRealSalon(),
   },
   {
     id: "frescos",
@@ -258,7 +418,6 @@ export const CATALOGO: SeccionDef[] = [
           {
             id: "rotiseria-comidas",
             nombre: "Comidas",
-            // Rubro nuevo: recién abre a partir del periodo índice 12 → periodos previos vacíos.
             subgrupos: [sg("comidas-listas", "Comidas Listas", 9_500_000, 55, 33, 10.0, 12, 2.0, 12)],
           },
         ],
@@ -296,15 +455,6 @@ export const PERIODO_ACTUAL = PERIODOS_SELECCIONABLES[PERIODOS_SELECCIONABLES.le
 
 // --- Generador determinístico ---
 
-function seeded(str: string): number {
-  let h = 2166136261
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  // normaliza a [0,1)
-  return ((h >>> 0) % 100000) / 100000
-}
 
 const SEASONAL: Record<number, number> = {
   1: 0.96,
