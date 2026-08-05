@@ -144,12 +144,12 @@ export function CuadroDetallado({
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted">
-              <th className="sticky left-0 z-10 bg-muted px-4 py-2.5 text-left font-semibold text-foreground min-w-[300px] whitespace-nowrap border-r border-border">
+            <tr className="border-b border-border bg-accent text-accent-foreground">
+              <th className="sticky left-0 z-10 bg-accent px-4 py-2.5 text-left font-semibold text-accent-foreground min-w-[300px] whitespace-nowrap border-r border-white/20">
                 Categoría / Grupo / Subgrupo
               </th>
               {COLS.map((c) => (
-                <th key={c} className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-foreground">
+                <th key={c} className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-accent-foreground">
                   {c}
                 </th>
               ))}
@@ -169,18 +169,16 @@ export function CuadroDetallado({
               />
             ))}
             {/* Total general */}
-            <tr className="border-t-2 border-primary bg-primary text-primary-foreground">
-              <td className="sticky left-0 z-10 bg-primary px-4 py-3 font-bold min-w-[300px] whitespace-nowrap border-r border-primary/20">TOTAL GENERAL</td>
-              <td className="px-3 py-3 text-right font-bold tabular-nums">{formatCurrency(cuadro.total.facturacion)}</td>
+            <tr className="border-t-2 border-primary bg-primary text-primary-foreground font-bold">
+              <td className="sticky left-0 z-10 bg-primary px-4 py-3 min-w-[300px] whitespace-nowrap border-r border-white/20">TOTAL GENERAL</td>
+              <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.facturacion)}</td>
               <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
               <td colSpan={2} className="px-3 py-3 text-right tabular-nums">
                 {formatNumber(cuadro.total.articulos)} art.
               </td>
               <td className="px-3 py-3 text-right tabular-nums text-primary-foreground/60">—</td>
               <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.cmg)}</td>
-              <td className="px-3 py-3 text-right font-bold tabular-nums">
-                {formatCurrency(cuadro.total.resultadoOperativo)}
-              </td>
+              <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.resultadoOperativo)}</td>
               <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
               <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.rrhhSobreVentas)}</td>
               <td className="px-3 py-3 text-right tabular-nums">
@@ -190,7 +188,7 @@ export function CuadroDetallado({
               <td className="px-3 py-3 text-right tabular-nums">
                 {formatPercent((cuadro.total.resultadoFinal / cuadro.total.facturacion) * 100)}
               </td>
-              <td className="px-3 py-3 text-right font-bold tabular-nums">
+              <td className="px-3 py-3 text-right tabular-nums">
                 {formatCurrency(cuadro.total.resultadoFinal)}
               </td>
             </tr>
