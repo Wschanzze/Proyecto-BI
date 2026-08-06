@@ -10,50 +10,67 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-  },
+  auth: { persistSession: false },
 })
 
-// Tipos que reflejan el esquema de la base de datos
-export interface DBSeccion {
-  id: string
-  nombre: string
+// ──────────────────────────────────────────────────────────────────────────────
+// Tipos del esquema de base de datos
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface DBSucursal {
+  id: string      // slug sin tilde: 'colon', 'san-martin', ...
+  nombre: string  // con tilde: 'Colón', 'San Martín', ...
   orden: number
 }
 
 export interface DBCategoria {
-  id: string
-  seccion_id: string
-  nombre: string
+  id: string      // 'salon', 'frescos'
+  nombre: string  // 'Salon', 'Frescos'
+  orden: number
+}
+
+export interface DBSector {
+  id: string          // 'salon-almacen'
+  categoria_id: string
+  nombre: string      // 'ALMACEN', 'BEBES Y NIÑOS', ...
   orden: number
 }
 
 export interface DBGrupo {
-  id: string
-  categoria_id: string
-  nombre: string
+  id: string         // 'salon-almacen-aceites'
+  sector_id: string
+  nombre: string     // 'ACEITES', 'ADEREZOS', ...
   orden: number
 }
 
 export interface DBPeriodo {
   id: number
-  key: string
+  key: string         // '2026-06'
   anio: number
   mes: number
+  label: string       // 'jun-26'
   fecha_carga: string
   archivo_nombre: string | null
 }
 
-export interface DBResultadoGrupo {
+/** Resultado crudo tal como viene del archivo — una fila por sucursal × grupo × período */
+export interface DBResultado {
   id: number
   periodo_id: number
+  sucursal_id: string
   grupo_id: string
+  cantidad: number
   facturacion: number
-  articulos: number
-  cmg_pct: number
-  resultado_operativo: number
-  rrhh_pct: number
-  acciones_pct: number
-  resultado_final: number
+  iva: number
+  costo: number
+}
+
+/** Input para insertar/actualizar resultados desde la pantalla de carga */
+export interface ResultadoInput {
+  sucursal_id: string
+  grupo_id: string
+  cantidad: number
+  facturacion: number
+  iva: number
+  costo: number
 }

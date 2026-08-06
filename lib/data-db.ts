@@ -1,11 +1,25 @@
 // ---------------------------------------------------------------------------
 // lib/data-db.ts
 // Capa de acceso a datos reales desde Supabase.
-// Construye el mismo árbol Cuadro que data.ts pero usando datos reales de DB.
-// Si un período no tiene datos en DB, devuelve null (la app usa fallback simulado).
+//
+// Estructura real de DB:   Categoría → Sector → Grupo
+// Estructura app (data.ts): Sección   → Categoría → Grupo → (Subgrupo leaf)
+//
+// Mapeo:
+//   DB.categorias  →  app: SeccionNode  (Salon, Frescos)
+//   DB.sectores    →  app: CategoriaNode (ALMACEN, BEBES Y NIÑOS, ...)
+//   DB.grupos      →  app: GrupoNode con un subgrupo "leaf" de mismo nombre
+//
+// Los resultados se agregan sumando las 5 sucursales.
+// Métricas derivadas calculadas en esta capa:
+//   CMg      = facturacion - costo
+//   CMg%     = CMg / facturacion × 100
+//   Rdo. Operativo = CMg  (RRHH y Acciones → 2da etapa)
+//   Rdo. Final     = CMg  (idem)
 // ---------------------------------------------------------------------------
 
-import { supabase, type DBResultadoGrupo, type DBPeriodo } from './supabase'
+import { supabase } from './supabase'
+import type { DBCategoria, DBSector, DBGrupo, DBPeriodo, DBResultado, ResultadoInput } from './supabase'
 import type {
   Metrics,
   MetricsConDerivados,
@@ -18,14 +32,13 @@ import type {
 } from './data'
 
 // ────────────────────────────────────────────────────────────────────────────
-// Cache en memoria para el catálogo (estructura estática)
-// Se carga una vez y se reutiliza en todas las llamadas
+// Cache del catálogo (estructura estática, se carga una vez)
 // ────────────────────────────────────────────────────────────────────────────
 
 type CatalogoCache = {
-  secciones: { id: string; nombre: string; orden: number }[]
-  categorias: { id: string; seccion_id: string; nombre: string; orden: number }[]
-  grupos: { id: string; categoria_id: string; nombre: string; orden: number }[]
+  categorias: DBCategoria[]
+  sectores: DBSector[]
+  grupos: DBGrupo[]
 } | null
 
 let catalogoCache: CatalogoCache = null
@@ -33,33 +46,32 @@ let catalogoCache: CatalogoCache = null
 async function loadCatalogo(): Promise<NonNullable<CatalogoCache>> {
   if (catalogoCache) return catalogoCache
 
-  const [secRes, catRes, grpRes] = await Promise.all([
-    supabase.from('secciones').select('*').order('orden'),
+  const [catRes, secRes, grpRes] = await Promise.all([
     supabase.from('categorias').select('*').order('orden'),
+    supabase.from('sectores').select('*').order('orden'),
     supabase.from('grupos').select('*').order('orden'),
   ])
 
-  if (secRes.error || catRes.error || grpRes.error) {
+  if (catRes.error || secRes.error || grpRes.error) {
     throw new Error(
-      `Error al cargar catálogo: ${secRes.error?.message ?? catRes.error?.message ?? grpRes.error?.message}`
+      `Error cargando catálogo: ${catRes.error?.message ?? secRes.error?.message ?? grpRes.error?.message}`
     )
   }
 
   catalogoCache = {
-    secciones: secRes.data ?? [],
-    categorias: catRes.data ?? [],
-    grupos: grpRes.data ?? [],
+    categorias: (catRes.data ?? []) as DBCategoria[],
+    sectores: (secRes.data ?? []) as DBSector[],
+    grupos: (grpRes.data ?? []) as DBGrupo[],
   }
   return catalogoCache
 }
 
-// Limpia el cache (útil cuando se carga un nuevo período)
 export function invalidateCatalogoCache() {
   catalogoCache = null
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helpers de métricas (misma lógica que aggregate() en data.ts)
+// Helpers de métricas
 // ────────────────────────────────────────────────────────────────────────────
 
 function emptyMetrics(): Metrics {
@@ -74,19 +86,27 @@ function emptyMetrics(): Metrics {
   }
 }
 
-function metricsFromDB(row: DBResultadoGrupo): Metrics {
+/**
+ * Convierte una fila de DB en Metrics.
+ * CMg = facturacion - costo
+ * Rdo. Operativo = CMg (sin RRHH/Acciones por ahora — 2da etapa)
+ */
+function metricsFromRaw(facturacion: number, costo: number, cantidad: number): Metrics {
+  const cmgMonto = facturacion - costo
+  const cmgPct = facturacion > 0 ? (cmgMonto / facturacion) * 100 : 0
   return {
-    facturacion: Number(row.facturacion),
-    articulos: row.articulos,
-    cmg: Number(row.cmg_pct),
-    resultadoOperativo: Number(row.resultado_operativo),
-    rrhhSobreVentas: Number(row.rrhh_pct),
-    accionesSobreVentas: Number(row.acciones_pct),
-    resultadoFinal: Number(row.resultado_final),
+    facturacion,
+    articulos: cantidad,
+    cmg: cmgPct,
+    resultadoOperativo: cmgMonto,  // Fase 1: sin descontar RRHH
+    rrhhSobreVentas: 0,            // Fase 2
+    accionesSobreVentas: 0,        // Fase 2
+    resultadoFinal: cmgMonto,      // Fase 1: sin descontar Acciones
   }
 }
 
 function aggregate(items: Metrics[]): Metrics {
+  if (!items.length) return emptyMetrics()
   const totalFact = items.reduce((s, m) => s + m.facturacion, 0)
   const acc = items.reduce(
     (a, m) => {
@@ -104,10 +124,10 @@ function aggregate(items: Metrics[]): Metrics {
   return {
     facturacion: acc.facturacion,
     articulos: acc.articulos,
-    cmg: totalFact ? (acc.margenBruto / totalFact) * 100 : 0,
+    cmg: totalFact > 0 ? (acc.margenBruto / totalFact) * 100 : 0,
     resultadoOperativo: acc.resultadoOperativo,
-    rrhhSobreVentas: totalFact ? (acc.rrhhMonto / totalFact) * 100 : 0,
-    accionesSobreVentas: totalFact ? (acc.acciones / totalFact) * 100 : 0,
+    rrhhSobreVentas: totalFact > 0 ? (acc.rrhhMonto / totalFact) * 100 : 0,
+    accionesSobreVentas: totalFact > 0 ? (acc.acciones / totalFact) * 100 : 0,
     resultadoFinal: acc.resultadoFinal,
   }
 }
@@ -121,112 +141,98 @@ function derivar(
 ): MetricsConDerivados {
   return {
     ...metrics,
-    participacionFacturacion: totalFacturacion ? (metrics.facturacion / totalFacturacion) * 100 : 0,
-    participacionResultadoOperativo: totalResultadoOperativo
+    participacionFacturacion: totalFacturacion > 0 ? (metrics.facturacion / totalFacturacion) * 100 : 0,
+    participacionResultadoOperativo: totalResultadoOperativo > 0
       ? (metrics.resultadoOperativo / totalResultadoOperativo) * 100
       : 0,
-    rdoOperativoSobreVentas: metrics.facturacion ? (metrics.resultadoOperativo / metrics.facturacion) * 100 : 0,
-    rdoFinalSobreVentas: metrics.facturacion ? (metrics.resultadoFinal / metrics.facturacion) * 100 : 0,
+    rdoOperativoSobreVentas: metrics.facturacion > 0 ? (metrics.resultadoOperativo / metrics.facturacion) * 100 : 0,
+    rdoFinalSobreVentas: metrics.facturacion > 0 ? (metrics.resultadoFinal / metrics.facturacion) * 100 : 0,
     variacionMesAnterior: factMesAnterior ? ((metrics.facturacion - factMesAnterior) / factMesAnterior) * 100 : null,
     variacionAnioAnterior: factAnioAnterior ? ((metrics.facturacion - factAnioAnterior) / factAnioAnterior) * 100 : null,
   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Función principal: carga el cuadro desde Supabase
-// Devuelve null si no hay datos para ese período
+// Función principal: construye el Cuadro desde Supabase
+// Devuelve null si el período no existe en DB → la app usa datos simulados
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null> {
   try {
-    // 1. Buscar el período en DB
+    // 1. Buscar el período
     const { data: periodoData, error: periodoError } = await supabase
       .from('periodos')
       .select('*')
       .eq('key', periodoKey)
       .single()
 
-    if (periodoError || !periodoData) {
-      // Período no cargado en DB → usar fallback simulado
-      return null
-    }
+    if (periodoError || !periodoData) return null  // → usar simulado
 
     const dbPeriodo = periodoData as DBPeriodo
-
-    // 2. Cargar el catálogo (con cache)
-    const catalogo = await loadCatalogo()
-
-    if (!catalogo.secciones.length || !catalogo.grupos.length) {
-      return null // Catálogo vacío → usar fallback
-    }
-
-    // 3. Cargar los resultados del período
-    const { data: resultados, error: resultError } = await supabase
-      .from('resultados_grupo')
-      .select('*')
-      .eq('periodo_id', dbPeriodo.id)
-
-    if (resultError || !resultados?.length) {
-      return null // Sin datos de resultados → usar fallback
-    }
-
-    const resultadosPorGrupo = new Map<string, DBResultadoGrupo>()
-    for (const r of resultados as DBResultadoGrupo[]) {
-      resultadosPorGrupo.set(r.grupo_id, r)
-    }
-
-    // 4. Cargar períodos anterior y año anterior para variaciones
     const periodo: Periodo = {
       key: dbPeriodo.key,
       anio: dbPeriodo.anio,
       mes: dbPeriodo.mes,
-      index: 0, // no usado en DB path
+      index: 0,
     }
 
-    // Obtener facturación del mes anterior por grupo
-    const prevKey = getPrevKey(periodoKey)
-    const yoyKey = getYoyKey(periodoKey)
+    // 2. Cargar catálogo (con cache)
+    const catalogo = await loadCatalogo()
+    if (!catalogo.categorias.length || !catalogo.grupos.length) return null
 
-    const prevMap = await loadResultadosMap(prevKey)
-    const yoyMap = await loadResultadosMap(yoyKey)
+    // 3. Cargar todos los resultados del período (todas las sucursales)
+    const { data: resultados, error: resError } = await supabase
+      .from('resultados')
+      .select('grupo_id, cantidad, facturacion, iva, costo')
+      .eq('periodo_id', dbPeriodo.id)
 
-    // 5. Construir el árbol
+    if (resError || !resultados?.length) return null
+
+    // 4. Agregar por grupo sumando todas las sucursales
+    const porGrupo = new Map<string, { facturacion: number; costo: number; cantidad: number }>()
+    for (const r of resultados as DBResultado[]) {
+      const prev = porGrupo.get(r.grupo_id) ?? { facturacion: 0, costo: 0, cantidad: 0 }
+      porGrupo.set(r.grupo_id, {
+        facturacion: prev.facturacion + Number(r.facturacion),
+        costo: prev.costo + Number(r.costo),
+        cantidad: prev.cantidad + Number(r.cantidad),
+      })
+    }
+
+    // 5. Cargar facturación mes anterior y año anterior para variaciones
+    const prevMap = await loadFacturacionMap(getPrevKey(periodoKey))
+    const yoyMap  = await loadFacturacionMap(getYoyKey(periodoKey))
+
+    // 6. Primera pasada: totales globales
     let totalFacturacion = 0
     let totalResultadoOperativo = 0
-
-    // Primera pasada: calcular totales
-    for (const sec of catalogo.secciones) {
-      const catsDeSec = catalogo.categorias.filter((c) => c.seccion_id === sec.id)
-      for (const cat of catsDeSec) {
-        const gruposDeCat = catalogo.grupos.filter((g) => g.categoria_id === cat.id)
-        for (const g of gruposDeCat) {
-          const r = resultadosPorGrupo.get(g.id)
-          if (r) {
-            totalFacturacion += Number(r.facturacion)
-            totalResultadoOperativo += Number(r.resultado_operativo)
-          }
-        }
-      }
+    for (const [, v] of porGrupo) {
+      const m = metricsFromRaw(v.facturacion, v.costo, v.cantidad)
+      totalFacturacion += m.facturacion
+      totalResultadoOperativo += m.resultadoOperativo
     }
 
-    // Segunda pasada: construir nodos
-    const secciones: SeccionNode[] = catalogo.secciones
+    // 7. Construir árbol: DB.categorias → SeccionNode
+    const secciones: SeccionNode[] = catalogo.categorias
       .sort((a, b) => a.orden - b.orden)
-      .map((sec) => {
-        const catsDeSec = catalogo.categorias
-          .filter((c) => c.seccion_id === sec.id)
+      .map((cat) => {
+        const sectoresDeCat = catalogo.sectores
+          .filter((s) => s.categoria_id === cat.id)
           .sort((a, b) => a.orden - b.orden)
 
-        const categorias: CategoriaNode[] = catsDeSec.map((cat) => {
-          const gruposDeCat = catalogo.grupos
-            .filter((g) => g.categoria_id === cat.id)
+        // DB.sectores → CategoriaNode
+        const categorias: CategoriaNode[] = sectoresDeCat.map((sec) => {
+          const gruposDeSec = catalogo.grupos
+            .filter((g) => g.sector_id === sec.id)
             .sort((a, b) => a.orden - b.orden)
 
-          const grupos: GrupoNode[] = gruposDeCat.map((g) => {
-            const r = resultadosPorGrupo.get(g.id)
-            const gMetrics = r ? metricsFromDB(r) : emptyMetrics()
+          // DB.grupos → GrupoNode (con un SubgrupoNode leaf del mismo nombre)
+          const grupos: GrupoNode[] = gruposDeSec.map((g) => {
+            const raw = porGrupo.get(g.id)
+            const gMetrics = raw
+              ? metricsFromRaw(raw.facturacion, raw.costo, raw.cantidad)
+              : emptyMetrics()
 
-            // Un grupo en la DB aparece como un "subgrupo" con el mismo nombre
             const subgrupo: SubgrupoNode = {
               id: g.id,
               nombre: g.nombre,
@@ -242,80 +248,78 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
           })
 
           const catMetrics = aggregate(grupos.map((g) => g.metrics))
-          const prevFact = getPrevFactForCat(cat.id, catsDeSec, catalogo.grupos, prevMap)
-          const yoyFact = getPrevFactForCat(cat.id, catsDeSec, catalogo.grupos, yoyMap)
+          const prevFact = sumFactFromMap(sec.id, catalogo.grupos, prevMap)
+          const yoyFact  = sumFactFromMap(sec.id, catalogo.grupos, yoyMap)
 
           return {
-            id: cat.id,
-            nombre: cat.nombre,
-            seccionId: sec.id,
+            id: sec.id,
+            nombre: sec.nombre,
+            seccionId: cat.id,
             metrics: derivar(catMetrics, totalFacturacion, totalResultadoOperativo, prevFact, yoyFact),
             grupos,
           }
         })
 
         const total = aggregate(categorias.map((c) => c.metrics))
-        return { id: sec.id, nombre: sec.nombre, categorias, total }
+        return { id: cat.id, nombre: cat.nombre, categorias, total }
       })
 
     const total = aggregate(secciones.flatMap((s) => s.categorias.map((c) => c.metrics)))
-
     return { periodo, secciones, total }
   } catch (err) {
-    console.warn('[data-db] Error al cargar desde Supabase, usando datos simulados:', err)
+    console.warn('[data-db] Error al leer de Supabase, usando datos simulados:', err)
     return null
   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helpers para variaciones (mes anterior / año anterior)
+// Helpers para variaciones temporales
 // ────────────────────────────────────────────────────────────────────────────
 
-function getPrevKey(key: string): string | null {
+function getPrevKey(key: string): string {
   const [anio, mes] = key.split('-').map(Number)
-  if (mes === 1) return `${anio - 1}-12`
-  return `${anio}-${String(mes - 1).padStart(2, '0')}`
+  return mes === 1 ? `${anio - 1}-12` : `${anio}-${String(mes - 1).padStart(2, '0')}`
 }
 
-function getYoyKey(key: string): string | null {
+function getYoyKey(key: string): string {
   const [anio, mes] = key.split('-').map(Number)
   return `${anio - 1}-${String(mes).padStart(2, '0')}`
 }
 
-async function loadResultadosMap(key: string | null): Promise<Map<string, number>> {
-  if (!key) return new Map()
+/** Carga un mapa grupo_id → facturación_total para un período (sumando sucursales) */
+async function loadFacturacionMap(key: string): Promise<Map<string, number>> {
   const { data: p } = await supabase.from('periodos').select('id').eq('key', key).single()
   if (!p) return new Map()
-  const { data: r } = await supabase.from('resultados_grupo').select('grupo_id, facturacion').eq('periodo_id', p.id)
+  const { data: rows } = await supabase
+    .from('resultados')
+    .select('grupo_id, facturacion')
+    .eq('periodo_id', p.id)
   const map = new Map<string, number>()
-  for (const row of r ?? []) {
-    map.set(row.grupo_id, Number(row.facturacion))
+  for (const row of rows ?? []) {
+    const prev = map.get(row.grupo_id) ?? 0
+    map.set(row.grupo_id, prev + Number(row.facturacion))
   }
   return map
 }
 
-function getPrevFactForCat(
-  catId: string,
-  _cats: { id: string }[],
-  grupos: { id: string; categoria_id: string }[],
-  prevMap: Map<string, number>
+/** Suma la facturación de todos los grupos de un sector desde el mapa */
+function sumFactFromMap(
+  sectorId: string,
+  grupos: DBGrupo[],
+  map: Map<string, number>
 ): number | null {
-  const gruposDeCat = grupos.filter((g) => g.categoria_id === catId)
-  if (!gruposDeCat.length) return null
+  const gruposDeSec = grupos.filter((g) => g.sector_id === sectorId)
   let total = 0
   let found = false
-  for (const g of gruposDeCat) {
-    const f = prevMap.get(g.id)
-    if (f !== undefined) {
-      total += f
-      found = true
-    }
+  for (const g of gruposDeSec) {
+    const f = map.get(g.id)
+    if (f !== undefined) { total += f; found = true }
   }
   return found ? total : null
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Períodos disponibles en DB
+// Períodos disponibles en DB (para el selector de período)
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getPeriodosDB(): Promise<Periodo[]> {
@@ -336,54 +340,42 @@ export async function getPeriodosDB(): Promise<Periodo[]> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Guardar un período y sus resultados en DB
-// Usado desde la pantalla de carga de datos
+// Guardar resultados en DB (desde la pantalla de carga)
 // ────────────────────────────────────────────────────────────────────────────
-
-export interface ResultadoGrupoInput {
-  grupo_id: string
-  facturacion: number
-  articulos: number
-  cmg_pct: number
-  resultado_operativo: number
-  rrhh_pct: number
-  acciones_pct: number
-  resultado_final: number
-}
 
 export async function guardarResultados(
   anio: number,
   mes: number,
+  label: string,         // 'jun-26'
   archivo: string,
-  resultados: ResultadoGrupoInput[]
-): Promise<{ ok: boolean; error?: string }> {
+  filas: ResultadoInput[]
+): Promise<{ ok: boolean; insertados?: number; error?: string }> {
   try {
     const key = `${anio}-${String(mes).padStart(2, '0')}`
 
     // Upsert período
-    const { data: periodoData, error: periodoError } = await supabase
+    const { data: periodoData, error: periodoErr } = await supabase
       .from('periodos')
-      .upsert({ key, anio, mes, archivo_nombre: archivo }, { onConflict: 'key' })
+      .upsert({ key, anio, mes, label, archivo_nombre: archivo }, { onConflict: 'key' })
       .select('id')
       .single()
 
-    if (periodoError || !periodoData) {
-      return { ok: false, error: periodoError?.message ?? 'Error al crear período' }
+    if (periodoErr || !periodoData) {
+      return { ok: false, error: periodoErr?.message ?? 'Error al crear período' }
     }
 
     const periodoId = periodoData.id
 
-    // Insertar / actualizar resultados
-    const rows = resultados.map((r) => ({ ...r, periodo_id: periodoId }))
-    const { error: insertError } = await supabase
-      .from('resultados_grupo')
-      .upsert(rows, { onConflict: 'periodo_id,grupo_id' })
-
-    if (insertError) {
-      return { ok: false, error: insertError.message }
+    // Upsert resultados en lotes de 200
+    for (let i = 0; i < filas.length; i += 200) {
+      const batch = filas.slice(i, i + 200).map((f) => ({ ...f, periodo_id: periodoId }))
+      const { error: insertErr } = await supabase
+        .from('resultados')
+        .upsert(batch, { onConflict: 'periodo_id,sucursal_id,grupo_id' })
+      if (insertErr) return { ok: false, error: `Lote ${i}: ${insertErr.message}` }
     }
 
-    return { ok: true }
+    return { ok: true, insertados: filas.length }
   } catch (err: any) {
     return { ok: false, error: err.message }
   }
