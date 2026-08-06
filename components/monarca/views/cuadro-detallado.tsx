@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react"
 import { ChevronRight, Download, Printer, RefreshCw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { PageHeader, FiltrosSelector } from "@/components/monarca/shared"
+import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/monarca/shared"
 import { getCuadroAsync, type MetricsConDerivados, type CategoriaNode, type GrupoNode, type Cuadro, type Periodo } from "@/lib/data"
 import { formatCurrency, formatNumber, formatPercent, formatSigned, periodoLabel } from "@/lib/format"
 import type { DBSucursal } from "@/lib/supabase"
@@ -131,12 +131,7 @@ export function CuadroDetallado({
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Cargando cuadro detallado...</span>
-      </div>
-    )
+    return <TransitionLoader fullPage />
   }
 
   if (!cuadro) {

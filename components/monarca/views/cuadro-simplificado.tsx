@@ -16,6 +16,7 @@ import {
 import { ChevronRight, RefreshCw, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PageHeader, FiltrosSelector } from "@/components/monarca/shared"
+import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/monarca/shared"
 import { getCuadroAsync } from "@/lib/data"
 import type { Cuadro, Periodo } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
@@ -158,12 +159,7 @@ export function CuadroSimplificado({
   }, [catId, cuadrosPorPeriodo])
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Cargando métricas de evolución...</span>
-      </div>
-    )
+    return <TransitionLoader fullPage />
   }
 
   if (cuadrosPorPeriodo.length === 0 || !activeCuadroNode) {

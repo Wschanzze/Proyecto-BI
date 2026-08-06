@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PageHeader, FiltrosSelector, VariacionBadge } from "@/components/monarca/shared"
+import { PageHeader, FiltrosSelector, VariacionBadge, TransitionLoader } from "@/components/monarca/shared"
 import { getCuadroAsync } from "@/lib/data"
 import type { Cuadro, Periodo } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
@@ -77,12 +77,7 @@ export function DashboardView({
   }, [periodoKey, sucursalId, prevKey])
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Cargando datos de Supabase...</span>
-      </div>
-    )
+    return <TransitionLoader fullPage />
   }
 
   if (!cuadro) {
