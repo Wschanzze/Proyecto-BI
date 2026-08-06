@@ -3,12 +3,13 @@
 // de datos reales (ene-26 a jul-26) repartidos en las 5 sucursales.
 // Ejecutar con: node scripts/run-seed-directly.mjs
 
-import { createClient } from '@supabase/supabase-js'
+import pg from 'pg'
+const { Client } = pg
 
-const SUPABASE_URL = "https://wlaotnafjrvckoxbdokk.supabase.co"
-const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsYW90bmFmanJ2Y2tveGJkb2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjE5ODcsImV4cCI6MjEwMTUzNzk4N30.QarhnOSA9yGi2Mf8UNnSUNSYIkyCQgEAdpBJ0GwtxL0"
-
-const client = createClient(SUPABASE_URL, ANON_KEY)
+const client = new Client({
+  connectionString: "postgresql://postgres.wlaotnafjrvckoxbdokk:CDGMonarc%402026@aws-0-us-east-2.pooler.supabase.com:6543/postgres",
+  ssl: { rejectUnauthorized: false },
+})
 
 const CATEGORIAS = [
   { id: 'salon',   nombre: 'Salon',   orden: 1 },
@@ -200,7 +201,7 @@ const PERIODS_TO_SEED = [
   { key: "2026-07", anio: 2026, mes: 7, label: "jul-26" },
 ]
 
-function seeded(str: string): number {
+function seeded(str) {
   let h = 2166136261
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)
@@ -209,7 +210,7 @@ function seeded(str: string): number {
   return ((h >>> 0) % 100000) / 100000
 }
 
-function generateRawMetricsForGroup(gId: string, sucId: string, monthIdx: number) {
+function generateRawMetricsForGroup(gId, sucId, monthIdx) {
   const seedVal = seeded(`${gId}-${sucId}-${monthIdx}`)
   const facturacion = 2_000_000 + Math.round(seedVal * 13_000_000)
   const cantidad = 100 + Math.round(seedVal * 3000)
@@ -221,73 +222,78 @@ function generateRawMetricsForGroup(gId: string, sucId: string, monthIdx: number
 }
 
 async function runSeed() {
-  console.log("Running direct seed...")
-  
-  // upsert categorias
-  console.log("Upserting categorias...")
-  const { error: e1 } = await client.from('categorias').upsert(CATEGORIAS, { onConflict: 'id' })
-  if (e1) throw e1
-  
-  // upsert sectores
-  console.log("Upserting sectores...")
-  const { error: e2 } = await client.from('sectores').upsert(SECTORES, { onConflict: 'id' })
-  if (e2) throw e2
-  
-  // upsert grupos in batches of 50
-  console.log("Upserting grupos...")
-  for (let i = 0; i < GRUPOS.length; i += 50) {
-    const { error: e3 } = await client.from('grupos').upsert(GRUPOS.slice(i, i + 50), { onConflict: 'id' })
-    if (e3) throw e3
-  }
-  
-  // upsert periodos and resultados
-  console.log("Upserting periodos and generating resultados...")
-  let totalResultados = 0
-  for (let pIdx = 0; pIdx < PERIODS_TO_SEED.length; pIdx++) {
-    const pDef = PERIODS_TO_SEED[pIdx]
-    const { data: pData, error: pErr } = await client
-      .from('periodos')
-      .upsert({
-        key: pDef.key,
-        anio: pDef.anio,
-        mes: pDef.mes,
-        label: pDef.label,
-        archivo_nombre: `seed_${pDef.key}.xlsx`
-      }, { onConflict: 'key' })
-      .select('id')
-      .single()
+  console.log("Running direct seed via pg...")
+  try {
+    await client.connect()
+    console.log("Connected successfully!")
+    
+    // upsert categorias
+    console.log("Upserting categorias...")
+    for (const cat of CATEGORIAS) {
+      await client.query(
+        "INSERT INTO categorias (id, nombre, orden) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, orden = EXCLUDED.orden",
+        [cat.id, cat.nombre, cat.orden]
+      )
+    }
+    
+    // upsert sectores
+    console.log("Upserting sectores...")
+    for (const sec of SECTORES) {
+      await client.query(
+        "INSERT INTO sectores (id, categoria_id, nombre, orden) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET categoria_id = EXCLUDED.categoria_id, nombre = EXCLUDED.nombre, orden = EXCLUDED.orden",
+        [sec.id, sec.categoria_id, sec.nombre, sec.orden]
+      )
+    }
+    
+    // upsert grupos
+    console.log("Upserting grupos...")
+    for (const g of GRUPOS) {
+      await client.query(
+        "INSERT INTO grupos (id, sector_id, nombre, orden) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET sector_id = EXCLUDED.sector_id, nombre = EXCLUDED.nombre, orden = EXCLUDED.orden",
+        [g.id, g.sector_id, g.nombre, g.orden]
+      )
+    }
+    
+    // upsert periodos and resultados
+    console.log("Upserting periodos and generating resultados...")
+    let totalResultados = 0
+    for (let pIdx = 0; pIdx < PERIODS_TO_SEED.length; pIdx++) {
+      const pDef = PERIODS_TO_SEED[pIdx]
       
-    if (pErr || !pData) throw new Error(`Periodo ${pDef.key}: ${pErr?.message}`)
-    const periodoId = pData.id
-    
-    const resRows = []
-    for (const sucId of SUCURSALES) {
-      for (const g of GRUPOS) {
-        const metrics = generateRawMetricsForGroup(g.id, sucId, pIdx)
-        resRows.push({
-          periodo_id: periodoId,
-          sucursal_id: sucId,
-          grupo_id: g.id,
-          cantidad: metrics.cantidad,
-          facturacion: metrics.facturacion,
-          iva: metrics.iva,
-          costo: metrics.costo
-        })
+      const pRes = await client.query(
+        "INSERT INTO periodos (key, anio, mes, label, archivo_nombre) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (key) DO UPDATE SET anio = EXCLUDED.anio, mes = EXCLUDED.mes, label = EXCLUDED.label, archivo_nombre = EXCLUDED.archivo_nombre RETURNING id",
+        [pDef.key, pDef.anio, pDef.mes, pDef.label, `seed_${pDef.key}.xlsx`]
+      )
+      const periodoId = pRes.rows[0].id
+      
+      console.log(`  Seeding results for period ${pDef.key} (ID: ${periodoId})...`)
+      
+      for (const sucId of SUCURSALES) {
+        await client.query("BEGIN")
+        try {
+          for (const g of GRUPOS) {
+            const metrics = generateRawMetricsForGroup(g.id, sucId, pIdx)
+            await client.query(
+              "INSERT INTO resultados (periodo_id, sucursal_id, grupo_id, cantidad, facturacion, iva, costo) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (periodo_id, sucursal_id, grupo_id) DO UPDATE SET cantidad = EXCLUDED.cantidad, facturacion = EXCLUDED.facturacion, iva = EXCLUDED.iva, costo = EXCLUDED.costo",
+              [periodoId, sucId, g.id, metrics.cantidad, metrics.facturacion, metrics.iva, metrics.costo]
+            )
+            totalResultados++
+          }
+          await client.query("COMMIT")
+        } catch (err) {
+          await client.query("ROLLBACK")
+          throw err
+        }
       }
+      console.log(`    OK: results for ${pDef.key} inserted`)
     }
     
-    // insert results in batches of 200
-    for (let k = 0; k < resRows.length; k += 200) {
-      const { error: resErr } = await client
-        .from('resultados')
-        .upsert(resRows.slice(k, k + 200), { onConflict: 'periodo_id,sucursal_id,grupo_id' })
-      if (resErr) throw resErr
-    }
-    totalResultados += resRows.length
-    console.log(`  Seeded ${resRows.length} results for ${pDef.key}`)
+    await client.end()
+    console.log(`\nSeed completed successfully! Total results inserted/updated: ${totalResultados}`)
+  } catch (err) {
+    console.error("Error during seed:", err.message)
+    process.exit(1)
   }
-  
-  console.log(`\nSeed completed! Total results inserted: ${totalResultados}`)
 }
 
-runSeed().catch(console.error)
+runSeed()

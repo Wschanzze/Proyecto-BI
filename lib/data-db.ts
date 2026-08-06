@@ -158,7 +158,7 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
       .from('periodos')
       .select('*')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
     if (periodoError || !periodoData) return null
 
@@ -285,7 +285,7 @@ function getYoyKey(key: string): string {
 }
 
 async function loadFacturacionMap(key: string, sucursalId: string): Promise<Map<string, number>> {
-  const { data: p } = await supabase.from('periodos').select('id').eq('key', key).single()
+  const { data: p } = await supabase.from('periodos').select('id').eq('key', key).maybeSingle()
   if (!p) return new Map()
   
   let query = supabase
