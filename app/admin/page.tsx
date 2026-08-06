@@ -5,12 +5,13 @@ import Link from "next/link"
 import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react"
 import { CargarDatos } from "@/components/monarca/views/cargar-datos"
 import { Documentacion } from "@/components/monarca/views/documentacion"
+import { MetricasAdmin } from "@/components/monarca/views/metricas-admin"
 import { TopBar } from "@/components/monarca/top-bar"
 
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
 
-type AdminTab = "cargar" | "documentacion"
+type AdminTab = "cargar" | "documentacion" | "metricas"
 
 /* ─── PIN gate ─────────────────────────────────────────────────────────── */
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
@@ -165,6 +166,7 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "cargar", label: "Cargar Datos" },
   { id: "documentacion", label: "Documentación" },
+  { id: "metricas", label: "Métricas P&L" },
 ]
 
 function AdminShell() {
@@ -209,6 +211,7 @@ function AdminShell() {
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 md:px-6 md:py-8">
         {tab === "cargar" && <CargarDatos />}
         {tab === "documentacion" && <Documentacion />}
+        {tab === "metricas" && <MetricasAdmin />}
       </main>
 
       <footer className="border-t border-border bg-card py-4">

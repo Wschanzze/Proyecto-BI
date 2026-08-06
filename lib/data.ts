@@ -63,6 +63,56 @@ export interface KPIsComplementarios {
   }
 }
 
+// Métricas configurables del admin
+export interface MetricaConfigurable {
+  id: number
+  categoria: string
+  clave: string
+  nombre: string
+  descripcion: string | null
+  valor: number
+  tipo: 'porcentaje' | 'monto' | 'cantidad'
+  unidad: string
+  activo: boolean
+  sucursal_id: string | null
+  fecha_desde: string
+  fecha_hasta: string | null
+  creado_en: string
+  actualizado_en: string
+  creado_por: string | null
+}
+
+// Configuración consolidada para P&L
+export interface ConfiguracionPL {
+  ratios: {
+    iva: number
+    rrhh: number
+    gastosComerciales: number
+    impuestosOperativos: number
+    gastosGenerales: number
+    ingresosFinancieros: number
+    merma: number
+  }
+  impuestos: {
+    ivaResultado: number
+    iibb: number
+    tuae: number
+  }
+  estimaciones: {
+    cmvSalon: number
+    cmvFrescos: number
+  }
+  kpis: {
+    ticketPromedio: number
+    clientesPorVenta: number
+    metrosTotales: number
+    metrosSalon: number
+    skuTotal: number
+    rotacionPromedio: number
+    stockoutPromedio: number
+  }
+}
+
 export interface MetricsConDerivados extends Metrics {
   participacionFacturacion: number // % sobre facturación total
   participacionResultadoOperativo: number // % sobre resultado operativo total

@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/select"
 import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/monarca/shared"
 import { getCuadroAsync } from "@/lib/data"
-import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios } from "@/lib/data"
+import { getConfiguracionPL } from "@/lib/metricas-admin"
+import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
@@ -46,19 +47,20 @@ function calcularCuadroResultado(
   ventasConIva: number,
   iva: number,
   cmv: number,
-  rrhh: number = 0,
-  gastosComerciales: number = 0,
-  impuestos: number = 0,
-  gastos: number = 0,
-  ingresosFinancieros: number = 0
+  config: ConfiguracionPL
 ): CuadroResultadoLinea {
   const ventasSinIva = ventasConIva - iva
   const contribucionMarginal = ventasSinIva - cmv
+  const rrhh = ventasSinIva * config.ratios.rrhh
+  const gastosComerciales = ventasSinIva * config.ratios.gastosComerciales
   const resultadoOperativo = contribucionMarginal - rrhh - gastosComerciales
-  const merma = ventasSinIva * 0.016 // 1.6%
+  const impuestos = ventasSinIva * config.ratios.impuestosOperativos
+  const gastos = ventasSinIva * config.ratios.gastosGenerales
+  const merma = ventasSinIva * config.ratios.merma
   const resultadoSupermercado = resultadoOperativo - impuestos - gastos - merma
+  const ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
   const resultadoFinal = resultadoSupermercado + ingresosFinancieros
-  const resultadoImpositivo = iva * 0.19 + (ventasSinIva * 0.03) + (ventasSinIva * 0.02) // 19% IVA + 3% IIBB + 2% TUAE
+  const resultadoImpositivo = (iva * config.impuestos.ivaResultado) + (ventasSinIva * config.impuestos.iibb) + (ventasSinIva * config.impuestos.tuae)
   const resultadoTotal = resultadoFinal + resultadoImpositivo
 
   return {
@@ -80,8 +82,8 @@ function calcularCuadroResultado(
     resultadoTotal,
   }
 }
-// Generar KPIs complementarios (simulados por ahora - Fase 2)
-function generarKPIsComplementarios(ventasSinIva: number): KPIsComplementarios {
+// Generar KPIs complementarios usando configuración dinámica
+function generarKPIsComplementarios(ventasSinIva: number, config: ConfiguracionPL): KPIsComplementarios {
   return {
     sucursales: {
       activas: 5,
@@ -89,20 +91,20 @@ function generarKPIsComplementarios(ventasSinIva: number): KPIsComplementarios {
       nuevas: 0,
     },
     clientes: {
-      activos: Math.round(ventasSinIva / 25000), // Estimación basada en ventas
-      nuevos: Math.round(ventasSinIva / 100000),
-      recurrentes: Math.round(ventasSinIva / 30000),
-      ticketPromedio: 2500,
+      activos: Math.round(ventasSinIva / config.kpis.clientesPorVenta),
+      nuevos: Math.round(ventasSinIva / (config.kpis.clientesPorVenta * 4)),
+      recurrentes: Math.round(ventasSinIva / (config.kpis.clientesPorVenta * 1.2)),
+      ticketPromedio: config.kpis.ticketPromedio,
     },
     articulos: {
-      sku: 12500,
-      rotacion: 85,
-      stockout: 2.3,
+      sku: config.kpis.skuTotal,
+      rotacion: config.kpis.rotacionPromedio,
+      stockout: config.kpis.stockoutPromedio,
     },
     metros: {
-      totalSalon: 2800,
-      metrosCuadrados: 3200,
-      facturacionPorMetro: ventasSinIva / 3200,
+      totalSalon: config.kpis.metrosSalon,
+      metrosCuadrados: config.kpis.metrosTotales,
+      facturacionPorMetro: ventasSinIva / config.kpis.metrosTotales,
     },
   }
 }
@@ -174,18 +176,23 @@ export function CuadroSimplificado({
   const [loading, setLoading] = useState(true)
   const [cuadrosPorPeriodo, setCuadrosPorPeriodo] = useState<{ periodo: Periodo; cuadro: Cuadro | null }[]>([])
   const [mostrarKPIs, setMostrarKPIs] = useState(true)
+  const [configuracionPL, setConfiguracionPL] = useState<ConfiguracionPL | null>(null)
 
-  // Cargar datos de todos los períodos
+  // Cargar datos de todos los períodos y configuración
   const loadData = async () => {
     if (periodos.length === 0) return
     setLoading(true)
     try {
-      const results = await Promise.all(
-        periodos.map(async (p) => {
+      // Cargar configuración P&L y datos en paralelo
+      const [config, ...results] = await Promise.all([
+        getConfiguracionPL(sucursalId === '__consolidado__' ? undefined : sucursalId),
+        ...periodos.map(async (p) => {
           const c = await getCuadroAsync(p.key, sucursalId)
           return { periodo: p, cuadro: c }
         })
-      )
+      ])
+      
+      setConfiguracionPL(config)
       setCuadrosPorPeriodo(results)
     } catch (err) {
       console.error("Error al cargar cuadros de resultado:", err)
@@ -198,37 +205,30 @@ export function CuadroSimplificado({
     loadData()
   }, [periodos, sucursalId])
 
-  // Calcular P&L para cada período
+  // Calcular P&L para cada período usando configuración dinámica
   const cuadrosResultado = useMemo(() => {
+    if (!configuracionPL) return []
+    
     return cuadrosPorPeriodo.map(({ periodo, cuadro }) => {
       if (!cuadro) return { periodo, pl: null, kpis: null }
       
-      // Convertir datos actuales a estructura P&L
-      const ventasConIva = cuadro.total.facturacion * 1.21 // Estimación: agregar 21% IVA
+      // Convertir datos actuales a estructura P&L usando configuración dinámica
+      const ventasConIva = cuadro.total.facturacion * (1 + configuracionPL.ratios.iva)
       const iva = ventasConIva - cuadro.total.facturacion
-      const cmv = cuadro.total.costo || (cuadro.total.facturacion * 0.75) // Estimación si no hay costo
-      const rrhh = cuadro.total.facturacion * 0.12 // Estimación 12% RRHH
-      const gastosComerciales = cuadro.total.facturacion * 0.03 // Estimación 3% gastos comerciales
-      const impuestos = cuadro.total.facturacion * 0.02 // Estimación 2% impuestos
-      const gastos = cuadro.total.facturacion * 0.04 // Estimación 4% gastos generales
-      const ingresosFinancieros = cuadro.total.facturacion * 0.005 // Estimación 0.5% ingresos financieros
+      const cmv = cuadro.total.costo || (cuadro.total.facturacion * configuracionPL.estimaciones.cmvSalon)
 
       const pl = calcularCuadroResultado(
         ventasConIva,
         iva,
         cmv,
-        rrhh,
-        gastosComerciales,
-        impuestos,
-        gastos,
-        ingresosFinancieros
+        configuracionPL
       )
 
-      const kpis = generarKPIsComplementarios(pl.ventasSinIva)
+      const kpis = generarKPIsComplementarios(pl.ventasSinIva, configuracionPL)
 
       return { periodo, pl, kpis }
     })
-  }, [cuadrosPorPeriodo])
+  }, [cuadrosPorPeriodo, configuracionPL])
   if (loading) {
     return <TransitionLoader fullPage />
   }
@@ -501,10 +501,11 @@ export function CuadroSimplificado({
             <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="text-xs text-muted-foreground space-y-1">
               <p className="font-medium">Metodología de Cálculo:</p>
-              <p>• Los valores son calculados a partir de los datos base de facturación y costo disponibles.</p>
-              <p>• Las estimaciones de RRHH (12%), Gastos Comerciales (3%) e Impuestos (2%) se basan en ratios estándar del sector retail.</p>
-              <p>• La Merma se calcula como 1.6% de las ventas sin IVA según estándares del modelo.</p>
-              <p>• Los KPIs complementarios son estimaciones basadas en el volumen de ventas (módulos futuros proporcionarán datos reales).</p>
+              <p>• Los valores son calculados usando métricas configurables desde el panel de administración.</p>
+              <p>• Los ratios de RRHH, Gastos, Impuestos y CMV se obtienen de la tabla "metricas_configurables" en Supabase.</p>
+              <p>• La Merma se calcula usando el porcentaje configurado en Admin → Métricas P&L.</p>
+              <p>• Los KPIs complementarios usan valores dinámicos configurables por sucursal.</p>
+              <p>• Para ajustar los ratios, accede a /admin → Métricas P&L (requiere PIN de administrador).</p>
             </div>
           </div>
         </CardContent>

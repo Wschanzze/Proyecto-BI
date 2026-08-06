@@ -1,3 +1,3 @@
-git add lib/supabase.ts lib/data-db.ts lib/data.ts app/api/setup/route.ts app/api/seed/route.ts supabase/migrations/001_initial_schema.sql scripts/
-git commit -m "feat: integrate Supabase client, data-db layer, migrations and seed API routes"
+git add components/monarca/views/dashboard-view.tsx
+git commit -m "fix: import LineChart from recharts in dashboard-view.tsx to avoid ReferenceError"
 git push origin main
