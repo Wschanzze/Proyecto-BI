@@ -47,6 +47,7 @@ export function CargarDatos() {
         period: data.period,
         records: data.records,
         warnings: data.warning,
+        detallesIgnorados: data.detallesIgnorados || [],
       })
       setEstado("guardado")
     } catch (err: any) {
@@ -86,9 +87,21 @@ export function CargarDatos() {
                 Se importaron {infoCarga.records} registros de resultados agrupados por sucursal × grupo.
               </p>
               {infoCarga.warnings && (
-                <div className="mt-4 flex items-start gap-2 rounded bg-warning/10 p-3 text-left text-xs text-warning border border-warning/20">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>{infoCarga.warnings}</span>
+                <div className="mt-4 flex flex-col items-start gap-2 rounded bg-warning/10 p-3 text-left text-xs text-warning border border-warning/20 max-w-lg">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>{infoCarga.warnings}</span>
+                  </div>
+                  {infoCarga.detallesIgnorados && infoCarga.detallesIgnorados.length > 0 && (
+                    <div className="mt-1 w-full text-[11px] text-muted-foreground">
+                      <p className="mb-1 font-medium text-foreground">Muestra de grupos/subgrupos no mapeados:</p>
+                      <ul className="list-disc pl-4 space-y-0.5 max-h-32 overflow-y-auto font-mono">
+                        {infoCarga.detallesIgnorados.map((d, i) => (
+                          <li key={i}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
