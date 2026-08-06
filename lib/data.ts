@@ -18,6 +18,51 @@ export interface Metrics {
   resultadoFinal: number // Resultado Final (monto)
 }
 
+// Nueva estructura extendida para el P&L completo
+export interface CuadroResultadoLinea {
+  ventasConIva: number // Ventas con IVA (dato base)
+  iva: number // IVA (línea independiente)
+  ventasSinIva: number // Ventas sin IVA = Ventas con IVA - IVA
+  cmv: number // Costo de Mercadería Vendida
+  contribucionMarginal: number // = Ventas sin IVA - CMV
+  rrhh: number // Gastos de personal
+  gastosComerciales: number // Gastos comerciales
+  resultadoOperativo: number // = Contribución marginal - RRHH - Gastos comerciales
+  impuestos: number // Impuestos y cargas operativas
+  gastos: number // Gastos operativos generales
+  merma: number // = 1.6% × Ventas sin IVA
+  resultadoSupermercado: number // = Resultado operativo - Impuestos - Gastos - Merma
+  ingresosFinancieros: number // Ingresos financieros
+  resultadoFinal: number // = Resultado supermercado + Ingresos financieros
+  resultadoImpositivo: number // = 19% IVA + IIBB + TUAE
+  resultadoTotal: number // = Resultado final + Resultado impositivo
+}
+
+// KPIs complementarios por período
+export interface KPIsComplementarios {
+  sucursales: {
+    activas: number
+    inactivas: number
+    nuevas: number
+  }
+  clientes: {
+    activos: number
+    nuevos: number
+    recurrentes: number
+    ticketPromedio: number
+  }
+  articulos: {
+    sku: number
+    rotacion: number
+    stockout: number
+  }
+  metros: {
+    totalSalon: number
+    metrosCuadrados: number
+    facturacionPorMetro: number
+  }
+}
+
 export interface MetricsConDerivados extends Metrics {
   participacionFacturacion: number // % sobre facturación total
   participacionResultadoOperativo: number // % sobre resultado operativo total
