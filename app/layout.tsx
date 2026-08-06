@@ -11,21 +11,8 @@ export const metadata: Metadata = {
     'Panel de control de datos de Supermercados Monarca. Carga, visualiza y analiza el cuadro de resultados mensual.',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico',
+    apple: '/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico',
   },
 }
 
