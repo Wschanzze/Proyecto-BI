@@ -39,24 +39,76 @@ export function PageHeader({
 export function PeriodoSelector({
   value,
   onChange,
+  opciones = [],
 }: {
   value: string
   onChange: (v: string) => void
+  opciones?: import("@/lib/data").Periodo[]
 }) {
-  const opciones = [...PERIODOS_SELECCIONABLES].reverse()
+  const finalOpciones = opciones.length > 0 ? opciones : PERIODOS_SELECCIONABLES
+  const reverseOps = [...finalOpciones].reverse()
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-[180px] bg-card">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {opciones.map((p) => (
+        {reverseOps.map((p) => (
           <SelectItem key={p.key} value={p.key}>
             {periodoLabel(p.anio, p.mes)}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+export function FiltrosSelector({
+  periodoKey,
+  onPeriodoChange,
+  sucursalId,
+  onSucursalChange,
+  periodos = [],
+  sucursales = [],
+}: {
+  periodoKey: string
+  onPeriodoChange: (v: string) => void
+  sucursalId: string
+  onSucursalChange: (v: string) => void
+  periodos: import("@/lib/data").Periodo[]
+  sucursales: import("@/lib/supabase").DBSucursal[]
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Selector de Sucursal */}
+      <Select value={sucursalId} onValueChange={onSucursalChange}>
+        <SelectTrigger className="w-[180px] bg-card">
+          <SelectValue placeholder="Sucursal" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__consolidado__">Total Consolidado</SelectItem>
+          {sucursales.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.nombre}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Selector de Período */}
+      <Select value={periodoKey} onValueChange={onPeriodoChange}>
+        <SelectTrigger className="w-[160px] bg-card">
+          <SelectValue placeholder="Período" />
+        </SelectTrigger>
+        <SelectContent>
+          {[...periodos].reverse().map((p) => (
+            <SelectItem key={p.key} value={p.key}>
+              {periodoLabel(p.anio, p.mes)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 

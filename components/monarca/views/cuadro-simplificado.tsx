@@ -1,6 +1,7 @@
+// components/monarca/views/cuadro-simplificado.tsx
 "use client"
 
-import { Fragment, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import {
   Area,
   AreaChart,
@@ -12,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, RefreshCw, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -22,15 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PageHeader, PeriodoSelector, VariacionBadge } from "@/components/monarca/shared"
-import {
-  getCuadro,
-  serieConsolidada,
-  seriePorCategoria,
-  todasLasCategorias,
-  PERIODOS,
-  PERIODOS_SELECCIONABLES,
-} from "@/lib/data"
+import { PageHeader, FiltrosSelector } from "@/components/monarca/shared"
+import { getCuadroAsync } from "@/lib/data"
+import type { Cuadro, Periodo } from "@/lib/data"
+import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -62,15 +58,47 @@ function ChartTooltip({ active, payload, label }: any) {
 export function CuadroSimplificado({
   periodoKey,
   onPeriodoChange,
+  sucursalId,
+  onSucursalChange,
+  periodos,
+  sucursales,
 }: {
   periodoKey: string
   onPeriodoChange: (v: string) => void
+  sucursalId: string
+  onSucursalChange: (v: string) => void
+  periodos: Periodo[]
+  sucursales: DBSucursal[]
 }) {
   const [catId, setCatId] = useState<string>("__consolidado__")
-  const categorias = useMemo(() => todasLasCategorias(), [])
-
+  const [loading, setLoading] = useState(true)
+  const [cuadrosPorPeriodo, setCuadrosPorPeriodo] = useState<{ periodo: Periodo; cuadro: Cuadro | null }[]>([])
+  
   const [expCats, setExpCats] = useState<Set<string>>(new Set())
   const [expGrupos, setExpGrupos] = useState<Set<string>>(new Set())
+
+  // Cargar todos los cuadros en paralelo para la matriz de evolución y los gráficos
+  const loadData = async () => {
+    if (periodos.length === 0) return
+    setLoading(true)
+    try {
+      const results = await Promise.all(
+        periodos.map(async (p) => {
+          const c = await getCuadroAsync(p.key, sucursalId)
+          return { periodo: p, cuadro: c }
+        })
+      )
+      setCuadrosPorPeriodo(results)
+    } catch (err) {
+      console.error("Error al cargar serie de cuadros simplificados:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [periodos, sucursalId])
 
   const toggleCat = (id: string) =>
     setExpCats((prev) => {
@@ -85,34 +113,114 @@ export function CuadroSimplificado({
       return n
     })
 
-  const cuadro = useMemo(() => getCuadro(periodoKey), [periodoKey])
+  // Obtener el cuadro activo para la sección/período actual
+  const activeCuadroNode = useMemo(() => {
+    return cuadrosPorPeriodo.find((x) => x.periodo.key === periodoKey)?.cuadro ?? null
+  }, [periodoKey, cuadrosPorPeriodo])
 
-  const cuadrosPorPeriodo = useMemo(() => {
-    return PERIODOS_SELECCIONABLES.map((p) => ({
-      periodo: p,
-      cuadro: getCuadro(p.key),
-    }))
-  }, [])
+  // Obtener la lista de categorías del catálogo dinámico
+  const categoriasDropdown = useMemo(() => {
+    const firstCuadro = cuadrosPorPeriodo.find((c) => c.cuadro !== null)?.cuadro
+    if (!firstCuadro) return []
+    return firstCuadro.secciones.flatMap((s) =>
+      s.categorias.map((c) => ({ id: c.id, nombre: c.nombre, seccion: s.nombre }))
+    )
+  }, [cuadrosPorPeriodo])
 
-  const prevKey = useMemo(() => {
-    const p = PERIODOS.find((x) => x.key === periodoKey)
-    return p ? PERIODOS.find((x) => x.index === p.index - 1)?.key : undefined
-  }, [periodoKey])
-
+  // Construir la serie del gráfico a partir de los cuadros cargados
   const serie = useMemo(() => {
-    const raw = catId === "__consolidado__" ? serieConsolidada(6) : seriePorCategoria(catId, 6)
-    return raw.map((p) => ({
-      ...p,
-      label: periodoLabelCorto(p.anio, p.mes),
-    }))
-  }, [catId])
+    return cuadrosPorPeriodo.map(({ periodo, cuadro }) => {
+      if (!cuadro) {
+        return {
+          label: periodoLabelCorto(periodo.anio, periodo.mes),
+          facturacion: 0,
+          resultadoOperativo: 0,
+          resultadoFinal: 0,
+        }
+      }
+      if (catId === "__consolidado__") {
+        return {
+          label: periodoLabelCorto(periodo.anio, periodo.mes),
+          facturacion: cuadro.total.facturacion,
+          resultadoOperativo: cuadro.total.resultadoOperativo,
+          resultadoFinal: cuadro.total.resultadoFinal,
+        }
+      } else {
+        const cat = cuadro.secciones.flatMap((s) => s.categorias).find((c) => c.id === catId)
+        return {
+          label: periodoLabelCorto(periodo.anio, periodo.mes),
+          facturacion: cat?.metrics.facturacion ?? 0,
+          resultadoOperativo: cat?.metrics.resultadoOperativo ?? 0,
+          resultadoFinal: cat?.metrics.resultadoFinal ?? 0,
+        }
+      }
+    })
+  }, [catId, cuadrosPorPeriodo])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm text-muted-foreground">Cargando métricas de evolución...</span>
+      </div>
+    )
+  }
+
+  if (cuadrosPorPeriodo.length === 0 || !activeCuadroNode) {
+    return (
+      <div>
+        <PageHeader
+          title="Cuadro Simplificado — Seguimiento Mensual"
+          subtitle="Evolución de facturación y resultados."
+          actions={
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+          }
+        />
+        <Card className="mt-6 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <AlertCircle className="h-6 w-6" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold">Sin datos cargados</h3>
+              <p className="mt-1 text-sm text-muted-foreground max-w-md">
+                No hay registros reales en la base de datos para el período y sucursal seleccionados.
+                Cargá un archivo en la pestaña "Cargar Datos" o ejecutá el Seed inicial.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div>
       <PageHeader
         title="Cuadro Simplificado — Seguimiento Mensual"
-        subtitle={`Evolución de facturación y resultados. Comparación de ${periodoLabel(cuadro.periodo.anio, cuadro.periodo.mes)} vs. mes y año anterior.`}
-        actions={<PeriodoSelector value={periodoKey} onChange={onPeriodoChange} />}
+        subtitle={`Evolución de facturación y resultados. Comparación del histórico de períodos reales.`}
+        actions={
+          <div className="flex items-center gap-2">
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+            <Button onClick={loadData} variant="outline" size="sm" className="gap-2 bg-card h-9">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        }
       />
 
       <div className="mb-6 flex items-center gap-2">
@@ -123,7 +231,7 @@ export function CuadroSimplificado({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__consolidado__">Consolidado (todas)</SelectItem>
-            {categorias.map((c) => (
+            {categoriasDropdown.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.nombre} · {c.seccion}
               </SelectItem>
@@ -171,7 +279,7 @@ export function CuadroSimplificado({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Resultado Operativo vs. Final</CardTitle>
+            <CardTitle className="text-base">Resultado CMg vs. Neto</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
@@ -189,7 +297,7 @@ export function CuadroSimplificado({
                 <Line
                   type="monotone"
                   dataKey="resultadoOperativo"
-                  name="Rdo. Operativo"
+                  name="Resultado CMg"
                   stroke={CHART_ORANGE}
                   strokeWidth={2}
                   dot={false}
@@ -197,7 +305,7 @@ export function CuadroSimplificado({
                 <Line
                   type="monotone"
                   dataKey="resultadoFinal"
-                  name="Rdo. Final"
+                  name="Resultado Neto"
                   stroke={CHART_GREEN}
                   strokeWidth={2}
                   dot={false}
@@ -220,7 +328,7 @@ export function CuadroSimplificado({
               <thead>
                 <tr className="border-b border-border bg-accent text-accent-foreground">
                   <th className="sticky left-0 z-10 bg-accent px-4 py-2.5 text-left font-semibold text-accent-foreground min-w-[300px] whitespace-nowrap border-r border-white/20">
-                    Categoría / Grupo / Subgrupo
+                    Categoría / Sector / Grupo
                   </th>
                   {cuadrosPorPeriodo.map(({ periodo }) => (
                     <th key={periodo.key} className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-accent-foreground">
@@ -230,7 +338,7 @@ export function CuadroSimplificado({
                 </tr>
               </thead>
               <tbody>
-                {cuadro.secciones.map((sec) => (
+                {activeCuadroNode.secciones.map((sec) => (
                   <SimplificadoSeccionRows
                     key={sec.id}
                     seccionNombre={sec.nombre}
@@ -257,13 +365,14 @@ export function CuadroSimplificado({
   )
 }
 
-// --- Componentes auxiliares para la matriz desplegable del margen operativo ---
+// --- Componentes auxiliares para la matriz desplegable ---
 
 function getRdoOpVtasForNode(
-  cuadro: import("@/lib/data").Cuadro,
+  cuadro: Cuadro | null,
   level: "seccion" | "categoria" | "grupo" | "subgrupo" | "total",
   id?: string
 ): number | null {
+  if (!cuadro) return null
   if (level === "total") {
     const m = cuadro.total
     return m.facturacion === 0 ? null : (m.resultadoOperativo / m.facturacion) * 100
@@ -298,15 +407,15 @@ function PeriodCells({
 }: {
   level: "seccion" | "categoria" | "grupo" | "subgrupo" | "total"
   id?: string
-  cuadros: { periodo: import("@/lib/data").Periodo; cuadro: import("@/lib/data").Cuadro }[]
+  cuadros: { periodo: Periodo; cuadro: Cuadro | null }[]
 }) {
   return (
     <>
-      {cuadros.map(({ cuadro }) => {
+      {cuadros.map(({ periodo, cuadro }) => {
         const val = getRdoOpVtasForNode(cuadro, level, id)
         return (
           <td
-            key={cuadro.periodo.key}
+            key={periodo.key}
             className={cn(
               "px-3 py-2 text-right tabular-nums text-xs",
               val === null ? "text-muted-foreground/60" : val >= 0 ? "text-success font-medium" : "text-destructive font-medium"
@@ -332,8 +441,8 @@ function SimplificadoSeccionRows({
 }: {
   seccionNombre: string
   seccionId: string
-  categorias: import("@/lib/data").CategoriaNode[]
-  cuadros: { periodo: import("@/lib/data").Periodo; cuadro: import("@/lib/data").Cuadro }[]
+  categorias: CategoriaNode[]
+  cuadros: { periodo: Periodo; cuadro: Cuadro | null }[]
   expCats: Set<string>
   expGrupos: Set<string>
   toggleCat: (id: string) => void
@@ -377,8 +486,8 @@ function SimplificadoFragmentCat({
   toggleCat,
   toggleGrupo,
 }: {
-  cat: import("@/lib/data").CategoriaNode
-  cuadros: { periodo: import("@/lib/data").Periodo; cuadro: import("@/lib/data").Cuadro }[]
+  cat: CategoriaNode
+  cuadros: { periodo: Periodo; cuadro: Cuadro | null }[]
   abierta: boolean
   expGrupos: Set<string>
   toggleCat: (id: string) => void
@@ -413,8 +522,8 @@ function SimplificadoFragmentGrupo({
   abierto,
   toggleGrupo,
 }: {
-  grupo: import("@/lib/data").GrupoNode
-  cuadros: { periodo: import("@/lib/data").Periodo; cuadro: import("@/lib/data").Cuadro }[]
+  grupo: GrupoNode
+  cuadros: { periodo: Periodo; cuadro: Cuadro | null }[]
   abierto: boolean
   toggleGrupo: (id: string) => void
 }) {

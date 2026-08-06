@@ -10,7 +10,7 @@
 //   DB.sectores    →  app: CategoriaNode (ALMACEN, BEBES Y NIÑOS, ...)
 //   DB.grupos      →  app: GrupoNode con un subgrupo "leaf" de mismo nombre
 //
-// Los resultados se agregan sumando las 5 sucursales.
+// Los resultados se agregan sumando las 5 sucursales (Consolidado) o filtrando por sucursal.
 // Métricas derivadas calculadas en esta capa:
 //   CMg      = facturacion - costo
 //   CMg%     = CMg / facturacion × 100
@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { supabase } from './supabase'
-import type { DBCategoria, DBSector, DBGrupo, DBPeriodo, DBResultado, ResultadoInput } from './supabase'
+import type { DBCategoria, DBSector, DBGrupo, DBPeriodo, DBResultado, DBSucursal } from './supabase'
 import type {
   Metrics,
   MetricsConDerivados,
@@ -32,7 +32,7 @@ import type {
 } from './data'
 
 // ────────────────────────────────────────────────────────────────────────────
-// Cache del catálogo (estructura estática, se carga una vez)
+// Cache del catálogo (se carga una vez)
 // ────────────────────────────────────────────────────────────────────────────
 
 type CatalogoCache = {
@@ -86,11 +86,6 @@ function emptyMetrics(): Metrics {
   }
 }
 
-/**
- * Convierte una fila de DB en Metrics.
- * CMg = facturacion - costo
- * Rdo. Operativo = CMg (sin RRHH/Acciones por ahora — 2da etapa)
- */
 function metricsFromRaw(facturacion: number, costo: number, cantidad: number): Metrics {
   const cmgMonto = facturacion - costo
   const cmgPct = facturacion > 0 ? (cmgMonto / facturacion) * 100 : 0
@@ -98,10 +93,10 @@ function metricsFromRaw(facturacion: number, costo: number, cantidad: number): M
     facturacion,
     articulos: cantidad,
     cmg: cmgPct,
-    resultadoOperativo: cmgMonto,  // Fase 1: sin descontar RRHH
-    rrhhSobreVentas: 0,            // Fase 2
-    accionesSobreVentas: 0,        // Fase 2
-    resultadoFinal: cmgMonto,      // Fase 1: sin descontar Acciones
+    resultadoOperativo: cmgMonto,
+    rrhhSobreVentas: 0,
+    accionesSobreVentas: 0,
+    resultadoFinal: cmgMonto,
   }
 }
 
@@ -153,11 +148,10 @@ function derivar(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Función principal: construye el Cuadro desde Supabase
-// Devuelve null si el período no existe en DB → la app usa datos simulados
+// Función principal: construye el Cuadro desde Supabase (filtrado por sucursal)
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null> {
+export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consolidado__'): Promise<Cuadro | null> {
   try {
     // 1. Buscar el período
     const { data: periodoData, error: periodoError } = await supabase
@@ -166,7 +160,7 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
       .eq('key', periodoKey)
       .single()
 
-    if (periodoError || !periodoData) return null  // → usar simulado
+    if (periodoError || !periodoData) return null
 
     const dbPeriodo = periodoData as DBPeriodo
     const periodo: Periodo = {
@@ -180,15 +174,21 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
     const catalogo = await loadCatalogo()
     if (!catalogo.categorias.length || !catalogo.grupos.length) return null
 
-    // 3. Cargar todos los resultados del período (todas las sucursales)
-    const { data: resultados, error: resError } = await supabase
+    // 3. Cargar resultados filtrados por período y opcionalmente por sucursal
+    let query = supabase
       .from('resultados')
       .select('grupo_id, cantidad, facturacion, iva, costo')
       .eq('periodo_id', dbPeriodo.id)
 
+    if (sucursalId !== '__consolidado__') {
+      query = query.eq('sucursal_id', sucursalId)
+    }
+
+    const { data: resultados, error: resError } = await query
+
     if (resError || !resultados?.length) return null
 
-    // 4. Agregar por grupo sumando todas las sucursales
+    // 4. Agregar por grupo sumando todas las filas coincidentes
     const porGrupo = new Map<string, { facturacion: number; costo: number; cantidad: number }>()
     for (const r of resultados as DBResultado[]) {
       const prev = porGrupo.get(r.grupo_id) ?? { facturacion: 0, costo: 0, cantidad: 0 }
@@ -200,8 +200,8 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
     }
 
     // 5. Cargar facturación mes anterior y año anterior para variaciones
-    const prevMap = await loadFacturacionMap(getPrevKey(periodoKey))
-    const yoyMap  = await loadFacturacionMap(getYoyKey(periodoKey))
+    const prevMap = await loadFacturacionMap(getPrevKey(periodoKey), sucursalId)
+    const yoyMap  = await loadFacturacionMap(getYoyKey(periodoKey), sucursalId)
 
     // 6. Primera pasada: totales globales
     let totalFacturacion = 0
@@ -212,7 +212,7 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
       totalResultadoOperativo += m.resultadoOperativo
     }
 
-    // 7. Construir árbol: DB.categorias → SeccionNode
+    // 7. Construir árbol
     const secciones: SeccionNode[] = catalogo.categorias
       .sort((a, b) => a.orden - b.orden)
       .map((cat) => {
@@ -220,13 +220,11 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
           .filter((s) => s.categoria_id === cat.id)
           .sort((a, b) => a.orden - b.orden)
 
-        // DB.sectores → CategoriaNode
         const categorias: CategoriaNode[] = sectoresDeCat.map((sec) => {
           const gruposDeSec = catalogo.grupos
             .filter((g) => g.sector_id === sec.id)
             .sort((a, b) => a.orden - b.orden)
 
-          // DB.grupos → GrupoNode (con un SubgrupoNode leaf del mismo nombre)
           const grupos: GrupoNode[] = gruposDeSec.map((g) => {
             const raw = porGrupo.get(g.id)
             const gMetrics = raw
@@ -267,7 +265,7 @@ export async function getCuadroFromDB(periodoKey: string): Promise<Cuadro | null
     const total = aggregate(secciones.flatMap((s) => s.categorias.map((c) => c.metrics)))
     return { periodo, secciones, total }
   } catch (err) {
-    console.warn('[data-db] Error al leer de Supabase, usando datos simulados:', err)
+    console.warn('[data-db] Error al leer de Supabase:', err)
     return null
   }
 }
@@ -286,14 +284,20 @@ function getYoyKey(key: string): string {
   return `${anio - 1}-${String(mes).padStart(2, '0')}`
 }
 
-/** Carga un mapa grupo_id → facturación_total para un período (sumando sucursales) */
-async function loadFacturacionMap(key: string): Promise<Map<string, number>> {
+async function loadFacturacionMap(key: string, sucursalId: string): Promise<Map<string, number>> {
   const { data: p } = await supabase.from('periodos').select('id').eq('key', key).single()
   if (!p) return new Map()
-  const { data: rows } = await supabase
+  
+  let query = supabase
     .from('resultados')
     .select('grupo_id, facturacion')
     .eq('periodo_id', p.id)
+
+  if (sucursalId !== '__consolidado__') {
+    query = query.eq('sucursal_id', sucursalId)
+  }
+
+  const { data: rows } = await query
   const map = new Map<string, number>()
   for (const row of rows ?? []) {
     const prev = map.get(row.grupo_id) ?? 0
@@ -302,12 +306,7 @@ async function loadFacturacionMap(key: string): Promise<Map<string, number>> {
   return map
 }
 
-/** Suma la facturación de todos los grupos de un sector desde el mapa */
-function sumFactFromMap(
-  sectorId: string,
-  grupos: DBGrupo[],
-  map: Map<string, number>
-): number | null {
+function sumFactFromMap(sectorId: string, grupos: DBGrupo[], map: Map<string, number>): number | null {
   const gruposDeSec = grupos.filter((g) => g.sector_id === sectorId)
   let total = 0
   let found = false
@@ -319,7 +318,21 @@ function sumFactFromMap(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Períodos disponibles en DB (para el selector de período)
+// Sucursales disponibles
+// ────────────────────────────────────────────────────────────────────────────
+
+export async function getSucursalesDB(): Promise<DBSucursal[]> {
+  const { data, error } = await supabase
+    .from('sucursales')
+    .select('*')
+    .order('orden')
+
+  if (error || !data) return []
+  return data as DBSucursal[]
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Períodos disponibles
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getPeriodosDB(): Promise<Periodo[]> {
@@ -337,46 +350,4 @@ export async function getPeriodosDB(): Promise<Periodo[]> {
     mes: p.mes,
     index: i,
   }))
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Guardar resultados en DB (desde la pantalla de carga)
-// ────────────────────────────────────────────────────────────────────────────
-
-export async function guardarResultados(
-  anio: number,
-  mes: number,
-  label: string,         // 'jun-26'
-  archivo: string,
-  filas: ResultadoInput[]
-): Promise<{ ok: boolean; insertados?: number; error?: string }> {
-  try {
-    const key = `${anio}-${String(mes).padStart(2, '0')}`
-
-    // Upsert período
-    const { data: periodoData, error: periodoErr } = await supabase
-      .from('periodos')
-      .upsert({ key, anio, mes, label, archivo_nombre: archivo }, { onConflict: 'key' })
-      .select('id')
-      .single()
-
-    if (periodoErr || !periodoData) {
-      return { ok: false, error: periodoErr?.message ?? 'Error al crear período' }
-    }
-
-    const periodoId = periodoData.id
-
-    // Upsert resultados en lotes de 200
-    for (let i = 0; i < filas.length; i += 200) {
-      const batch = filas.slice(i, i + 200).map((f) => ({ ...f, periodo_id: periodoId }))
-      const { error: insertErr } = await supabase
-        .from('resultados')
-        .upsert(batch, { onConflict: 'periodo_id,sucursal_id,grupo_id' })
-      if (insertErr) return { ok: false, error: `Lote ${i}: ${insertErr.message}` }
-    }
-
-    return { ok: true, insertados: filas.length }
-  } catch (err: any) {
-    return { ok: false, error: err.message }
-  }
 }

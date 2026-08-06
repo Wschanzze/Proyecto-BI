@@ -1,10 +1,14 @@
-// app/api/seed/route.ts
+// scripts/run-seed-directly.mjs
 // Puebla el catálogo (categorias, sectores, grupos) y genera los últimos 7 meses
 // de datos reales (ene-26 a jul-26) repartidos en las 5 sucursales.
-// POST /api/seed  body: { password: "CDGMonarc@2026" }
+// Ejecutar con: node scripts/run-seed-directly.mjs
 
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+
+const SUPABASE_URL = "https://wlaotnafjrvckoxbdokk.supabase.co"
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsYW90bmFmanJ2Y2tveGJkb2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjE5ODcsImV4cCI6MjEwMTUzNzk4N30.QarhnOSA9yGi2Mf8UNnSUNSYIkyCQgEAdpBJ0GwtxL0"
+
+const client = createClient(SUPABASE_URL, ANON_KEY)
 
 const CATEGORIAS = [
   { id: 'salon',   nombre: 'Salon',   orden: 1 },
@@ -69,7 +73,7 @@ const GRUPOS = [
   { id: 'salon-bca-aperitivos',                       sector_id: 'salon-bebidas-con-alcohol', nombre: 'Aperitivos y Cóctel',           orden: 1  },
   { id: 'salon-bca-cervezas',                         sector_id: 'salon-bebidas-con-alcohol', nombre: 'Cervezas',                      orden: 2  },
   { id: 'salon-bca-espumantes',                       sector_id: 'salon-bebidas-con-alcohol', nombre: 'Espumantes',                    orden: 3  },
-  { id: 'salon-bca-licores',                          sector_id: 'salon-bebidas-con-alcohol', nombre: 'Lores',                        orden: 4  },
+  { id: 'salon-bca-licores',                          sector_id: 'salon-bebidas-con-alcohol', nombre: 'Licores',                       orden: 4  },
   { id: 'salon-bca-otras',                            sector_id: 'salon-bebidas-con-alcohol', nombre: 'Otras Bebidas',                 orden: 5  },
   { id: 'salon-bca-vinos',                            sector_id: 'salon-bebidas-con-alcohol', nombre: 'Vinos',                         orden: 6  },
   { id: 'salon-bca-whisky',                           sector_id: 'salon-bebidas-con-alcohol', nombre: 'Whisky y Destilados',           orden: 7  },
@@ -207,118 +211,83 @@ function seeded(str: string): number {
 
 function generateRawMetricsForGroup(gId: string, sucId: string, monthIdx: number) {
   const seedVal = seeded(`${gId}-${sucId}-${monthIdx}`)
-  // Facturación base para el grupo en esta sucursal (ej: entre 2M y 15M)
   const facturacion = 2_000_000 + Math.round(seedVal * 13_000_000)
   const cantidad = 100 + Math.round(seedVal * 3000)
-  // IVA: 21% de la facturación
   const iva = Math.round(facturacion * 0.21)
-  // Costo (CMV): entre 60% y 80% de la facturación
-  const cmgPct = 0.20 + seedVal * 0.20 // 20% a 40% de contribución marginal
+  const cmgPct = 0.20 + seedVal * 0.20
   const costo = Math.round(facturacion * (1 - cmgPct))
   
-  return {
-    facturacion,
-    cantidad,
-    iva,
-    costo
-  }
+  return { facturacion, cantidad, iva, costo }
 }
 
-export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}))
-  if (body.password !== 'CDGMonarc@2026') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+async function runSeed() {
+  console.log("Running direct seed...")
+  
+  // upsert categorias
+  console.log("Upserting categorias...")
+  const { error: e1 } = await client.from('categorias').upsert(CATEGORIAS, { onConflict: 'id' })
+  if (e1) throw e1
+  
+  // upsert sectores
+  console.log("Upserting sectores...")
+  const { error: e2 } = await client.from('sectores').upsert(SECTORES, { onConflict: 'id' })
+  if (e2) throw e2
+  
+  // upsert grupos in batches of 50
+  console.log("Upserting grupos...")
+  for (let i = 0; i < GRUPOS.length; i += 50) {
+    const { error: e3 } = await client.from('grupos').upsert(GRUPOS.slice(i, i + 50), { onConflict: 'id' })
+    if (e3) throw e3
   }
-
-  const client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  try {
-    // 1. Seed del catálogo estático
-    console.log("Seeding categorias...")
-    const { error: e1 } = await client
-      .from('categorias')
-      .upsert(CATEGORIAS, { onConflict: 'id' })
-    if (e1) throw new Error(`categorias: ${e1.message}`)
-
-    console.log("Seeding sectores...")
-    const { error: e2 } = await client
-      .from('sectores')
-      .upsert(SECTORES, { onConflict: 'id' })
-    if (e2) throw new Error(`sectores: ${e2.message}`)
-
-    console.log("Seeding grupos...")
-    for (let i = 0; i < GRUPOS.length; i += 50) {
-      const { error: e3 } = await client
-        .from('grupos')
-        .upsert(GRUPOS.slice(i, i + 50), { onConflict: 'id' })
-      if (e3) throw new Error(`grupos lote ${i}: ${e3.message}`)
-    }
-
-    // 2. Seed de períodos y resultados para simular historial real
-    console.log("Seeding periodos y resultados...")
-    let totalResultadosInsertados = 0
-
-    for (let pIdx = 0; pIdx < PERIODS_TO_SEED.length; pIdx++) {
-      const pDef = PERIODS_TO_SEED[pIdx]
+  
+  // upsert periodos and resultados
+  console.log("Upserting periodos and generating resultados...")
+  let totalResultados = 0
+  for (let pIdx = 0; pIdx < PERIODS_TO_SEED.length; pIdx++) {
+    const pDef = PERIODS_TO_SEED[pIdx]
+    const { data: pData, error: pErr } = await client
+      .from('periodos')
+      .upsert({
+        key: pDef.key,
+        anio: pDef.anio,
+        mes: pDef.mes,
+        label: pDef.label,
+        archivo_nombre: `seed_${pDef.key}.xlsx`
+      }, { onConflict: 'key' })
+      .select('id')
+      .single()
       
-      // Upsert periodo
-      const { data: pData, error: pErr } = await client
-        .from('periodos')
-        .upsert({
-          key: pDef.key,
-          anio: pDef.anio,
-          mes: pDef.mes,
-          label: pDef.label,
-          archivo_nombre: `seed_${pDef.key}.xlsx`
-        }, { onConflict: 'key' })
-        .select('id')
-        .single()
-
-      if (pErr || !pData) throw new Error(`periodo ${pDef.key}: ${pErr?.message ?? 'No data returned'}`)
-      const periodoId = pData.id
-
-      // Generar filas de resultados: 5 sucursales * 114 grupos = 570 filas por mes
-      const resultadosInput = []
-      for (const sucId of SUCURSALES) {
-        for (const g of GRUPOS) {
-          const metrics = generateRawMetricsForGroup(g.id, sucId, pIdx)
-          resultadosInput.push({
-            periodo_id: periodoId,
-            sucursal_id: sucId,
-            grupo_id: g.id,
-            cantidad: metrics.cantidad,
-            facturacion: metrics.facturacion,
-            iva: metrics.iva,
-            costo: metrics.costo
-          })
-        }
+    if (pErr || !pData) throw new Error(`Periodo ${pDef.key}: ${pErr?.message}`)
+    const periodoId = pData.id
+    
+    const resRows = []
+    for (const sucId of SUCURSALES) {
+      for (const g of GRUPOS) {
+        const metrics = generateRawMetricsForGroup(g.id, sucId, pIdx)
+        resRows.push({
+          periodo_id: periodoId,
+          sucursal_id: sucId,
+          grupo_id: g.id,
+          cantidad: metrics.cantidad,
+          facturacion: metrics.facturacion,
+          iva: metrics.iva,
+          costo: metrics.costo
+        })
       }
-
-      // Insertar por lotes de 200 para evitar límites de carga de Supabase
-      for (let k = 0; k < resultadosInput.length; k += 200) {
-        const batch = resultadosInput.slice(k, k + 200)
-        const { error: resErr } = await client
-          .from('resultados')
-          .upsert(batch, { onConflict: 'periodo_id,sucursal_id,grupo_id' })
-        if (resErr) throw new Error(`resultados periodo ${pDef.key} lote ${k}: ${resErr.message}`)
-      }
-      totalResultadosInsertados += resultadosInput.length
     }
-
-    return NextResponse.json({
-      ok: true,
-      inserted: {
-        categorias: CATEGORIAS.length,
-        sectores: SECTORES.length,
-        grupos: GRUPOS.length,
-        periodos: PERIODS_TO_SEED.length,
-        resultados: totalResultadosInsertados
-      },
-    })
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 })
+    
+    // insert results in batches of 200
+    for (let k = 0; k < resRows.length; k += 200) {
+      const { error: resErr } = await client
+        .from('resultados')
+        .upsert(resRows.slice(k, k + 200), { onConflict: 'periodo_id,sucursal_id,grupo_id' })
+      if (resErr) throw resErr
+    }
+    totalResultados += resRows.length
+    console.log(`  Seeded ${resRows.length} results for ${pDef.key}`)
   }
+  
+  console.log(`\nSeed completed! Total results inserted: ${totalResultados}`)
 }
+
+runSeed().catch(console.error)

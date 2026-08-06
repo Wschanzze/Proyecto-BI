@@ -1,17 +1,21 @@
+// components/monarca/views/dashboard-view.tsx
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import {
   Banknote,
   TrendingUp,
   Wallet,
   Package,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PageHeader, PeriodoSelector, VariacionBadge } from "@/components/monarca/shared"
-import { getCuadro, PERIODOS } from "@/lib/data"
+import { PageHeader, FiltrosSelector, VariacionBadge } from "@/components/monarca/shared"
+import { getCuadroAsync } from "@/lib/data"
+import type { Cuadro, Periodo } from "@/lib/data"
+import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -28,16 +32,93 @@ function kpiVariacion(actual: number, anterior: number | undefined | null): numb
 export function DashboardView({
   periodoKey,
   onPeriodoChange,
+  sucursalId,
+  onSucursalChange,
+  periodos,
+  sucursales,
 }: {
   periodoKey: string
   onPeriodoChange: (v: string) => void
+  sucursalId: string
+  onSucursalChange: (v: string) => void
+  periodos: Periodo[]
+  sucursales: DBSucursal[]
 }) {
-  const cuadro = useMemo(() => getCuadro(periodoKey), [periodoKey])
+  const [cuadro, setCuadro] = useState<Cuadro | null>(null)
+  const [cuadroPrev, setCuadroPrev] = useState<Cuadro | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Obtener clave del período anterior
   const prevKey = useMemo(() => {
-    const p = PERIODOS.find((x) => x.key === periodoKey)
-    return p ? PERIODOS.find((x) => x.index === p.index - 1)?.key : undefined
-  }, [periodoKey])
-  const cuadroPrev = useMemo(() => (prevKey ? getCuadro(prevKey) : null), [prevKey])
+    if (periodos.length === 0) return undefined
+    const idx = periodos.findIndex((p) => p.key === periodoKey)
+    return idx > 0 ? periodos[idx - 1].key : undefined
+  }, [periodoKey, periodos])
+
+  // Carga asíncrona de datos desde Supabase
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [c, cp] = await Promise.all([
+        getCuadroAsync(periodoKey, sucursalId),
+        prevKey ? getCuadroAsync(prevKey, sucursalId) : Promise.resolve(null),
+      ])
+      setCuadro(c)
+      setCuadroPrev(cp)
+    } catch (err) {
+      console.error("Error al cargar datos del Dashboard:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [periodoKey, sucursalId, prevKey])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm text-muted-foreground">Cargando datos de Supabase...</span>
+      </div>
+    )
+  }
+
+  if (!cuadro) {
+    return (
+      <div>
+        <PageHeader
+          title="Dashboard de Gestión"
+          subtitle="Monitoreo de facturación, rentabilidad y variaciones."
+          actions={
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+          }
+        />
+        <Card className="mt-6 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <AlertCircle className="h-6 w-6" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold">Sin datos cargados</h3>
+              <p className="mt-1 text-sm text-muted-foreground max-w-md">
+                No hay registros reales en la base de datos para el período y sucursal seleccionados.
+                Cargá un archivo en la pestaña "Cargar Datos" o ejecutá el Seed inicial.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const { total } = cuadro
   const totalPrev = cuadroPrev?.total
@@ -54,47 +135,50 @@ export function DashboardView({
       value: formatCurrency(total.resultadoOperativo),
       icon: TrendingUp,
       variacion: kpiVariacion(total.resultadoOperativo, totalPrev?.resultadoOperativo),
-      sub: `${formatPercent((total.resultadoOperativo / total.facturacion) * 100)} s/ventas`,
+      sub: `${formatPercent(total.facturacion > 0 ? (total.resultadoOperativo / total.facturacion) * 100 : 0)} s/ventas`,
     },
     {
       label: "Resultado Final",
       value: formatCurrency(total.resultadoFinal),
       icon: Wallet,
       variacion: kpiVariacion(total.resultadoFinal, totalPrev?.resultadoFinal),
-      sub: `${formatPercent((total.resultadoFinal / total.facturacion) * 100)} s/ventas`,
+      sub: `${formatPercent(total.facturacion > 0 ? (total.resultadoFinal / total.facturacion) * 100 : 0)} s/ventas`,
     },
     {
-      label: "Artículos",
+      label: "Cantidad Vendida",
       value: formatNumber(total.articulos),
       icon: Package,
       variacion: null,
-      sub: "SKUs activos",
+      sub: "Unidades totales",
     },
   ]
 
   // Ranking de categorías por facturación
-  const categorias = useMemo(
-    () =>
-      cuadro.secciones
-        .flatMap((s) => s.categorias.map((c) => ({ ...c, seccion: s.nombre })))
-        .sort((a, b) => b.metrics.facturacion - a.metrics.facturacion),
-    [cuadro],
-  )
+  const categorias = cuadro.secciones
+    .flatMap((s) => s.categorias.map((c) => ({ ...c, seccion: s.nombre })))
+    .sort((a, b) => b.metrics.facturacion - a.metrics.facturacion)
+
   const maxFact = categorias[0]?.metrics.facturacion ?? 1
 
   return (
     <div>
       <PageHeader
-        title="Disponibilidad de Datos"
-        subtitle={`Resumen del cuadro de resultados de ${periodoLabel(cuadro.periodo.anio, cuadro.periodo.mes)}. Monitorea facturación, rentabilidad y variaciones del período.`}
+        title="Dashboard de Gestión"
+        subtitle={`Resumen de resultados para el período de ${periodoLabel(cuadro.periodo.anio, cuadro.periodo.mes)}. Filtrado por sucursal.`}
         actions={
-          <>
-            <PeriodoSelector value={periodoKey} onChange={onPeriodoChange} />
-            <Button variant="outline" size="sm" className="gap-2 bg-card">
+          <div className="flex items-center gap-2">
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+            <Button onClick={loadData} variant="outline" size="sm" className="gap-2 bg-card h-9">
               <RefreshCw className="h-4 w-4" />
-              Actualizar
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -130,7 +214,7 @@ export function DashboardView({
           </CardHeader>
           <CardContent className="space-y-4">
             {cuadro.secciones.map((sec) => {
-              const pct = (sec.total.facturacion / total.facturacion) * 100
+              const pct = total.facturacion > 0 ? (sec.total.facturacion / total.facturacion) * 100 : 0
               return (
                 <div key={sec.id}>
                   <div className="mb-1.5 flex items-center justify-between text-sm">
@@ -144,7 +228,7 @@ export function DashboardView({
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatPercent(pct)} de la facturación</span>
-                    <span>Rdo. final {formatCurrencyCompact(sec.total.resultadoFinal)}</span>
+                    <span>CMg {formatCurrencyCompact(sec.total.resultadoFinal)}</span>
                   </div>
                 </div>
               )
@@ -155,7 +239,7 @@ export function DashboardView({
         {/* Ranking categorías */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Facturación por Categoría</CardTitle>
+            <CardTitle className="text-base">Facturación por Sector</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {categorias.map((cat) => (

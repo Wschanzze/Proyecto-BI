@@ -1,27 +1,23 @@
+// components/monarca/views/cuadro-detallado.tsx
 "use client"
 
-import { useMemo, useState } from "react"
-import { ChevronRight, Download, Printer } from "lucide-react"
+import { useEffect, useState, useMemo } from "react"
+import { ChevronRight, Download, Printer, RefreshCw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PageHeader, PeriodoSelector } from "@/components/monarca/shared"
-import { getCuadro, type MetricsConDerivados, type CategoriaNode, type GrupoNode } from "@/lib/data"
+import { PageHeader, FiltrosSelector } from "@/components/monarca/shared"
+import { getCuadroAsync, type MetricsConDerivados, type CategoriaNode, type GrupoNode, type Cuadro, type Periodo } from "@/lib/data"
 import { formatCurrency, formatNumber, formatPercent, formatSigned, periodoLabel } from "@/lib/format"
+import type { DBSucursal } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 
 const COLS = [
   "Facturación s/IVA",
   "Part. Fact.",
   "Var. m.a.",
-  "Artículos",
+  "Cantidad",
   "Var. a.a.",
-  "CMg",
-  "Rdo. Op. $",
-  "Part. Rdo. Op.",
-  "RRHH/Vtas",
-  "Rdo.Op/Vtas",
-  "Acc./Vtas",
-  "Rdo.Fin/Vtas",
-  "Resultado Final",
+  "CMg %",
+  "Resultado CMg $",
 ]
 
 function varClass(v: number | null | undefined) {
@@ -29,7 +25,6 @@ function varClass(v: number | null | undefined) {
   return v >= 0 ? "text-success" : "text-destructive"
 }
 
-// Celdas de métricas reutilizadas en cada nivel.
 function MetricCells({ m }: { m: MetricsConDerivados }) {
   const vacia = m.facturacion === 0
   if (vacia) {
@@ -55,16 +50,6 @@ function MetricCells({ m }: { m: MetricsConDerivados }) {
         {m.variacionAnioAnterior === null ? "—" : formatSigned(m.variacionAnioAnterior)}
       </td>
       <td className="px-3 py-2 text-right tabular-nums">{formatPercent(m.cmg)}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(m.resultadoOperativo)}</td>
-      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-        {formatPercent(m.participacionResultadoOperativo)}
-      </td>
-      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatPercent(m.rrhhSobreVentas)}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{formatPercent(m.rdoOperativoSobreVentas)}</td>
-      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatPercent(m.accionesSobreVentas)}</td>
-      <td className={cn("px-3 py-2 text-right tabular-nums", varClass(m.rdoFinalSobreVentas))}>
-        {formatPercent(m.rdoFinalSobreVentas)}
-      </td>
       <td className={cn("px-3 py-2 text-right font-semibold tabular-nums", varClass(m.resultadoFinal))}>
         {formatCurrency(m.resultadoFinal)}
       </td>
@@ -75,13 +60,38 @@ function MetricCells({ m }: { m: MetricsConDerivados }) {
 export function CuadroDetallado({
   periodoKey,
   onPeriodoChange,
+  sucursalId,
+  onSucursalChange,
+  periodos,
+  sucursales,
 }: {
   periodoKey: string
   onPeriodoChange: (v: string) => void
+  sucursalId: string
+  onSucursalChange: (v: string) => void
+  periodos: Periodo[]
+  sucursales: DBSucursal[]
 }) {
-  const cuadro = useMemo(() => getCuadro(periodoKey), [periodoKey])
+  const [cuadro, setCuadro] = useState<Cuadro | null>(null)
+  const [loading, setLoading] = useState(true)
   const [expCats, setExpCats] = useState<Set<string>>(new Set())
   const [expGrupos, setExpGrupos] = useState<Set<string>>(new Set())
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const c = await getCuadroAsync(periodoKey, sucursalId)
+      setCuadro(c)
+    } catch (err) {
+      console.error("Error al cargar datos detallados:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [periodoKey, sucursalId])
 
   const toggleCat = (id: string) =>
     setExpCats((prev) => {
@@ -97,47 +107,94 @@ export function CuadroDetallado({
     })
 
   const exportarCSV = () => {
-    const header = ["Nivel", "Sección", "Nombre", ...COLS]
+    if (!cuadro) return
+    const header = ["Nivel", "Nombre", ...COLS]
     const rows: string[][] = [header]
     for (const sec of cuadro.secciones) {
       for (const cat of sec.categorias) {
-        rows.push(metricRow("Categoría", sec.nombre, cat.nombre, cat.metrics))
+        rows.push(metricRow("Sector", cat.nombre, cat.metrics))
         for (const g of cat.grupos) {
-          rows.push(metricRow("Grupo", sec.nombre, `  ${g.nombre}`, g.metrics))
-          for (const s of g.subgrupos) {
-            rows.push(metricRow("Subgrupo", sec.nombre, `    ${s.nombre}`, s.metrics))
-          }
+          rows.push(metricRow("Grupo", `  ${g.nombre}`, g.metrics))
         }
       }
-      rows.push(["Total Sección", sec.nombre, `Ganancia ${sec.nombre}`, ...totalCells(sec.total)])
+      rows.push(["Total Categoría", `Ganancia ${sec.nombre}`, ...totalCells(sec.total)])
     }
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(";")).join("\n")
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `cuadro-detallado-${periodoKey}.csv`
+    a.download = `cuadro-detallado-${periodoKey}-${sucursalId}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-2">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm text-muted-foreground">Cargando cuadro detallado...</span>
+      </div>
+    )
+  }
+
+  if (!cuadro) {
+    return (
+      <div>
+        <PageHeader
+          title="Cuadro de Resultados — Detallado"
+          subtitle="Desglose por categoría, sector y grupo financiero."
+          actions={
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+          }
+        />
+        <Card className="mt-6 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <AlertCircle className="h-6 w-6" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold">Sin datos cargados</h3>
+              <p className="mt-1 text-sm text-muted-foreground max-w-md">
+                No hay registros reales en la base de datos para el período y sucursal seleccionados.
+                Cargá un archivo en la pestaña "Cargar Datos" o ejecutá el Seed inicial.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div>
       <PageHeader
         title="Cuadro de Resultados — Detallado"
-        subtitle={`Réplica completa del cuadro de ${periodoLabel(cuadro.periodo.anio, cuadro.periodo.mes)}. Expandí cada categoría para ver grupos y subgrupos.`}
+        subtitle={`Réplica del cuadro de resultados de ${periodoLabel(cuadro.periodo.anio, cuadro.periodo.mes)}. Desglosá para analizar sectores y grupos.`}
         actions={
-          <>
-            <PeriodoSelector value={periodoKey} onChange={onPeriodoChange} />
-            <Button variant="outline" size="sm" className="gap-2 bg-card" onClick={exportarCSV}>
+          <div className="flex flex-wrap items-center gap-2">
+            <FiltrosSelector
+              periodoKey={periodoKey}
+              onPeriodoChange={onPeriodoChange}
+              sucursalId={sucursalId}
+              onSucursalChange={onSucursalChange}
+              periodos={periodos}
+              sucursales={sucursales}
+            />
+            <Button variant="outline" size="sm" className="gap-2 bg-card h-9" onClick={exportarCSV}>
               <Download className="h-4 w-4" />
-              CSV
             </Button>
-            <Button variant="outline" size="sm" className="gap-2 bg-card" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="gap-2 bg-card h-9" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
-              PDF
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -146,7 +203,7 @@ export function CuadroDetallado({
           <thead>
             <tr className="border-b border-border bg-accent text-accent-foreground">
               <th className="sticky left-0 z-10 bg-accent px-4 py-2.5 text-left font-semibold text-accent-foreground min-w-[300px] whitespace-nowrap border-r border-white/20">
-                Categoría / Grupo / Subgrupo
+                Categoría / Sector / Grupo
               </th>
               {COLS.map((c) => (
                 <th key={c} className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-accent-foreground">
@@ -173,21 +230,12 @@ export function CuadroDetallado({
               <td className="sticky left-0 z-10 bg-primary px-4 py-3 min-w-[300px] whitespace-nowrap border-r border-white/20">TOTAL GENERAL</td>
               <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.facturacion)}</td>
               <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
-              <td colSpan={2} className="px-3 py-3 text-right tabular-nums">
-                {formatNumber(cuadro.total.articulos)} art.
+              <td className="px-3 py-3 text-right tabular-nums text-primary-foreground/60">—</td>
+              <td className="px-3 py-3 text-right tabular-nums">
+                {formatNumber(cuadro.total.articulos)}
               </td>
               <td className="px-3 py-3 text-right tabular-nums text-primary-foreground/60">—</td>
               <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.cmg)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.resultadoOperativo)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
-              <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.rrhhSobreVentas)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">
-                {formatPercent((cuadro.total.resultadoOperativo / cuadro.total.facturacion) * 100)}
-              </td>
-              <td className="px-3 py-3 text-right tabular-nums">{formatPercent(cuadro.total.accionesSobreVentas)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">
-                {formatPercent((cuadro.total.resultadoFinal / cuadro.total.facturacion) * 100)}
-              </td>
               <td className="px-3 py-3 text-right tabular-nums">
                 {formatCurrency(cuadro.total.resultadoFinal)}
               </td>
@@ -195,10 +243,6 @@ export function CuadroDetallado({
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Las celdas con “—” corresponden a rubros sin datos en el período (ej. rubros nuevos o sin todos los indicadores
-        calculados). El parser tolera estos casos sin afectar los totales.
-      </p>
     </div>
   )
 }
@@ -223,7 +267,7 @@ function SeccionRows({
   return (
     <>
       <tr className="border-b border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--secondary) 70%, var(--card))' }}>
-        <td colSpan={14} className="sticky left-0 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary border-r border-border/10" style={{ backgroundColor: 'color-mix(in srgb, var(--secondary) 70%, var(--card))' }}>
+        <td colSpan={COLS.length + 1} className="sticky left-0 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary border-r border-border/10" style={{ backgroundColor: 'color-mix(in srgb, var(--secondary) 70%, var(--card))' }}>
           {seccionNombre}
         </td>
       </tr>
@@ -243,9 +287,8 @@ function SeccionRows({
       <tr className="border-b border-border font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
         <td className="sticky left-0 z-10 px-4 py-2.5 text-primary min-w-[300px] whitespace-nowrap border-r border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>Ganancia {seccionNombre}</td>
         <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.facturacion)}</td>
-        <td colSpan={5} />
-        <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.resultadoOperativo)}</td>
-        <td colSpan={5} />
+        <td colSpan={4} />
+        <td className="px-3 py-2.5 text-right tabular-nums">{formatPercent(total.cmg)}</td>
         <td className={cn("px-3 py-2.5 text-right tabular-nums", varClass(total.resultadoFinal))}>
           {formatCurrency(total.resultadoFinal)}
         </td>
@@ -329,10 +372,10 @@ function FragmentGrupo({
   )
 }
 
-// --- helpers para CSV ---
-function metricRow(nivel: string, seccion: string, nombre: string, m: MetricsConDerivados): string[] {
-  return [nivel, seccion, nombre, ...totalCells(m)]
+function metricRow(nivel: string, nombre: string, m: MetricsConDerivados): string[] {
+  return [nivel, nombre, ...totalCells(m)]
 }
+
 function totalCells(m: import("@/lib/data").Metrics | MetricsConDerivados): string[] {
   const d = m as MetricsConDerivados
   return [
@@ -342,12 +385,6 @@ function totalCells(m: import("@/lib/data").Metrics | MetricsConDerivados): stri
     String(m.articulos),
     d.variacionAnioAnterior != null ? formatSigned(d.variacionAnioAnterior) : "",
     formatPercent(m.cmg),
-    String(Math.round(m.resultadoOperativo)),
-    d.participacionResultadoOperativo !== undefined ? formatPercent(d.participacionResultadoOperativo) : "",
-    formatPercent(m.rrhhSobreVentas),
-    d.rdoOperativoSobreVentas !== undefined ? formatPercent(d.rdoOperativoSobreVentas) : "",
-    formatPercent(m.accionesSobreVentas),
-    d.rdoFinalSobreVentas !== undefined ? formatPercent(d.rdoFinalSobreVentas) : "",
     String(Math.round(m.resultadoFinal)),
   ]
 }

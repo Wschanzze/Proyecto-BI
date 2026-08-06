@@ -669,17 +669,15 @@ export function getCuadro(periodoKey: string): Cuadro {
   return { periodo, secciones, total }
 }
 
-// Versión ASÍNCRONA: intenta leer de Supabase y cae a simulado si no hay datos.
-export async function getCuadroAsync(periodoKey: string): Promise<Cuadro> {
+// Versión ASÍNCRONA: lee exclusivamente de Supabase. Devuelve null si no hay datos.
+export async function getCuadroAsync(periodoKey: string, sucursalId = '__consolidado__'): Promise<Cuadro | null> {
   try {
-    // Importación dinámica para evitar errores si Supabase no está configurado
     const { getCuadroFromDB } = await import('./data-db')
-    const fromDB = await getCuadroFromDB(periodoKey)
-    if (fromDB) return fromDB
-  } catch {
-    // Supabase no disponible o sin datos → usar simulado
+    return await getCuadroFromDB(periodoKey, sucursalId)
+  } catch (err) {
+    console.error('[data] Error al cargar de Supabase:', err)
+    return null
   }
-  return getCuadro(periodoKey)
 }
 
 // Serie histórica de una métrica consolidada (para gráficos de evolución).
