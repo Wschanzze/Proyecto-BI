@@ -179,7 +179,7 @@ export function DashboardView({
       if (!c) return null
       return {
         key: p.key,
-        label: p.label.toUpperCase(),
+        label: (p.label || p.key).toUpperCase(),
         facturacion: c.total.facturacion,
         costo: c.total.costo,
         cmg: c.total.resultadoFinal,

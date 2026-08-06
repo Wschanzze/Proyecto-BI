@@ -349,16 +349,17 @@ export async function getSucursalesDB(): Promise<DBSucursal[]> {
 export async function getPeriodosDB(): Promise<Periodo[]> {
   const { data, error } = await supabase
     .from('periodos')
-    .select('key, anio, mes')
+    .select('key, anio, mes, label')
     .order('anio')
     .order('mes')
 
   if (error || !data?.length) return []
 
-  return (data as { key: string; anio: number; mes: number }[]).map((p, i) => ({
+  return (data as { key: string; anio: number; mes: number; label: string }[]).map((p, i) => ({
     key: p.key,
     anio: p.anio,
     mes: p.mes,
+    label: p.label,
     index: i,
   }))
 }
