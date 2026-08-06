@@ -16,27 +16,87 @@ function slugify(text: string): string {
     .replace(/(^-|-$)+/g, "")
 }
 
-function parseMesColumn(mesStr: string): { key: string; anio: number; mes: number; label: string } {
-  // Formato esperado: "ene-25", "jun-26", etc.
-  const parts = mesStr.toLowerCase().split('-')
-  if (parts.length !== 2) throw new Error(`Formato de mes inválido: ${mesStr}`)
-  
-  const mesLabel = parts[0].trim()
-  const anioShort = parseInt(parts[1].trim(), 10)
-  if (isNaN(anioShort)) throw new Error(`Año inválido: ${parts[1]}`)
-  const anio = 2000 + anioShort
-
-  const mesesMap: Record<string, number> = {
-    ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6,
-    jul: 7, ago: 8, sep: 9, oct: 10, nov: 11, dic: 12,
-    jan: 1, apr: 4, aug: 8, dec: 12 // Fallbacks comunes en inglés
+function getRowVal(row: Record<string, any>, keys: string[]): any {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null) return row[k]
   }
-  
-  const mes = mesesMap[mesLabel]
-  if (!mes) throw new Error(`Mes no reconocido: ${mesLabel}`)
-  
+  for (const k of keys) {
+    const lowerKey = k.toLowerCase().trim()
+    for (const actualKey of Object.keys(row)) {
+      if (actualKey.toLowerCase().trim() === lowerKey && row[actualKey] !== undefined && row[actualKey] !== null) {
+        return row[actualKey]
+      }
+    }
+  }
+  return undefined
+}
+
+function parseMesColumn(val: any): { key: string; anio: number; mes: number; label: string } {
+  if (val === null || val === undefined) throw new Error("Valor de mes nulo")
+
+  let mes: number | null = null
+  let anio: number | null = null
+
+  // 1. Si es un número (Excel date serial code)
+  if (typeof val === 'number') {
+    const dateObj = XLSX.SSF.parse_date_code(val)
+    if (dateObj) {
+      mes = dateObj.m
+      anio = dateObj.y
+    }
+  }
+  // 2. Si es una instancia de Date
+  else if (val instanceof Date && !isNaN(val.getTime())) {
+    mes = val.getUTCMonth() + 1
+    anio = val.getUTCFullYear()
+  }
+  // 3. Si es un string
+  else {
+    const str = String(val).trim()
+
+    // 3a. Formato DD/MM/YYYY o DD-MM-YYYY (ej: "01/06/2026", "1/5/2026", "01/01/2025")
+    const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
+    if (ddmmyyyy) {
+      mes = parseInt(ddmmyyyy[2], 10)
+      const rawAnio = parseInt(ddmmyyyy[3], 10)
+      anio = rawAnio < 100 ? 2000 + rawAnio : rawAnio
+    } 
+    // 3b. Formato YYYY-MM-DD
+    else {
+      const yyyymmdd = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/)
+      if (yyyymmdd) {
+        anio = parseInt(yyyymmdd[1], 10)
+        mes = parseInt(yyyymmdd[2], 10)
+      } 
+      // 3c. Formato mmm-yy (ej: "jun-26", "ene-25")
+      else {
+        const parts = str.toLowerCase().split(/[\/\-]/)
+        if (parts.length === 2) {
+          const mesLabel = parts[0].trim()
+          const anioShort = parseInt(parts[1].trim(), 10)
+          if (!isNaN(anioShort)) {
+            anio = 2000 + anioShort
+            const mesesMap: Record<string, number> = {
+              ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6,
+              jul: 7, ago: 8, sep: 9, oct: 10, nov: 11, dic: 12,
+              jan: 1, apr: 4, aug: 8, dec: 12
+            }
+            mes = mesesMap[mesLabel] || null
+          }
+        }
+      }
+    }
+  }
+
+  if (!mes || !anio || mes < 1 || mes > 12 || anio < 2000 || anio > 2100) {
+    throw new Error(`Fecha/Mes no reconocido: ${val}`)
+  }
+
+  const mesesLabels = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+  const label = `${mesesLabels[mes - 1]}-${String(anio).slice(-2)}`
   const key = `${anio}-${String(mes).padStart(2, '0')}`
-  return { key, anio, mes, label: mesStr }
+
+  return { key, anio, mes, label }
 }
 
 function mapSucursal(name: string): string {
@@ -58,7 +118,7 @@ export async function POST(req: Request) {
     }
 
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' })
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
     
@@ -90,13 +150,13 @@ export async function POST(req: Request) {
     const dbSectores = secRes.data || []
     const dbGrupos = grpRes.data || []
 
-    // Detectar el período (leído del primer registro válido de la columna 'Mes')
+    // Detectar el período (leído del primer registro válido de la columna 'Mes' / 'Fecha' / 'Periodo')
     let periodoInfo: { key: string; anio: number; mes: number; label: string } | null = null
     for (const row of rows) {
-      const rawMes = row.Mes || row.mes || row.periodo || row.Periodo
+      const rawMes = getRowVal(row, ['Mes', 'mes', 'FECHA', 'Fecha', 'Periodo', 'periodo'])
       if (rawMes) {
         try {
-          periodoInfo = parseMesColumn(String(rawMes))
+          periodoInfo = parseMesColumn(rawMes)
           break
         } catch {
           // Continuar buscando un mes válido
@@ -105,7 +165,7 @@ export async function POST(req: Request) {
     }
 
     if (!periodoInfo) {
-      return NextResponse.json({ error: 'No se pudo detectar la columna de Mes/Período válida (ej: jun-26)' }, { status: 400 })
+      return NextResponse.json({ error: 'No se pudo detectar la columna de Mes/Período válida (ej: 01/06/2026 o jun-26)' }, { status: 400 })
     }
 
     // Upsert período en la DB
@@ -134,10 +194,10 @@ export async function POST(req: Request) {
     for (let idx = 0; idx < rows.length; idx++) {
       const row = rows[idx]
       
-      const rawSucursal = row.Sucursal || row.sucursal
-      const rawSector = row.SECTOR || row.sector || row.Sector
-      const rawGrupo = row.GRUPO || row.grupo || row.Grupo
-      const rawCategoria = row.Categoria || row.categoria || row.Categoría || 'Salon' // Default a Salon
+      const rawSucursal = getRowVal(row, ['Sucursal', 'sucursal', 'SUCURSAL'])
+      const rawSector = getRowVal(row, ['SECTOR', 'sector', 'Sector'])
+      const rawGrupo = getRowVal(row, ['GRUPO', 'grupo', 'Grupo'])
+      const rawCategoria = getRowVal(row, ['Categoria', 'Categoría', 'categoria', 'categoría']) || 'Salon'
 
       if (!rawSucursal || !rawSector || !rawGrupo) {
         continue // Omitir filas vacías o totales parciales
@@ -157,18 +217,17 @@ export async function POST(req: Request) {
       }
 
       // 3. Extraer métricas financieras
-      const cantidad = parseInt(row.Cantidad || row.cantidad || '0', 10) || 0
+      const cantidad = parseInt(getRowVal(row, ['Cantidad', 'cantidad', 'CANTIDAD']) || '0', 10) || 0
       
-      // Limpiar signos de dólar y comas si vienen formateados como string
       const parseMoney = (val: any) => {
         if (typeof val === 'number') return val
         if (!val) return 0
         return parseFloat(String(val).replace(/[$\s,]/g, '').replace(/^-/, '')) || 0
       }
 
-      const facturacion = parseMoney(row.Facturación || row.Facturacion || row['Facturación s/IVA'] || row['Facturacion s/IVA'] || row.Fact_s_IVA)
-      const iva = parseMoney(row.IVA || row.Iva || row.iva)
-      const costo = parseMoney(row.Costo || row.costo || row.Costo_Mercaderia_Vendida)
+      const facturacion = parseMoney(getRowVal(row, ['Facturación', 'Facturacion', 'facturacion', 'Facturación s/IVA', 'Facturacion s/IVA', 'Fact_s_IVA']))
+      const iva = parseMoney(getRowVal(row, ['IVA', 'Iva', 'iva']))
+      const costo = parseMoney(getRowVal(row, ['Costo', 'costo', 'CMV', 'Costo_Mercaderia_Vendida']))
 
       resultados.push({
         periodo_id: periodoId,

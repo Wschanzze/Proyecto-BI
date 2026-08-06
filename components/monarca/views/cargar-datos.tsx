@@ -109,7 +109,7 @@ export function CargarDatos() {
                 {errorMsg}
               </p>
               <p className="mt-2 max-w-md text-xs text-muted-foreground">
-                Verificá que el archivo tenga la columna "Mes" (ej: "ene-25", "jun-26") y columnas válidas para "Sucursal", "SECTOR", "GRUPO", "Facturación" y "Costo".
+                Verificá que el archivo tenga la columna "Mes" (ej: "01/06/2026", "01/01/2025" o "jun-26") y columnas válidas para "Sucursal", "SECTOR", "GRUPO", "Facturación" y "Costo".
               </p>
             </div>
             <div className="flex gap-2 mt-2">
