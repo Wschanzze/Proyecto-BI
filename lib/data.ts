@@ -1,8 +1,11 @@
 // ---------------------------------------------------------------------------
 // Modelo de datos del Cuadro de Resultados — Supermercados Monarca
 // Jerarquía: Sección → Categoría → Grupo → Subgrupo
-// Datos de EJEMPLO generados de forma determinística. En producción estos datos
-// provendrán de Supabase (tablas resultados_categoria / resultados_grupo / etc.).
+//
+// INTEGRACIÓN SUPABASE:
+//   - getCuadro(key)       → datos simulados (sync, para SSR / fallback)
+//   - getCuadroAsync(key)  → intenta Supabase, cae a simulado si no hay datos
+//   - Los datos reales se leen desde lib/data-db.ts
 // ---------------------------------------------------------------------------
 
 export interface Metrics {
@@ -605,6 +608,7 @@ function derivar(
 }
 
 // Construye el cuadro completo para un periodo dado, incluyendo variaciones.
+// Versión SÍNCRONA con datos simulados (fallback / SSR).
 export function getCuadro(periodoKey: string): Cuadro {
   const periodo = PERIODOS.find((p) => p.key === periodoKey) ?? PERIODO_ACTUAL
   const prev = periodoRelativo(periodo, -1)
@@ -663,6 +667,19 @@ export function getCuadro(periodoKey: string): Cuadro {
   const total = aggregate(secciones.flatMap((s) => s.categorias.map((c) => c.metrics)))
 
   return { periodo, secciones, total }
+}
+
+// Versión ASÍNCRONA: intenta leer de Supabase y cae a simulado si no hay datos.
+export async function getCuadroAsync(periodoKey: string): Promise<Cuadro> {
+  try {
+    // Importación dinámica para evitar errores si Supabase no está configurado
+    const { getCuadroFromDB } = await import('./data-db')
+    const fromDB = await getCuadroFromDB(periodoKey)
+    if (fromDB) return fromDB
+  } catch {
+    // Supabase no disponible o sin datos → usar simulado
+  }
+  return getCuadro(periodoKey)
 }
 
 // Serie histórica de una métrica consolidada (para gráficos de evolución).
