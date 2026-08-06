@@ -1,6 +1,6 @@
 // app/api/upload/route.ts
 // Recibe un archivo Excel/CSV, lo procesa y guarda los resultados en Supabase.
-// Mapea la columna 'subgrupo' directamente respetando espacios, tildes y sinónimos.
+// Soporta archivos multi-período (filas con meses distintos en el mismo archivo).
 
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
@@ -173,7 +173,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Mapeos especiales para nombres generales en la columna subgrupo (ej: "ALMACEN", "KIOSCO")
     const specialSubgrupoAliases: Record<string, string> = {
       'almacen': 'salon-almacen-venta-a-departamento',
       'kiosco': 'salon-kio-golosinas',
@@ -181,83 +180,77 @@ export async function POST(req: Request) {
       'perfumeria': 'salon-per-otros',
     }
 
-    // Detectar el período de la primera fila válida
-    let periodoInfo: { key: string; anio: number; mes: number; label: string } | null = null
-    for (const row of rows) {
-      const rawMes = getRowVal(row, ['Mes', 'mes', 'FECHA', 'Fecha', 'Periodo', 'periodo'])
-      if (rawMes) {
-        try {
-          periodoInfo = parseMesColumn(rawMes)
-          break
-        } catch {
-          // Continuar buscando
+    // Cache local de períodos procesados (key -> id)
+    const periodosMap = new Map<string, { id: number; label: string }>()
+
+    async function getOrCreatePeriodo(rawMes: any): Promise<{ id: number; label: string } | null> {
+      try {
+        const pInfo = parseMesColumn(rawMes)
+        if (periodosMap.has(pInfo.key)) {
+          return periodosMap.get(pInfo.key)!
         }
+
+        const { data: pData, error: pErr } = await client
+          .from('periodos')
+          .upsert({
+            key: pInfo.key,
+            anio: pInfo.anio,
+            mes: pInfo.mes,
+            label: pInfo.label,
+            archivo_nombre: file.name
+          }, { onConflict: 'key' })
+          .select('id, label')
+          .single()
+
+        if (pErr || !pData) return null
+
+        const result = { id: pData.id, label: pData.label }
+        periodosMap.set(pInfo.key, result)
+        return result
+      } catch {
+        return null
       }
     }
 
-    if (!periodoInfo) {
-      const sampleHeaders = Object.keys(rows[0] || {}).join(', ')
-      return NextResponse.json({
-        error: `No se pudo detectar la columna de Mes/Período. Encabezados detectados: [${sampleHeaders}]`
-      }, { status: 400 })
-    }
-
-    // Upsert período en la DB
-    const { data: pData, error: pErr } = await client
-      .from('periodos')
-      .upsert({
-        key: periodoInfo.key,
-        anio: periodoInfo.anio,
-        mes: periodoInfo.mes,
-        label: periodoInfo.label,
-        archivo_nombre: file.name
-      }, { onConflict: 'key' })
-      .select('id')
-      .single()
-
-    if (pErr || !pData) {
-      throw new Error(`Error al registrar el período: ${pErr?.message ?? 'No data returned'}`)
-    }
-
-    const periodoId = pData.id
-
-    // Procesar filas
-    const resultadosMap = new Map<string, { cantidad: number; facturacion: number; iva: number; costo: number }>()
+    // Map para agrupar resultados: `periodoId:sucursalId:grupoId` -> acumulados
+    const resultadosMap = new Map<string, { periodoId: number; sucursalId: string; grupoId: string; cantidad: number; facturacion: number; iva: number; costo: number }>()
     const unmappedGroupsSet = new Set<string>()
 
     for (let idx = 0; idx < rows.length; idx++) {
       const row = rows[idx]
       
+      const rawMes = getRowVal(row, ['Mes', 'mes', 'FECHA', 'Fecha', 'Periodo', 'periodo'])
       const rawSucursal = getRowVal(row, ['Sucursal', 'sucursal', 'SUCURSAL'])
       const rawSubgrupo = getRowVal(row, ['subgrupo', 'Subgrupo', 'SUBGRUPO'])
       const rawGrupo = getRowVal(row, ['Grupo', 'grupo', 'GRUPO'])
       const leafStr = rawSubgrupo || rawGrupo
 
-      if (!rawSucursal || !leafStr) {
-        continue // Omitir filas vacías
+      if (!rawMes || !rawSucursal || !leafStr) {
+        continue // Omitir filas sin mes, sucursal o grupo
       }
 
-      // 1. Mapear Sucursal (haciendo .trim())
+      // 1. Resolver el período individual de esta fila
+      const periodoObj = await getOrCreatePeriodo(rawMes)
+      if (!periodoObj) continue
+
+      // 2. Mapear Sucursal
       const sucursalId = mapSucursal(String(rawSucursal).trim())
       
-      // 2. Mapear al catálogo de grupos
+      // 3. Mapear Grupo
       const cleanLeaf = cleanCodePrefix(String(leafStr))
       const leafSlug = slugify(cleanLeaf)
 
       let matchedGrp = gruposMapBySlug.get(leafSlug)
 
-      // Fallback 1: Alias especial (ej: "ALMACEN" -> "salon-almacen-venta-a-departamento", "KIOSCO" -> "salon-kio-golosinas")
       if (!matchedGrp && specialSubgrupoAliases[leafSlug]) {
         const aliasId = specialSubgrupoAliases[leafSlug]
         matchedGrp = dbGrupos.find(g => g.id === aliasId)
       }
 
-      // Fallback 2: Coincidencia con nombre de Sector
       if (!matchedGrp && sectorToFirstGroupMap.has(leafSlug)) {
         matchedGrp = sectorToFirstGroupMap.get(leafSlug)
       }
 
-      // Fallback 3: Búsqueda flexible sin guiones o espacios
       if (!matchedGrp) {
         for (const [s, g] of gruposMapBySlug.entries()) {
           if (s === leafSlug || s.replace(/-/g, '') === leafSlug.replace(/-/g, '')) {
@@ -272,7 +265,7 @@ export async function POST(req: Request) {
         continue
       }
 
-      // 3. Extraer números financieros
+      // 4. Extraer números financieros
       const cantidad = parseInt(String(getRowVal(row, ['Cantidad', 'cantidad', 'CANTIDAD', 'UNIDADES', 'Unidades']) || '0'), 10) || 0
       
       const parseMoney = (val: any) => {
@@ -285,11 +278,20 @@ export async function POST(req: Request) {
       const iva = parseMoney(getRowVal(row, ['IVA', 'Iva', 'iva']))
       const costo = parseMoney(getRowVal(row, ['Costo', 'costo', 'CMV', 'Costo_Mercaderia_Vendida', 'COSTO']))
 
-      // Agrupar filas para la misma sucursal × grupo
-      const itemKey = `${sucursalId}:${matchedGrp.id}`
-      const prev = resultadosMap.get(itemKey) || { cantidad: 0, facturacion: 0, iva: 0, costo: 0 }
+      // Agrupar filas para el mismo periodoId × sucursalId × grupoId
+      const itemKey = `${periodoObj.id}:${sucursalId}:${matchedGrp.id}`
+      const prev = resultadosMap.get(itemKey) || { 
+        periodoId: periodoObj.id, 
+        sucursalId, 
+        grupoId: matchedGrp.id, 
+        cantidad: 0, 
+        facturacion: 0, 
+        iva: 0, 
+        costo: 0 
+      }
       
       resultadosMap.set(itemKey, {
+        ...prev,
         cantidad: prev.cantidad + cantidad,
         facturacion: prev.facturacion + facturacion,
         iva: prev.iva + iva,
@@ -302,27 +304,26 @@ export async function POST(req: Request) {
     if (resultadosMap.size === 0) {
       const sampleHeaders = Object.keys(rows[0] || {}).join(', ')
       return NextResponse.json({
-        error: `No se pudieron vincular las filas con el catálogo de grupos. Columnas detectadas: [${sampleHeaders}]`,
+        error: `No se pudieron procesar las filas del archivo. Columnas detectadas: [${sampleHeaders}]`,
         detalles: unmappedList.slice(0, 15)
       }, { status: 400 })
     }
 
-    // Convertir Map a Array para inserción en DB
-    const resultados = Array.from(resultadosMap.entries()).map(([k, v]) => {
-      const [sucursalId, grupoId] = k.split(':')
-      return {
-        periodo_id: periodoId,
-        sucursal_id: sucursalId,
-        grupo_id: grupoId,
-        cantidad: v.cantidad,
-        facturacion: v.facturacion,
-        iva: v.iva,
-        costo: v.costo
-      }
-    })
+    // Limpiar únicamente los períodos afectados que venían en este archivo
+    const affectedPeriodIds = Array.from(new Set(Array.from(resultadosMap.values()).map(r => r.periodoId)))
+    console.log("Limpiando períodos afectados:", affectedPeriodIds)
+    await client.from('resultados').delete().in('periodo_id', affectedPeriodIds)
 
-    // Limpiar resultados anteriores para este período
-    await client.from('resultados').delete().eq('periodo_id', periodoId)
+    // Convertir Map a Array para inserción en DB
+    const resultados = Array.from(resultadosMap.values()).map(v => ({
+      periodo_id: v.periodoId,
+      sucursal_id: v.sucursalId,
+      grupo_id: v.grupoId,
+      cantidad: v.cantidad,
+      facturacion: v.facturacion,
+      iva: v.iva,
+      costo: v.costo
+    }))
 
     // Insertar en lotes de 200
     for (let k = 0; k < resultados.length; k += 200) {
@@ -333,10 +334,12 @@ export async function POST(req: Request) {
       }
     }
 
+    const periodosLabelsList = Array.from(periodosMap.values()).map(p => p.label.toUpperCase()).join(', ')
+
     return NextResponse.json({
       ok: true,
-      periodo: periodoInfo.label,
-      key: periodoInfo.key,
+      periodo: periodosLabelsList,
+      totalPeriodos: periodosMap.size,
       records: resultados.length,
       unmappedCount: unmappedList.length,
       warning: unmappedList.length > 0 ? `${unmappedList.length} subgrupos del archivo no coincidieron con el catálogo.` : null,
