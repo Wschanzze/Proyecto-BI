@@ -22,6 +22,7 @@ import {
   ComposedChart,
   Bar,
   Line,
+  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
