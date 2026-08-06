@@ -231,16 +231,19 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
               ? metricsFromRaw(raw.facturacion, raw.costo, raw.cantidad)
               : emptyMetrics()
 
+            const gPrevFact = prevMap.get(g.id) ?? null
+            const gYoyFact  = yoyMap.get(g.id) ?? null
+
             const subgrupo: SubgrupoNode = {
               id: g.id,
               nombre: g.nombre,
-              metrics: derivar(gMetrics, gMetrics.facturacion, gMetrics.resultadoOperativo, null, null),
+              metrics: derivar(gMetrics, gMetrics.facturacion, gMetrics.resultadoOperativo, gPrevFact, gYoyFact),
             }
 
             return {
               id: g.id,
               nombre: g.nombre,
-              metrics: derivar(gMetrics, totalFacturacion, totalResultadoOperativo, null, null),
+              metrics: derivar(gMetrics, totalFacturacion, totalResultadoOperativo, gPrevFact, gYoyFact),
               subgrupos: [subgrupo],
             }
           })

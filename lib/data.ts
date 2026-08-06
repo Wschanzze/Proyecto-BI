@@ -641,11 +641,29 @@ export function getCuadro(periodoKey: string): Cuadro {
       const grupos: GrupoNode[] = catDef.grupos.map((gDef) => {
         const gSubsMetrics = gDef.subgrupos.map((s) => subgrupoMetrics(s, periodo))
         const gMetrics = aggregate(gSubsMetrics)
-        const gDeriv = derivar(gMetrics, catMetrics.facturacion, catMetrics.resultadoOperativo, null, null)
+
+        const gPrev = prev ? aggregate(gDef.subgrupos.map((s) => subgrupoMetrics(s, prev))) : null
+        const gYoy = yoy ? aggregate(gDef.subgrupos.map((s) => subgrupoMetrics(s, yoy))) : null
+
+        const gDeriv = derivar(
+          gMetrics,
+          catMetrics.facturacion,
+          catMetrics.resultadoOperativo,
+          gPrev ? gPrev.facturacion : null,
+          gYoy ? gYoy.facturacion : null,
+        )
 
         const subgrupos: SubgrupoNode[] = gDef.subgrupos.map((sDef, i) => {
           const sMetrics = gSubsMetrics[i]
-          const sDeriv = derivar(sMetrics, gMetrics.facturacion, gMetrics.resultadoOperativo, null, null)
+          const sPrev = prev ? subgrupoMetrics(sDef, prev) : null
+          const sYoy = yoy ? subgrupoMetrics(sDef, yoy) : null
+          const sDeriv = derivar(
+            sMetrics,
+            gMetrics.facturacion,
+            gMetrics.resultadoOperativo,
+            sPrev ? sPrev.facturacion : null,
+            sYoy ? sYoy.facturacion : null,
+          )
           return { id: sDef.id, nombre: sDef.nombre, metrics: sDeriv }
         })
         return { id: gDef.id, nombre: gDef.nombre, metrics: gDeriv, subgrupos }
