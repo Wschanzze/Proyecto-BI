@@ -8,9 +8,9 @@ export function TopBar() {
         <div className="flex items-center gap-4">
           {/* Official logo */}
           <img
-            src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
-            alt="Supermercados Monarca"
-            className="h-10 w-auto object-contain"
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/monarca-header-full-KHQtz9DKN8TaqYyecT7jiQZcu0tBw6.gif"
+            alt="Monarca"
+            className="h-9 w-auto object-contain"
           />
           <div className="hidden h-9 w-px bg-primary-foreground/25 sm:block" />
           <div className="hidden flex-col leading-tight sm:flex">
