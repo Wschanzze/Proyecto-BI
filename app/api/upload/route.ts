@@ -1,6 +1,9 @@
 // app/api/upload/route.ts
 // Recibe un archivo Excel/CSV, lo procesa y guarda los resultados en Supabase.
-// Utiliza la service_role key para saltarse las políticas RLS.
+// Respeta estrictamente la estructura del cliente:
+//   - Categoria : 'Salon', 'Frescos'
+//   - Grupo     : 'ALMACEN', 'BEBES Y NIÑOS', etc. (Sector)
+//   - subgrupo  : 'ACEITES', 'ADEREZOS', etc. (Grupo hoja)
 
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
@@ -17,7 +20,6 @@ function slugify(text: string): string {
 }
 
 function cleanCodePrefix(text: string): string {
-  // Remueve prefijos numéricos tipo "0101 - ", "123. ", "01-", etc.
   return text.replace(/^[\d.\-\s]+/, '').trim()
 }
 
@@ -146,11 +148,11 @@ export async function POST(req: Request) {
       throw new Error(`Error al consultar grupos del catálogo: ${grpErr?.message}`)
     }
 
-    // Lista de grupos ordenada por longitud de slug descendente (para preferir nombres específicos)
-    const sortedDbGrupos = [...dbGrupos].map(g => ({
-      ...g,
-      slug: slugify(g.nombre)
-    })).sort((a, b) => b.slug.length - a.slug.length)
+    // Map de búsqueda directa por slug
+    const gruposMapBySlug = new Map<string, any>()
+    for (const g of dbGrupos) {
+      gruposMapBySlug.set(slugify(g.nombre), g)
+    }
 
     // Detectar el período de la primera fila válida
     let periodoInfo: { key: string; anio: number; mes: number; label: string } | null = null
@@ -195,47 +197,46 @@ export async function POST(req: Request) {
     // Procesar filas
     const resultadosMap = new Map<string, { cantidad: number; facturacion: number; iva: number; costo: number }>()
     const unmappedGroupsSet = new Set<string>()
-    let totalFilasProcesadas = 0
 
     for (let idx = 0; idx < rows.length; idx++) {
       const row = rows[idx]
       
       const rawSucursal = getRowVal(row, ['Sucursal', 'sucursal', 'SUCURSAL'])
-      const rawGrupo = getRowVal(row, ['GRUPO', 'grupo', 'Grupo', 'SUBGRUPO', 'subgrupo', 'Subgrupo'])
-      const rawSector = getRowVal(row, ['SECTOR', 'sector', 'Sector'])
+      // Prioridad 1: columna 'subgrupo' (contiene ACEITES, ADEREZOS, etc.)
+      // Prioridad 2: columna 'Grupo' (fallback)
+      const rawSubgrupo = getRowVal(row, ['subgrupo', 'Subgrupo', 'SUBGRUPO'])
+      const rawGrupo = getRowVal(row, ['Grupo', 'grupo', 'GRUPO'])
+      const leafStr = rawSubgrupo || rawGrupo
 
-      if (!rawSucursal || (!rawGrupo && !rawSector)) {
+      if (!rawSucursal || !leafStr) {
         continue // Omitir filas vacías
       }
-
-      totalFilasProcesadas++
 
       // 1. Mapear Sucursal
       const sucursalId = mapSucursal(String(rawSucursal))
       
-      // 2. Mapear Grupo con lógica jerárquica y flexible
-      const inputGrupoStr = cleanCodePrefix(String(rawGrupo || rawSector))
-      const inputSlug = slugify(inputGrupoStr)
+      // 2. Mapear al catálogo de 114 grupos por nombre slugificado exacto
+      const cleanLeaf = cleanCodePrefix(String(leafStr))
+      const leafSlug = slugify(cleanLeaf)
 
-      let matchedGrp = sortedDbGrupos.find(g => g.slug === inputSlug)
+      let matchedGrp = gruposMapBySlug.get(leafSlug)
 
-      // Fallback 1: el input empieza o contiene el slug del catálogo
+      // Fallback: si no hay coincidencia exacta, probar removiendo plurales/espacios
       if (!matchedGrp) {
-        matchedGrp = sortedDbGrupos.find(g => inputSlug.includes(g.slug) || g.slug.includes(inputSlug))
+        for (const [s, g] of gruposMapBySlug.entries()) {
+          if (s === leafSlug || s.replace(/-/g, '') === leafSlug.replace(/-/g, '')) {
+            matchedGrp = g
+            break
+          }
+        }
       }
 
-      // Fallback 2: probar con la columna SECTOR si GRUPO no emparejó
-      if (!matchedGrp && rawSector) {
-        const sectorSlug = slugify(cleanCodePrefix(String(rawSector)))
-        matchedGrp = sortedDbGrupos.find(g => sectorSlug.includes(g.slug) || g.slug.includes(sectorSlug))
-      }
-
       if (!matchedGrp) {
-        unmappedGroupsSet.add(`"${rawGrupo || rawSector}" (Sector: "${rawSector || 'N/A'}")`)
+        unmappedGroupsSet.add(`"${leafStr}" (Fila ${idx + 2})`)
         continue
       }
 
-      // 3. Extraer métricas financieras
+      // 3. Extraer números financieros
       const cantidad = parseInt(String(getRowVal(row, ['Cantidad', 'cantidad', 'CANTIDAD', 'UNIDADES', 'Unidades']) || '0'), 10) || 0
       
       const parseMoney = (val: any) => {
@@ -265,7 +266,7 @@ export async function POST(req: Request) {
     if (resultadosMap.size === 0) {
       const sampleHeaders = Object.keys(rows[0] || {}).join(', ')
       return NextResponse.json({
-        error: `No se pudieron vincular las filas con el catálogo. Columnas detectadas: [${sampleHeaders}]`,
+        error: `No se pudieron vincular las filas con el catálogo de grupos. Columnas detectadas: [${sampleHeaders}]`,
         detalles: unmappedList.slice(0, 15)
       }, { status: 400 })
     }
@@ -302,7 +303,7 @@ export async function POST(req: Request) {
       key: periodoInfo.key,
       records: resultados.length,
       unmappedCount: unmappedList.length,
-      warning: unmappedList.length > 0 ? `${unmappedList.length} nombres de grupos o subgrupos distintos en el archivo no coincidieron con el catálogo de 114 grupos.` : null,
+      warning: unmappedList.length > 0 ? `${unmappedList.length} subgrupos del archivo no coincidieron con el catálogo.` : null,
       detallesIgnorados: unmappedList.slice(0, 20)
     })
   } catch (err: any) {
