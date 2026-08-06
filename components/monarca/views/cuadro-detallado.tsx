@@ -4,6 +4,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { ChevronRight, Download, Printer, RefreshCw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader, FiltrosSelector } from "@/components/monarca/shared"
 import { getCuadroAsync, type MetricsConDerivados, type CategoriaNode, type GrupoNode, type Cuadro, type Periodo } from "@/lib/data"
 import { formatCurrency, formatNumber, formatPercent, formatSigned, periodoLabel } from "@/lib/format"
