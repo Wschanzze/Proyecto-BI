@@ -1,3 +1,4 @@
+// components/monarca/app-shell.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -9,6 +10,7 @@ import { CuadroSimplificado } from "./views/cuadro-simplificado"
 import { CargarDatos } from "./views/cargar-datos"
 import { PERIODO_ACTUAL, type Periodo } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
+import { TransitionLoader } from "./shared"
 
 export function AppShell() {
   const [tab, setTab] = useState<TabId>("dashboard")
@@ -17,6 +19,9 @@ export function AppShell() {
 
   const [periodos, setPeriodos] = useState<Periodo[]>([])
   const [sucursales, setSucursales] = useState<DBSucursal[]>([])
+  
+  const [loadingInitial, setLoadingInitial] = useState(true)
+  const [loadingTab, setLoadingTab] = useState(false)
 
   useEffect(() => {
     async function init() {
@@ -31,48 +36,66 @@ export function AppShell() {
         }
       } catch (err) {
         console.error("Error al cargar períodos/sucursales:", err)
+      } finally {
+        setTimeout(() => {
+          setLoadingInitial(false)
+        }, 500)
       }
     }
     init()
   }, [])
 
+  const handleTabChange = (newTab: TabId) => {
+    if (newTab === tab) return
+    setLoadingTab(true)
+    setTab(newTab)
+    setTimeout(() => {
+      setLoadingTab(false)
+    }, 400)
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <TopBar />
-      <NavTabs active={tab} onChange={setTab} />
+      <NavTabs active={tab} onChange={handleTabChange} />
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 md:px-6 md:py-8">
-        {tab === "dashboard" && (
-          <DashboardView
-            periodoKey={periodoKey}
-            onPeriodoChange={setPeriodoKey}
-            sucursalId={sucursalId}
-            onSucursalChange={setSucursalId}
-            periodos={periodos}
-            sucursales={sucursales}
-          />
+        {loadingInitial || loadingTab ? (
+          <TransitionLoader fullPage={loadingInitial} />
+        ) : (
+          <>
+            {tab === "dashboard" && (
+              <DashboardView
+                periodoKey={periodoKey}
+                onPeriodoChange={setPeriodoKey}
+                sucursalId={sucursalId}
+                onSucursalChange={setSucursalId}
+                periodos={periodos}
+                sucursales={sucursales}
+              />
+            )}
+            {tab === "detallado" && (
+              <CuadroDetallado
+                periodoKey={periodoKey}
+                onPeriodoChange={setPeriodoKey}
+                sucursalId={sucursalId}
+                onSucursalChange={setSucursalId}
+                periodos={periodos}
+                sucursales={sucursales}
+              />
+            )}
+            {tab === "simplificado" && (
+              <CuadroSimplificado
+                periodoKey={periodoKey}
+                onPeriodoChange={setPeriodoKey}
+                sucursalId={sucursalId}
+                onSucursalChange={setSucursalId}
+                periodos={periodos}
+                sucursales={sucursales}
+              />
+            )}
+            {tab === "cargar" && <CargarDatos />}
+          </>
         )}
-        {tab === "detallado" && (
-          <CuadroDetallado
-            periodoKey={periodoKey}
-            onPeriodoChange={setPeriodoKey}
-            sucursalId={sucursalId}
-            onSucursalChange={setSucursalId}
-            periodos={periodos}
-            sucursales={sucursales}
-          />
-        )}
-        {tab === "simplificado" && (
-          <CuadroSimplificado
-            periodoKey={periodoKey}
-            onPeriodoChange={setPeriodoKey}
-            sucursalId={sucursalId}
-            onSucursalChange={setSucursalId}
-            periodos={periodos}
-            sucursales={sucursales}
-          />
-        )}
-        {tab === "cargar" && <CargarDatos />}
-
       </main>
       <footer className="border-t border-border bg-card py-4">
         <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-1 px-4 text-xs text-muted-foreground md:flex-row md:px-6">

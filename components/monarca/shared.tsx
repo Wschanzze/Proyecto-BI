@@ -137,3 +137,30 @@ export function VariacionBadge({
     </span>
   )
 }
+
+// Spin de carga personalizado con el logotipo estacionario centrado y aro azul giratorio.
+export function TransitionLoader({ fullPage = false }: { fullPage?: boolean }) {
+  return (
+    <div 
+      className={cn(
+        "flex flex-col items-center justify-center animate-in fade-in duration-300",
+        fullPage ? "min-h-[70vh]" : "py-24"
+      )}
+    >
+      <div className="relative flex h-24 w-24 items-center justify-center">
+        {/* Aro azul giratorio (primario) */}
+        <div className="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin" />
+        
+        {/* Logotipo centrado no-rotatorio */}
+        <img
+          src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
+          alt="Supermercados Monarca"
+          className="h-13 w-13 object-contain select-none"
+        />
+      </div>
+      <p className="mt-5 text-[10px] font-bold tracking-widest uppercase text-primary/75 animate-pulse">
+        Cargando datos reales
+      </p>
+    </div>
+  )
+}
