@@ -1,9 +1,6 @@
 // app/api/upload/route.ts
 // Recibe un archivo Excel/CSV, lo procesa y guarda los resultados en Supabase.
-// Respeta estrictamente la estructura del cliente:
-//   - Categoria : 'Salon', 'Frescos'
-//   - Grupo     : 'ALMACEN', 'BEBES Y NIÑOS', etc. (Sector)
-//   - subgrupo  : 'ACEITES', 'ADEREZOS', etc. (Grupo hoja)
+// Mapea la columna 'subgrupo' directamente respetando espacios, tildes y sinónimos.
 
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
@@ -12,15 +9,20 @@ import * as XLSX from 'xlsx'
 function slugify(text: string): string {
   return text
     .toString()
+    .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\bsuperficies\b/g, "sup")
+    .replace(/\bsup\b/g, "sup")
+    .replace(/\bproductos\b/g, "prod")
+    .replace(/\bprod\b/g, "prod")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "")
 }
 
 function cleanCodePrefix(text: string): string {
-  return text.replace(/^[\d.\-\s]+/, '').trim()
+  return text.trim().replace(/^[\d.\-\s]+/, '').trim()
 }
 
 function getRowVal(row: Record<string, any>, keys: string[]): any {
@@ -142,16 +144,41 @@ export async function POST(req: Request) {
       serviceRoleKey
     )
 
-    // Cargar catálogo de grupos
-    const { data: dbGrupos, error: grpErr } = await client.from('grupos').select('*')
-    if (grpErr || !dbGrupos) {
-      throw new Error(`Error al consultar grupos del catálogo: ${grpErr?.message}`)
+    // Cargar catálogo de grupos y sectores
+    const [grpRes, secRes] = await Promise.all([
+      client.from('grupos').select('*'),
+      client.from('sectores').select('*')
+    ])
+
+    if (grpRes.error || !grpRes.data) {
+      throw new Error(`Error al consultar grupos del catálogo: ${grpRes.error?.message}`)
     }
+
+    const dbGrupos = grpRes.data
+    const dbSectores = secRes.data || []
 
     // Map de búsqueda directa por slug
     const gruposMapBySlug = new Map<string, any>()
     for (const g of dbGrupos) {
       gruposMapBySlug.set(slugify(g.nombre), g)
+    }
+
+    // Map de sectores a su primer grupo
+    const sectorToFirstGroupMap = new Map<string, any>()
+    for (const s of dbSectores) {
+      const sSlug = slugify(s.nombre)
+      const matchingGrp = dbGrupos.find(g => g.sector_id === s.id)
+      if (matchingGrp) {
+        sectorToFirstGroupMap.set(sSlug, matchingGrp)
+      }
+    }
+
+    // Mapeos especiales para nombres generales en la columna subgrupo (ej: "ALMACEN", "KIOSCO")
+    const specialSubgrupoAliases: Record<string, string> = {
+      'almacen': 'salon-almacen-venta-a-departamento',
+      'kiosco': 'salon-kio-golosinas',
+      'limpieza': 'salon-lim-otros',
+      'perfumeria': 'salon-per-otros',
     }
 
     // Detectar el período de la primera fila válida
@@ -202,8 +229,6 @@ export async function POST(req: Request) {
       const row = rows[idx]
       
       const rawSucursal = getRowVal(row, ['Sucursal', 'sucursal', 'SUCURSAL'])
-      // Prioridad 1: columna 'subgrupo' (contiene ACEITES, ADEREZOS, etc.)
-      // Prioridad 2: columna 'Grupo' (fallback)
       const rawSubgrupo = getRowVal(row, ['subgrupo', 'Subgrupo', 'SUBGRUPO'])
       const rawGrupo = getRowVal(row, ['Grupo', 'grupo', 'GRUPO'])
       const leafStr = rawSubgrupo || rawGrupo
@@ -212,16 +237,27 @@ export async function POST(req: Request) {
         continue // Omitir filas vacías
       }
 
-      // 1. Mapear Sucursal
-      const sucursalId = mapSucursal(String(rawSucursal))
+      // 1. Mapear Sucursal (haciendo .trim())
+      const sucursalId = mapSucursal(String(rawSucursal).trim())
       
-      // 2. Mapear al catálogo de 114 grupos por nombre slugificado exacto
+      // 2. Mapear al catálogo de grupos
       const cleanLeaf = cleanCodePrefix(String(leafStr))
       const leafSlug = slugify(cleanLeaf)
 
       let matchedGrp = gruposMapBySlug.get(leafSlug)
 
-      // Fallback: si no hay coincidencia exacta, probar removiendo plurales/espacios
+      // Fallback 1: Alias especial (ej: "ALMACEN" -> "salon-almacen-venta-a-departamento", "KIOSCO" -> "salon-kio-golosinas")
+      if (!matchedGrp && specialSubgrupoAliases[leafSlug]) {
+        const aliasId = specialSubgrupoAliases[leafSlug]
+        matchedGrp = dbGrupos.find(g => g.id === aliasId)
+      }
+
+      // Fallback 2: Coincidencia con nombre de Sector
+      if (!matchedGrp && sectorToFirstGroupMap.has(leafSlug)) {
+        matchedGrp = sectorToFirstGroupMap.get(leafSlug)
+      }
+
+      // Fallback 3: Búsqueda flexible sin guiones o espacios
       if (!matchedGrp) {
         for (const [s, g] of gruposMapBySlug.entries()) {
           if (s === leafSlug || s.replace(/-/g, '') === leafSlug.replace(/-/g, '')) {
@@ -232,7 +268,7 @@ export async function POST(req: Request) {
       }
 
       if (!matchedGrp) {
-        unmappedGroupsSet.add(`"${leafStr}" (Fila ${idx + 2})`)
+        unmappedGroupsSet.add(`"${String(leafStr).trim()}" (Fila ${idx + 2})`)
         continue
       }
 
