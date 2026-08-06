@@ -317,9 +317,14 @@ function sumFactFromMap(sectorId: string, grupos: DBGrupo[], map: Map<string, nu
   return found ? total : null
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Sucursales disponibles
-// ────────────────────────────────────────────────────────────────────────────
+export function sanitizeSucursalNombre(nombre: string): string {
+  if (!nombre) return ""
+  // Limpia cualquier corrupción de encoding (como "Colﾃｳn", "San Martﾃｭn", "Perﾃｳn")
+  if (nombre.includes("Col") && (nombre.includes("n") || nombre.includes("ﾃ"))) return "Colón"
+  if (nombre.includes("Mart") && (nombre.includes("n") || nombre.includes("ﾃ"))) return "San Martín"
+  if (nombre.includes("Per") && (nombre.includes("n") || nombre.includes("ﾃ"))) return "Perón"
+  return nombre
+}
 
 export async function getSucursalesDB(): Promise<DBSucursal[]> {
   const { data, error } = await supabase
@@ -328,7 +333,10 @@ export async function getSucursalesDB(): Promise<DBSucursal[]> {
     .order('orden')
 
   if (error || !data) return []
-  return data as DBSucursal[]
+  return (data as DBSucursal[]).map((s) => ({
+    ...s,
+    nombre: sanitizeSucursalNombre(s.nombre),
+  }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
