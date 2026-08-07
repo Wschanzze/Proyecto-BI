@@ -7,6 +7,7 @@ import { NavTabs, type TabId } from "./nav-tabs"
 import { DashboardView } from "./views/dashboard-view"
 import { CuadroDetallado } from "./views/cuadro-detallado"
 import { CuadroSimplificado } from "./views/cuadro-simplificado"
+import { ProyectadoView } from "./views/proyectado-view"
 import { CargarDatos } from "./views/cargar-datos"
 import { LoginView } from "./views/login-view"
 import { PERIODO_ACTUAL, type Periodo } from "@/lib/data"
@@ -129,6 +130,7 @@ export function AppShell() {
                 sucursales={sucursales}
               />
             )}
+            {tab === "proyectado" && <ProyectadoView />}
             {tab === "cargar" && <CargarDatos />}
           </>
         )}
