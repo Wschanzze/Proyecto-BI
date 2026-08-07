@@ -139,24 +139,35 @@ function VariacionCell({ actual, anterior }: { actual: number; anterior: number 
   )
 }
 
-// Definición de líneas del P&L
+// Definición de líneas del P&L con categorías de agrupación
 const LINEAS_PL = [
-  { key: 'ventasConIva', label: 'Ventas con IVA', tipo: 'ingreso', tooltip: 'Facturación total incluyendo IVA' },
-  { key: 'iva', label: 'IVA', tipo: 'separado', tooltip: 'Impuesto al Valor Agregado' },
-  { key: 'ventasSinIva', label: 'Ventas sin IVA', tipo: 'ingreso', tooltip: 'Base para cálculo de margen y rentabilidad' },
-  { key: 'cmv', label: 'CMV (Costo Mercadería Vendida)', tipo: 'costo', tooltip: 'Costo directo de los productos vendidos' },
-  { key: 'contribucionMarginal', label: 'Contribución Marginal', tipo: 'resultado', tooltip: 'Ventas sin IVA - CMV' },
-  { key: 'rrhh', label: 'RRHH', tipo: 'costo', tooltip: 'Gastos de personal y cargas sociales' },
-  { key: 'gastosComerciales', label: 'Gastos Comerciales', tipo: 'costo', tooltip: 'Gastos de marketing y comercialización' },
-  { key: 'resultadoOperativo', label: 'Resultado Operativo', tipo: 'resultado', tooltip: 'Contribución Marginal - RRHH - Gastos Comerciales' },
-  { key: 'impuestos', label: 'Impuestos', tipo: 'costo', tooltip: 'Impuestos y cargas operativas' },
-  { key: 'gastos', label: 'Gastos', tipo: 'costo', tooltip: 'Gastos operativos generales' },
-  { key: 'merma', label: 'Merma', tipo: 'costo', tooltip: '1.6% × Ventas sin IVA (cálculo estándar)' },
-  { key: 'resultadoSupermercado', label: 'Resultado Supermercado', tipo: 'resultado-principal', tooltip: 'Resultado Operativo - Impuestos - Gastos - Merma' },
-  { key: 'ingresosFinancieros', label: 'Ingresos Financieros', tipo: 'ingreso', tooltip: 'Ingresos financieros externos a la operación comercial' },
-  { key: 'resultadoFinal', label: 'Resultado Final', tipo: 'resultado-final', tooltip: 'Resultado Supermercado + Ingresos Financieros' },
-  { key: 'resultadoImpositivo', label: 'Resultado Impositivo', tipo: 'separado', tooltip: '19% IVA + IIBB + TUAE' },
-  { key: 'resultadoTotal', label: 'Resultado Total', tipo: 'resultado-total', tooltip: 'Resultado Final + Resultado Impositivo' },
+  // INGRESOS
+  { key: 'ventasConIva', label: 'Ventas con IVA', tipo: 'ingreso', seccion: 'Ingresos', tooltip: 'Facturación total incluyendo IVA' },
+  { key: 'iva', label: 'IVA', tipo: 'separado', seccion: 'Ingresos', tooltip: 'Impuesto al Valor Agregado' },
+  { key: 'ventasSinIva', label: 'Ventas sin IVA', tipo: 'ingreso-base', seccion: 'Ingresos', tooltip: 'Base para cálculo de margen y rentabilidad' },
+  
+  // COSTOS
+  { key: 'cmv', label: 'CMV (Costo Mercadería Vendida)', tipo: 'costo', seccion: 'Costos', tooltip: 'Costo directo de los productos vendidos' },
+  { key: 'contribucionMarginal', label: 'Contribución Marginal', tipo: 'resultado', seccion: 'Resultado Bruto', tooltip: 'Margen bruto: Ventas sin IVA − CMV' },
+  
+  // GASTOS OPERATIVOS
+  { key: 'rrhh', label: 'RRHH (Personal y Cargas Sociales)', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos de personal y cargas sociales' },
+  { key: 'gastosComerciales', label: 'Gastos Comerciales', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos de marketing y comercialización' },
+  { key: 'impuestos', label: 'Impuestos Operativos', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Impuestos y cargas operativas' },
+  { key: 'gastos', label: 'Gastos Generales', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos operativos generales' },
+  { key: 'merma', label: 'Merma', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Pérdidas por merma (1.6% × Ventas sin IVA)' },
+  { key: 'resultadoOperativo', label: 'Resultado Operativo', tipo: 'resultado', seccion: 'Resultado Operativo', tooltip: 'Margen bruto menos gastos operativos' },
+  
+  // RESULTADO SUPERMERCADO
+  { key: 'resultadoSupermercado', label: 'Resultado Supermercado', tipo: 'resultado-principal', seccion: 'Resultado Supermercado', tooltip: 'Resultado operativo final del negocio' },
+  
+  // OTROS INGRESOS
+  { key: 'ingresosFinancieros', label: 'Ingresos Financieros', tipo: 'ingreso-otro', seccion: 'Otros Ingresos', tooltip: 'Ingresos financieros externos a la operación comercial' },
+  { key: 'resultadoFinal', label: 'Resultado Final', tipo: 'resultado-final', seccion: 'Resultado Final', tooltip: 'Resultado supermercado + Ingresos financieros' },
+  
+  // IMPACTO TRIBUTARIO
+  { key: 'resultadoImpositivo', label: 'Ajustes Tributarios', tipo: 'separado', seccion: 'Impacto Tributario', tooltip: '19% IVA + IIBB + TUAE' },
+  { key: 'resultadoTotal', label: 'Resultado Total (NETO)', tipo: 'resultado-total', seccion: 'Resultado Total', tooltip: 'Resultado final + Ajustes tributarios' },
 ] as const
 export function CuadroSimplificado({
   periodoKey,
@@ -423,72 +434,121 @@ export function CuadroSimplificado({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-border bg-accent text-accent-foreground">
-                  <th className="sticky left-0 z-10 bg-accent px-4 py-3 text-left font-semibold min-w-[280px] border-r border-accent/20">
+                <tr className="border-b-2 border-accent bg-gradient-to-r from-accent/20 to-accent/10 text-foreground">
+                  <th className="sticky left-0 z-10 bg-gradient-to-r from-accent/20 to-accent/10 px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-accent/30">
                     Línea de Resultado
                   </th>
                   {periodosVisibles.map(({ periodo }) => (
-                    <th key={periodo.key} className="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[120px]">
-                      {periodoLabelCorto(periodo.anio, periodo.mes)}
+                    <th key={periodo.key} className="px-4 py-4 text-right font-bold whitespace-nowrap min-w-[130px] text-accent">
+                      <span className="text-base">{periodoLabelCorto(periodo.anio, periodo.mes)}</span>
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center font-semibold min-w-[100px]">
-                    Variación
+                  <th className="px-4 py-4 text-center font-bold min-w-[110px] text-accent">
+                    <span className="text-base">Variación</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {LINEAS_PL.map(({ key, label, tipo, tooltip }) => {
-                  const valores = periodosVisibles.map(({ pl }) => pl?.[key as keyof CuadroResultadoLinea] || 0)
-                  const ultimoValor = valores[valores.length - 1]
-                  const penultimoValor = valores.length > 1 ? valores[valores.length - 2] : null
+                {(() => {
+                  let seccionAnterior = ''
+                  return LINEAS_PL.map(({ key, label, tipo, tooltip, seccion }) => {
+                    const valores = periodosVisibles.map(({ pl }) => pl?.[key as keyof CuadroResultadoLinea] || 0)
+                    const ultimoValor = valores[valores.length - 1]
+                    const penultimoValor = valores.length > 1 ? valores[valores.length - 2] : null
+                    
+                    const mostraSeparador = seccion !== seccionAnterior
+                    seccionAnterior = seccion
 
-                  return (
-                    <tr 
-                      key={key} 
-                      className={cn(
-                        "border-b border-border hover:bg-muted/40 transition-colors",
-                        tipo === 'resultado-principal' && "bg-primary/5 font-semibold border-primary/20",
-                        tipo === 'resultado-final' && "bg-success/5 font-semibold border-success/20",
-                        tipo === 'resultado-total' && "bg-accent font-bold border-accent/40",
-                        (tipo === 'costo') && "text-muted-foreground",
-                      )}
-                    >
-                      <td className={cn(
-                        "sticky left-0 z-10 px-4 py-3 min-w-[280px] border-r border-border",
-                        tipo === 'resultado-principal' && "bg-primary/5",
-                        tipo === 'resultado-final' && "bg-success/5",
-                        tipo === 'resultado-total' && "bg-accent",
-                        !(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total') && "bg-card"
-                      )}>
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            tipo === 'resultado-total' && "font-bold",
-                            (tipo === 'resultado-principal' || tipo === 'resultado-final') && "font-semibold"
+                    return (
+                      <Fragment key={key}>
+                        {/* Encabezado de sección */}
+                        {mostraSeparador && (
+                          <tr className="h-2 border-t-2 border-border/50">
+                            <td colSpan={periodosVisibles.length + 3} className="bg-muted/30 h-2" />
+                          </tr>
+                        )}
+                        {mostraSeparador && (
+                          <tr className="bg-muted/20 border-b border-border/40">
+                            <td colSpan={periodosVisibles.length + 3} className="px-4 py-2">
+                              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                {seccion}
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        
+                        {/* Línea de datos */}
+                        <tr 
+                          className={cn(
+                            "border-b border-border transition-all hover:bg-muted/50",
+                            tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5 border-primary/30 font-semibold",
+                            tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5 border-success/30 font-semibold",
+                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/15 to-accent/10 border-accent/50 font-bold text-accent-foreground",
+                            tipo === 'ingreso-base' && "bg-success/3 border-success/20",
+                          )}
+                        >
+                          <td className={cn(
+                            "sticky left-0 z-10 px-4 py-3.5 min-w-[300px] border-r border-border/40 font-medium text-sm",
+                            tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5",
+                            tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5",
+                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/15 to-accent/10",
+                            tipo === 'ingreso-base' && "bg-success/3",
+                            !(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total' || tipo === 'ingreso-base') && "bg-card"
                           )}>
-                            {label}
-                          </span>
-                          <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground cursor-help" title={tooltip} />
-                        </div>
-                      </td>
-                      {valores.map((valor, idx) => (
-                        <td key={idx} className="px-3 py-3 text-right tabular-nums">
-                          <span className={cn(
-                            tipo === 'costo' && valor > 0 && "text-destructive",
-                            (tipo === 'ingreso' || tipo === 'resultado' || tipo === 'resultado-principal' || tipo === 'resultado-final') && valor > 0 && "text-success",
-                            valor < 0 && "text-destructive",
-                            valor === 0 && "text-muted-foreground"
+                            <div className="flex items-center gap-2 group">
+                              <span className={cn(
+                                tipo === 'resultado-total' && "text-accent-foreground",
+                                tipo === 'resultado-principal' && "text-primary",
+                                tipo === 'resultado-final' && "text-success",
+                              )}>
+                                {label}
+                              </span>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help" title={tooltip} />
+                            </div>
+                          </td>
+                          
+                          {/* Valores por período */}
+                          {valores.map((valor, idx) => (
+                            <td key={idx} className={cn(
+                              "px-4 py-3.5 text-right tabular-nums font-medium text-sm",
+                              tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
+                              tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
+                              tipo === 'resultado-total' && "bg-gradient-to-r from-accent/10 to-accent/7 text-accent-foreground",
+                              tipo === 'ingreso-base' && "bg-success/3",
+                            )}>
+                              <span className={cn(
+                                tipo === 'resultado-total' && "text-accent-foreground font-bold",
+                                (tipo === 'gasto-op' || tipo === 'costo') && valor > 0 && "text-destructive/80",
+                                (tipo === 'ingreso' || tipo === 'ingreso-base' || tipo === 'ingreso-otro' || tipo === 'resultado' || tipo === 'resultado-principal' || tipo === 'resultado-final') && valor > 0 && "text-success",
+                                tipo === 'resultado-principal' && "text-primary font-semibold",
+                                tipo === 'resultado-final' && "text-success font-semibold",
+                                valor < 0 && "text-destructive",
+                                valor === 0 && "text-muted-foreground"
+                              )}>
+                                {formatCurrency(valor)}
+                              </span>
+                            </td>
+                          ))}
+                          
+                          {/* Columna de variación */}
+                          <td className={cn(
+                            "px-4 py-3.5 text-center",
+                            tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
+                            tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
+                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/10 to-accent/7",
+                            tipo === 'ingreso-base' && "bg-success/3",
                           )}>
-                            {formatCurrency(valor)}
-                          </span>
-                        </td>
-                      ))}
-                      <td className="px-3 py-3 text-center">
-                        <VariacionCell actual={ultimoValor} anterior={penultimoValor} />
-                      </td>
-                    </tr>
-                  )
-                })}
+                            {(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total') && (
+                              <VariacionCell actual={ultimoValor} anterior={penultimoValor} />
+                            ) || (
+                              <VariacionCell actual={ultimoValor} anterior={penultimoValor} />
+                            )}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    )
+                  })
+                })()}
               </tbody>
             </table>
           </div>
