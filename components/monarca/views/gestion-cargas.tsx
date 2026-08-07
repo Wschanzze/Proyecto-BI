@@ -937,7 +937,7 @@ export function GestionCargas() {
               <p>• Los cálculos de descuentos, aportes patronales y ART se realizan automáticamente.</p>
               <p>• Los archivos pueden procesarse múltiples veces (upsert) - se actualizan registros existentes.</p>
               <p>• Formatos soportados: .xlsx y .xls. El archivo debe seguir exactamente la estructura del template.</p>
-              <p>• Las validaciones incluyen: empleados en plantilla, importes > 0, categorías válidas.</p>
+              <p>• Las validaciones incluyen: empleados en plantilla, importes &gt; 0, categorías válidas.</p>
             </div>
           </div>
         </CardContent>
