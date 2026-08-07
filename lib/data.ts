@@ -22,9 +22,9 @@ export interface Metrics {
 
 // Nueva estructura extendida para el P&L completo
 export interface CuadroResultadoLinea {
-  ventasConIva: number // Ventas con IVA (dato base)
-  iva: number // IVA (línea independiente)
-  ventasSinIva: number // Ventas sin IVA = Ventas con IVA - IVA
+  facturacion: number // Facturación (CON IVA incluido - dato base del sistema)
+  iva: number // IVA (monto del impuesto a restar)
+  ventasSinIva: number // Ventas sin IVA = Facturación - IVA
   cmv: number // Costo de Mercadería Vendida
   contribucionMarginal: number // = Ventas sin IVA - CMV
   rrhh: number // Gastos de personal

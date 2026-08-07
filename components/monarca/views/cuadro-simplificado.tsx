@@ -44,12 +44,12 @@ import {
 
 // Función para calcular cuadro de resultado P&L desde datos base
 function calcularCuadroResultado(
-  ventasConIva: number,
+  facturacion: number,
   iva: number,
   cmv: number,
   config: ConfiguracionPL
 ): CuadroResultadoLinea {
-  const ventasSinIva = ventasConIva - iva
+  const ventasSinIva = facturacion - iva
   const contribucionMarginal = ventasSinIva - cmv
   const rrhh = ventasSinIva * config.ratios.rrhh
   const gastosComerciales = ventasSinIva * config.ratios.gastosComerciales
@@ -64,7 +64,7 @@ function calcularCuadroResultado(
   const resultadoTotal = resultadoFinal + resultadoImpositivo
 
   return {
-    ventasConIva,
+    facturacion,
     iva,
     ventasSinIva,
     cmv,
@@ -143,7 +143,7 @@ function VariacionCell({ actual, anterior, esTotalNeto }: { actual: number; ante
 // Definición de líneas del P&L con categorías de agrupación
 const LINEAS_PL = [
   // INGRESOS
-  { key: 'ventasConIva', label: 'Ventas con IVA', tipo: 'ingreso', seccion: 'Ingresos', tooltip: 'Facturación total incluyendo IVA' },
+  { key: 'facturacion', label: 'Facturación', tipo: 'ingreso', seccion: 'Ingresos', tooltip: 'Facturación total incluyendo IVA' },
   { key: 'iva', label: 'IVA', tipo: 'separado', seccion: 'Ingresos', tooltip: 'Impuesto al Valor Agregado' },
   { key: 'ventasSinIva', label: 'Ventas sin IVA', tipo: 'ingreso-base', seccion: 'Ingresos', tooltip: 'Base para cálculo de margen y rentabilidad' },
   
@@ -226,12 +226,12 @@ export function CuadroSimplificado({
       
       // USAR DATOS REALES de la base de datos (no estimaciones)
       // cuadro.total tiene los valores REALES cargados en "Gestión de Cargas & Datos"
-      const ventasConIva = cuadro.total.facturacion + cuadro.total.iva // Facturación + IVA
+      const facturacion = cuadro.total.facturacion // Facturación real (YA incluye IVA)
       const iva = cuadro.total.iva // IVA real del sistema
       const cmv = cuadro.total.costo // Costo real del sistema (CMV)
 
       const pl = calcularCuadroResultado(
-        ventasConIva,
+        facturacion,
         iva,
         cmv,
         configuracionPL
@@ -513,27 +513,44 @@ export function CuadroSimplificado({
                           </td>
                           
                           {/* Valores por período */}
-                          {valores.map((valor, idx) => (
-                            <td key={idx} className={cn(
-                              "px-4 py-3.5 text-right tabular-nums font-medium text-sm",
-                              tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
-                              tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
-                              tipo === 'resultado-total' && "bg-primary text-primary-foreground font-bold",
-                              tipo === 'ingreso-base' && "bg-success/3",
-                            )}>
-                              <span className={cn(
-                                tipo === 'resultado-total' && "text-primary-foreground font-bold",
-                                (tipo === 'gasto-op' || tipo === 'costo') && valor > 0 && "text-destructive/80",
-                                (tipo === 'ingreso' || tipo === 'ingreso-base' || tipo === 'ingreso-otro' || tipo === 'resultado' || tipo === 'resultado-principal' || tipo === 'resultado-final') && valor > 0 && "text-success",
-                                tipo === 'resultado-principal' && "text-primary font-semibold",
-                                tipo === 'resultado-final' && "text-success font-semibold",
-                                valor < 0 && "text-destructive",
-                                valor === 0 && "text-muted-foreground"
+                          {valores.map((valor, idx) => {
+                            // Calcular porcentaje si es resultado-total
+                            const ventasSinIva = key === 'resultadoTotal' && periodosVisibles[idx]?.pl 
+                              ? periodosVisibles[idx].pl.ventasSinIva 
+                              : 0
+                            const porcentaje = key === 'resultadoTotal' && ventasSinIva > 0
+                              ? (valor / ventasSinIva) * 100
+                              : null
+                            
+                            return (
+                              <td key={idx} className={cn(
+                                "px-4 py-3.5 text-right tabular-nums font-medium text-sm",
+                                tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
+                                tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
+                                tipo === 'resultado-total' && "bg-primary text-primary-foreground font-bold",
+                                tipo === 'ingreso-base' && "bg-success/3",
                               )}>
-                                {formatCurrency(valor)}
-                              </span>
-                            </td>
-                          ))}
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className={cn(
+                                    tipo === 'resultado-total' && "text-primary-foreground font-bold",
+                                    (tipo === 'gasto-op' || tipo === 'costo') && valor > 0 && "text-destructive/80",
+                                    (tipo === 'ingreso' || tipo === 'ingreso-base' || tipo === 'ingreso-otro' || tipo === 'resultado' || tipo === 'resultado-principal' || tipo === 'resultado-final') && valor > 0 && "text-success",
+                                    tipo === 'resultado-principal' && "text-primary font-semibold",
+                                    tipo === 'resultado-final' && "text-success font-semibold",
+                                    valor < 0 && "text-destructive",
+                                    valor === 0 && "text-muted-foreground"
+                                  )}>
+                                    {formatCurrency(valor)}
+                                  </span>
+                                  {porcentaje !== null && (
+                                    <span className="text-[10px] text-primary-foreground/70 font-medium">
+                                      {formatPercent(porcentaje)} s/Ventas
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            )
+                          })}
                           
                           {/* Columna de variación */}
                           <td className={cn(
