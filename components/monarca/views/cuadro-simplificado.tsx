@@ -31,7 +31,8 @@ import {
 import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/monarca/shared"
 import { getCuadroAsync } from "@/lib/data"
 import { getConfiguracionPL } from "@/lib/metricas-admin"
-import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL } from "@/lib/data"
+import { getRRHHSubcuentas } from "@/lib/rrhh-subcuentas"
+import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL, RRHHSubcuentasDetalle } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
@@ -47,11 +48,32 @@ function calcularCuadroResultado(
   facturacion: number,
   iva: number,
   cmv: number,
-  config: ConfiguracionPL
+  config: ConfiguracionPL,
+  rrhhSubcuentas: RRHHSubcuentasDetalle | null
 ): CuadroResultadoLinea {
   const ventasSinIva = facturacion - iva
   const contribucionMarginal = ventasSinIva - cmv
-  const rrhh = ventasSinIva * config.ratios.rrhh
+  
+  // RRHH: usar datos reales si existen, sino usar ratio
+  let rrhh: number
+  let subcuentas: RRHHSubcuentasDetalle
+  
+  if (rrhhSubcuentas && rrhhSubcuentas.sueldos > 0) {
+    // Usar datos reales cargados
+    rrhh = rrhhSubcuentas.sueldos + rrhhSubcuentas.cargas_sociales + 
+           rrhhSubcuentas.indemnizaciones + rrhhSubcuentas.tabla_merito
+    subcuentas = rrhhSubcuentas
+  } else {
+    // Fallback a ratio si no hay datos cargados
+    rrhh = ventasSinIva * config.ratios.rrhh
+    subcuentas = {
+      sueldos: rrhh * 0.70, // 70% sueldos
+      cargas_sociales: rrhh * 0.30, // 30% cargas
+      indemnizaciones: 0,
+      tabla_merito: 0,
+    }
+  }
+  
   const gastosComerciales = ventasSinIva * config.ratios.gastosComerciales
   const resultadoOperativo = contribucionMarginal - rrhh - gastosComerciales
   const impuestos = ventasSinIva * config.ratios.impuestosOperativos
@@ -70,6 +92,7 @@ function calcularCuadroResultado(
     cmv,
     contribucionMarginal,
     rrhh,
+    rrhhSubcuentas: subcuentas,
     gastosComerciales,
     resultadoOperativo,
     impuestos,
@@ -189,6 +212,7 @@ export function CuadroSimplificado({
   const [cuadrosPorPeriodo, setCuadrosPorPeriodo] = useState<{ periodo: Periodo; cuadro: Cuadro | null }[]>([])
   const [mostrarKPIs, setMostrarKPIs] = useState(true)
   const [configuracionPL, setConfiguracionPL] = useState<ConfiguracionPL | null>(null)
+  const [rrhhExpanded, setRrhhExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón RRHH
 
   // Cargar datos de todos los períodos y configuración
   const loadData = async () => {
@@ -218,30 +242,45 @@ export function CuadroSimplificado({
   }, [periodos, sucursalId])
 
   // Calcular P&L para cada período usando datos REALES de la base de datos
-  const cuadrosResultado = useMemo(() => {
-    if (!configuracionPL) return []
+  const [cuadrosResultado, setCuadrosResultado] = useState<{ periodo: Periodo; pl: CuadroResultadoLinea | null; kpis: KPIsComplementarios | null }[]>([])
+  
+  useEffect(() => {
+    if (!configuracionPL || cuadrosPorPeriodo.length === 0) {
+      setCuadrosResultado([])
+      return
+    }
     
-    return cuadrosPorPeriodo.map(({ periodo, cuadro }) => {
-      if (!cuadro) return { periodo, pl: null, kpis: null }
-      
-      // USAR DATOS REALES de la base de datos (no estimaciones)
-      // cuadro.total tiene los valores REALES cargados en "Gestión de Cargas & Datos"
-      const facturacion = cuadro.total.facturacion // Facturación real (YA incluye IVA)
-      const iva = cuadro.total.iva // IVA real del sistema
-      const cmv = cuadro.total.costo // Costo real del sistema (CMV)
+    async function calcularConRRHH() {
+      const results = await Promise.all(
+        cuadrosPorPeriodo.map(async ({ periodo, cuadro }) => {
+          if (!cuadro) return { periodo, pl: null, kpis: null }
+          
+          // USAR DATOS REALES de la base de datos
+          const facturacion = cuadro.total.facturacion // Facturación real (YA incluye IVA)
+          const iva = cuadro.total.iva // IVA real del sistema
+          const cmv = cuadro.total.costo // Costo real del sistema (CMV)
 
-      const pl = calcularCuadroResultado(
-        facturacion,
-        iva,
-        cmv,
-        configuracionPL
+          // Obtener subcuentas RRHH reales
+          const rrhhSubcuentas = await getRRHHSubcuentas(periodo.key, sucursalId)
+
+          const pl = calcularCuadroResultado(
+            facturacion,
+            iva,
+            cmv,
+            configuracionPL!,
+            rrhhSubcuentas
+          )
+
+          const kpis = generarKPIsComplementarios(pl.ventasSinIva, configuracionPL!)
+
+          return { periodo, pl, kpis }
+        })
       )
-
-      const kpis = generarKPIsComplementarios(pl.ventasSinIva, configuracionPL)
-
-      return { periodo, pl, kpis }
-    })
-  }, [cuadrosPorPeriodo, configuracionPL])
+      setCuadrosResultado(results)
+    }
+    
+    calcularConRRHH()
+  }, [cuadrosPorPeriodo, configuracionPL, sucursalId])
   if (loading) {
     return <TransitionLoader fullPage />
   }
@@ -483,11 +522,13 @@ export function CuadroSimplificado({
                         <tr 
                           className={cn(
                             "border-b border-border transition-all hover:bg-muted/50",
+                            key === 'rrhh' && "cursor-pointer", // RRHH es expandible
                             tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5 border-primary/30 font-semibold",
                             tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5 border-success/30 font-semibold",
                             tipo === 'resultado-total' && "bg-primary border-primary/50 font-bold text-primary-foreground",
                             tipo === 'ingreso-base' && "bg-success/3 border-success/20",
                           )}
+                          onClick={() => key === 'rrhh' && setRrhhExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
                         >
                           <td className={cn(
                             "sticky left-0 z-10 px-4 py-3.5 min-w-[300px] border-r border-border/40 font-medium text-sm",
@@ -498,6 +539,11 @@ export function CuadroSimplificado({
                             !(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total' || tipo === 'ingreso-base') && "bg-card"
                           )}>
                             <div className="flex items-center gap-2 group">
+                              {key === 'rrhh' && (
+                                rrhhExpanded[key] 
+                                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
                               <span className={cn(
                                 tipo === 'resultado-total' && "text-primary-foreground font-bold",
                                 tipo === 'resultado-principal' && "text-primary",
@@ -514,11 +560,16 @@ export function CuadroSimplificado({
                           
                           {/* Valores por período */}
                           {valores.map((valor, idx) => {
-                            // Calcular porcentaje si es resultado-total
-                            const ventasSinIva = key === 'resultadoTotal' && periodosVisibles[idx]?.pl 
-                              ? periodosVisibles[idx].pl.ventasSinIva 
-                              : 0
-                            const porcentaje = key === 'resultadoTotal' && ventasSinIva > 0
+                            // Calcular porcentajes sobre Ventas sin IVA
+                            const ventasSinIva = periodosVisibles[idx]?.pl?.ventasSinIva || 0
+                            
+                            // Porcentaje para Resultado Total (NETO)
+                            const porcentajeResultadoTotal = key === 'resultadoTotal' && ventasSinIva > 0
+                              ? (valor / ventasSinIva) * 100
+                              : null
+                            
+                            // Porcentaje para Contribución Marginal
+                            const porcentajeContribucion = key === 'contribucionMarginal' && ventasSinIva > 0
                               ? (valor / ventasSinIva) * 100
                               : null
                             
@@ -542,9 +593,14 @@ export function CuadroSimplificado({
                                   )}>
                                     {formatCurrency(valor)}
                                   </span>
-                                  {porcentaje !== null && (
+                                  {porcentajeResultadoTotal !== null && (
                                     <span className="text-[10px] text-primary-foreground/70 font-medium">
-                                      {formatPercent(porcentaje)} s/Ventas
+                                      {formatPercent(porcentajeResultadoTotal)} s/Ventas
+                                    </span>
+                                  )}
+                                  {porcentajeContribucion !== null && (
+                                    <span className="text-[10px] text-success/70 font-medium">
+                                      {formatPercent(porcentajeContribucion)} s/Ventas
                                     </span>
                                   )}
                                 </div>
@@ -563,6 +619,63 @@ export function CuadroSimplificado({
                             <VariacionCell actual={ultimoValor} anterior={penultimoValor} esTotalNeto={tipo === 'resultado-total'} />
                           </td>
                         </tr>
+                        
+                        {/* Subcuentas RRHH (acordeón expandible) */}
+                        {key === 'rrhh' && rrhhExpanded[key] && (
+                          <>
+                            {/* Sueldos */}
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Sueldos
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.rrhhSubcuentas.sueldos) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            
+                            {/* Cargas Sociales */}
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Cargas Sociales
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.rrhhSubcuentas.cargas_sociales) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            
+                            {/* Indemnizaciones */}
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Indemnizaciones
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.rrhhSubcuentas.indemnizaciones) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            
+                            {/* Tabla Mérito */}
+                            <tr className="bg-muted/10 border-b border-border text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Tabla Mérito
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.rrhhSubcuentas.tabla_merito) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                          </>
+                        )}
                       </Fragment>
                     )
                   })

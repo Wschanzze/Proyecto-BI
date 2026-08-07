@@ -27,7 +27,8 @@ export interface CuadroResultadoLinea {
   ventasSinIva: number // Ventas sin IVA = Facturación - IVA
   cmv: number // Costo de Mercadería Vendida
   contribucionMarginal: number // = Ventas sin IVA - CMV
-  rrhh: number // Gastos de personal
+  rrhh: number // Gastos de personal (TOTAL)
+  rrhhSubcuentas: RRHHSubcuentasDetalle // Detalle de subcuentas RRHH
   gastosComerciales: number // Gastos comerciales
   resultadoOperativo: number // = Contribución marginal - RRHH - Gastos comerciales
   impuestos: number // Impuestos y cargas operativas
@@ -38,6 +39,14 @@ export interface CuadroResultadoLinea {
   resultadoFinal: number // = Resultado supermercado + Ingresos financieros
   resultadoImpositivo: number // = 19% IVA + IIBB + TUAE
   resultadoTotal: number // = Resultado final + Resultado impositivo
+}
+
+// Subcuentas detalladas de RRHH
+export interface RRHHSubcuentasDetalle {
+  sueldos: number
+  cargas_sociales: number
+  indemnizaciones: number
+  tabla_merito: number
 }
 
 // KPIs complementarios por período
