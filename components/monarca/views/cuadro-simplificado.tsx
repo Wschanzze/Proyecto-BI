@@ -114,24 +114,25 @@ function calcularVariacion(actual: number, anterior: number | null): number | nu
   return ((actual - anterior) / Math.abs(anterior)) * 100
 }
 
-function VariacionCell({ actual, anterior }: { actual: number; anterior: number | null }) {
+function VariacionCell({ actual, anterior, esTotalNeto }: { actual: number; anterior: number | null; esTotalNeto?: boolean }) {
   const variacion = calcularVariacion(actual, anterior)
   
   if (variacion === null) {
-    return <span className="text-muted-foreground">—</span>
+    return <span className={cn("text-muted-foreground", esTotalNeto && "text-primary-foreground/60")}>—</span>
   }
 
   const isPositive = variacion > 0
   const isNegative = variacion < 0
   
   return (
-    <div className="flex items-center gap-1">
-      {isPositive && <TrendingUp className="h-3 w-3 text-success" />}
-      {isNegative && <TrendingDown className="h-3 w-3 text-destructive" />}
-      {variacion === 0 && <Minus className="h-3 w-3 text-muted-foreground" />}
+    <div className="flex items-center justify-center gap-1">
+      {isPositive && <TrendingUp className={cn("h-3 w-3 text-success", esTotalNeto && "text-success")} />}
+      {isNegative && <TrendingDown className={cn("h-3 w-3 text-destructive", esTotalNeto && "text-destructive")} />}
+      {variacion === 0 && <Minus className={cn("h-3 w-3 text-muted-foreground", esTotalNeto && "text-primary-foreground/60")} />}
       <span className={cn(
         "text-xs font-medium",
-        isPositive ? "text-success" : isNegative ? "text-destructive" : "text-muted-foreground"
+        isPositive ? "text-success" : isNegative ? "text-destructive" : "text-muted-foreground",
+        esTotalNeto && "text-primary-foreground"
       )}>
         {formatPercent(Math.abs(variacion))}
       </span>
@@ -434,16 +435,16 @@ export function CuadroSimplificado({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b-2 border-accent bg-gradient-to-r from-accent/20 to-accent/10 text-foreground">
-                  <th className="sticky left-0 z-10 bg-gradient-to-r from-accent/20 to-accent/10 px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-accent/30">
+                <tr className="border-b-2 border-accent bg-accent text-accent-foreground">
+                  <th className="sticky left-0 z-10 bg-accent px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-accent/30 text-accent-foreground">
                     Línea de Resultado
                   </th>
                   {periodosVisibles.map(({ periodo }) => (
-                    <th key={periodo.key} className="px-4 py-4 text-right font-bold whitespace-nowrap min-w-[130px] text-accent">
+                    <th key={periodo.key} className="px-4 py-4 text-right font-bold whitespace-nowrap min-w-[130px] text-accent-foreground">
                       <span className="text-base">{periodoLabelCorto(periodo.anio, periodo.mes)}</span>
                     </th>
                   ))}
-                  <th className="px-4 py-4 text-center font-bold min-w-[110px] text-accent">
+                  <th className="px-4 py-4 text-center font-bold min-w-[110px] text-accent-foreground">
                     <span className="text-base">Variación</span>
                   </th>
                 </tr>
@@ -483,7 +484,7 @@ export function CuadroSimplificado({
                             "border-b border-border transition-all hover:bg-muted/50",
                             tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5 border-primary/30 font-semibold",
                             tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5 border-success/30 font-semibold",
-                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/15 to-accent/10 border-accent/50 font-bold text-accent-foreground",
+                            tipo === 'resultado-total' && "bg-primary border-primary/50 font-bold text-primary-foreground",
                             tipo === 'ingreso-base' && "bg-success/3 border-success/20",
                           )}
                         >
@@ -491,19 +492,22 @@ export function CuadroSimplificado({
                             "sticky left-0 z-10 px-4 py-3.5 min-w-[300px] border-r border-border/40 font-medium text-sm",
                             tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5",
                             tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5",
-                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/15 to-accent/10",
+                            tipo === 'resultado-total' && "bg-primary text-primary-foreground",
                             tipo === 'ingreso-base' && "bg-success/3",
                             !(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total' || tipo === 'ingreso-base') && "bg-card"
                           )}>
                             <div className="flex items-center gap-2 group">
                               <span className={cn(
-                                tipo === 'resultado-total' && "text-accent-foreground",
+                                tipo === 'resultado-total' && "text-primary-foreground font-bold",
                                 tipo === 'resultado-principal' && "text-primary",
                                 tipo === 'resultado-final' && "text-success",
                               )}>
                                 {label}
                               </span>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help" title={tooltip} />
+                              <Info className={cn(
+                                "h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help",
+                                tipo === 'resultado-total' ? "text-primary-foreground/60" : "text-muted-foreground/40"
+                              )} title={tooltip} />
                             </div>
                           </td>
                           
@@ -513,11 +517,11 @@ export function CuadroSimplificado({
                               "px-4 py-3.5 text-right tabular-nums font-medium text-sm",
                               tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
                               tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
-                              tipo === 'resultado-total' && "bg-gradient-to-r from-accent/10 to-accent/7 text-accent-foreground",
+                              tipo === 'resultado-total' && "bg-primary text-primary-foreground font-bold",
                               tipo === 'ingreso-base' && "bg-success/3",
                             )}>
                               <span className={cn(
-                                tipo === 'resultado-total' && "text-accent-foreground font-bold",
+                                tipo === 'resultado-total' && "text-primary-foreground font-bold",
                                 (tipo === 'gasto-op' || tipo === 'costo') && valor > 0 && "text-destructive/80",
                                 (tipo === 'ingreso' || tipo === 'ingreso-base' || tipo === 'ingreso-otro' || tipo === 'resultado' || tipo === 'resultado-principal' || tipo === 'resultado-final') && valor > 0 && "text-success",
                                 tipo === 'resultado-principal' && "text-primary font-semibold",
@@ -535,14 +539,10 @@ export function CuadroSimplificado({
                             "px-4 py-3.5 text-center",
                             tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
                             tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
-                            tipo === 'resultado-total' && "bg-gradient-to-r from-accent/10 to-accent/7",
+                            tipo === 'resultado-total' && "bg-primary",
                             tipo === 'ingreso-base' && "bg-success/3",
                           )}>
-                            {(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total') && (
-                              <VariacionCell actual={ultimoValor} anterior={penultimoValor} />
-                            ) || (
-                              <VariacionCell actual={ultimoValor} anterior={penultimoValor} />
-                            )}
+                            <VariacionCell actual={ultimoValor} anterior={penultimoValor} esTotalNeto={tipo === 'resultado-total'} />
                           </td>
                         </tr>
                       </Fragment>
