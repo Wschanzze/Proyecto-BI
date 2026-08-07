@@ -29,8 +29,9 @@ export interface CuadroResultadoLinea {
   contribucionMarginal: number // = Ventas sin IVA - CMV
   rrhh: number // Gastos de personal (TOTAL)
   rrhhSubcuentas: RRHHSubcuentasDetalle // Detalle de subcuentas RRHH
-  gastosComerciales: number // Gastos comerciales
-  resultadoOperativo: number // = Contribución marginal - RRHH - Gastos comerciales
+  costosFijos: number // Costos Fijos operativos (TOTAL, antes "Gastos Comerciales")
+  costosFijosSubcuentas: CostosFijosSubcuentasDetalle // Detalle de subcuentas Costos Fijos
+  resultadoOperativo: number // = Contribución marginal - RRHH - Costos Fijos
   impuestos: number // Impuestos y cargas operativas
   gastos: number // Gastos operativos generales
   merma: number // = 1.6% × Ventas sin IVA
@@ -47,6 +48,25 @@ export interface RRHHSubcuentasDetalle {
   cargas_sociales: number
   indemnizaciones: number
   tabla_merito: number
+}
+
+// Subcuentas detalladas de Costos Fijos (15 cuentas)
+export interface CostosFijosSubcuentasDetalle {
+  alquileres: number
+  honorarios: number
+  tasas_servicios: number
+  mantenimiento_servicios_tecnicos: number
+  perdida_gestion_inventarios: number
+  seguridad_vigilancia: number
+  otros_servicios: number
+  gastos_personal: number
+  otros_gastos: number
+  comisiones_gastos_bancarios: number
+  gastos_extraordinarios: number
+  gastos_comercializacion: number
+  gastos_administracion: number
+  gastos_financiacion: number
+  diferencias_caja_perdida: number
 }
 
 // KPIs complementarios por período

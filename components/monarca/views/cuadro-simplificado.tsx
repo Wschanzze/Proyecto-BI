@@ -32,7 +32,8 @@ import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/mona
 import { getCuadroAsync } from "@/lib/data"
 import { getConfiguracionPL } from "@/lib/metricas-admin"
 import { getRRHHSubcuentas } from "@/lib/rrhh-subcuentas"
-import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL, RRHHSubcuentasDetalle } from "@/lib/data"
+import { getCostosFijosSubcuentas } from "@/lib/costos-fijos-subcuentas"
+import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL, RRHHSubcuentasDetalle, CostosFijosSubcuentasDetalle } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
@@ -49,24 +50,25 @@ function calcularCuadroResultado(
   iva: number,
   cmv: number,
   config: ConfiguracionPL,
-  rrhhSubcuentas: RRHHSubcuentasDetalle | null
+  rrhhSubcuentas: RRHHSubcuentasDetalle | null,
+  costosFijosSubcuentas: CostosFijosSubcuentasDetalle | null
 ): CuadroResultadoLinea {
   const ventasSinIva = facturacion - iva
   const contribucionMarginal = ventasSinIva - cmv
   
   // RRHH: usar datos reales si existen, sino usar ratio
   let rrhh: number
-  let subcuentas: RRHHSubcuentasDetalle
+  let subcuentasRRHH: RRHHSubcuentasDetalle
   
   if (rrhhSubcuentas && rrhhSubcuentas.sueldos > 0) {
     // Usar datos reales cargados
     rrhh = rrhhSubcuentas.sueldos + rrhhSubcuentas.cargas_sociales + 
            rrhhSubcuentas.indemnizaciones + rrhhSubcuentas.tabla_merito
-    subcuentas = rrhhSubcuentas
+    subcuentasRRHH = rrhhSubcuentas
   } else {
     // Fallback a ratio si no hay datos cargados
     rrhh = ventasSinIva * config.ratios.rrhh
-    subcuentas = {
+    subcuentasRRHH = {
       sueldos: rrhh * 0.70, // 70% sueldos
       cargas_sociales: rrhh * 0.30, // 30% cargas
       indemnizaciones: 0,
@@ -74,8 +76,44 @@ function calcularCuadroResultado(
     }
   }
   
-  const gastosComerciales = ventasSinIva * config.ratios.gastosComerciales
-  const resultadoOperativo = contribucionMarginal - rrhh - gastosComerciales
+  // COSTOS FIJOS: usar datos reales si existen, sino usar ratio
+  let costosFijos: number
+  let subcuentasCostosFijos: CostosFijosSubcuentasDetalle
+  
+  if (costosFijosSubcuentas && costosFijosSubcuentas.alquileres > 0) {
+    // Usar datos reales cargados
+    costosFijos = costosFijosSubcuentas.alquileres + costosFijosSubcuentas.honorarios +
+                  costosFijosSubcuentas.tasas_servicios + costosFijosSubcuentas.mantenimiento_servicios_tecnicos +
+                  costosFijosSubcuentas.perdida_gestion_inventarios + costosFijosSubcuentas.seguridad_vigilancia +
+                  costosFijosSubcuentas.otros_servicios + costosFijosSubcuentas.gastos_personal +
+                  costosFijosSubcuentas.otros_gastos + costosFijosSubcuentas.comisiones_gastos_bancarios +
+                  costosFijosSubcuentas.gastos_extraordinarios + costosFijosSubcuentas.gastos_comercializacion +
+                  costosFijosSubcuentas.gastos_administracion + costosFijosSubcuentas.gastos_financiacion +
+                  costosFijosSubcuentas.diferencias_caja_perdida
+    subcuentasCostosFijos = costosFijosSubcuentas
+  } else {
+    // Fallback a ratio si no hay datos cargados (antes gastosComerciales)
+    costosFijos = ventasSinIva * config.ratios.gastosComerciales
+    subcuentasCostosFijos = {
+      alquileres: costosFijos * 0.25,
+      honorarios: costosFijos * 0.05,
+      tasas_servicios: costosFijos * 0.10,
+      mantenimiento_servicios_tecnicos: costosFijos * 0.08,
+      perdida_gestion_inventarios: costosFijos * 0.05,
+      seguridad_vigilancia: costosFijos * 0.07,
+      otros_servicios: costosFijos * 0.05,
+      gastos_personal: costosFijos * 0.03,
+      otros_gastos: costosFijos * 0.07,
+      comisiones_gastos_bancarios: costosFijos * 0.04,
+      gastos_extraordinarios: costosFijos * 0.03,
+      gastos_comercializacion: costosFijos * 0.10,
+      gastos_administracion: costosFijos * 0.05,
+      gastos_financiacion: costosFijos * 0.02,
+      diferencias_caja_perdida: costosFijos * 0.01,
+    }
+  }
+  
+  const resultadoOperativo = contribucionMarginal - rrhh - costosFijos
   const impuestos = ventasSinIva * config.ratios.impuestosOperativos
   const gastos = ventasSinIva * config.ratios.gastosGenerales
   const merma = ventasSinIva * config.ratios.merma
@@ -92,8 +130,9 @@ function calcularCuadroResultado(
     cmv,
     contribucionMarginal,
     rrhh,
-    rrhhSubcuentas: subcuentas,
-    gastosComerciales,
+    rrhhSubcuentas: subcuentasRRHH,
+    costosFijos,
+    costosFijosSubcuentas: subcuentasCostosFijos,
     resultadoOperativo,
     impuestos,
     gastos,
@@ -176,7 +215,7 @@ const LINEAS_PL = [
   
   // GASTOS OPERATIVOS
   { key: 'rrhh', label: 'RRHH (Personal y Cargas Sociales)', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos de personal y cargas sociales' },
-  { key: 'gastosComerciales', label: 'Gastos Comerciales', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos de marketing y comercialización' },
+  { key: 'costosFijos', label: 'Costos Fijos', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Costos fijos operativos (alquileres, servicios, etc.)' },
   { key: 'impuestos', label: 'Impuestos Operativos', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Impuestos y cargas operativas' },
   { key: 'gastos', label: 'Gastos Generales', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos operativos generales' },
   { key: 'merma', label: 'Merma', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Pérdidas por merma (1.6% × Ventas sin IVA)' },
@@ -213,6 +252,7 @@ export function CuadroSimplificado({
   const [mostrarKPIs, setMostrarKPIs] = useState(true)
   const [configuracionPL, setConfiguracionPL] = useState<ConfiguracionPL | null>(null)
   const [rrhhExpanded, setRrhhExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón RRHH
+  const [costosFijosExpanded, setCostosFijosExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón Costos Fijos
 
   // Cargar datos de todos los períodos y configuración
   const loadData = async () => {
@@ -260,15 +300,17 @@ export function CuadroSimplificado({
           const iva = cuadro.total.iva // IVA real del sistema
           const cmv = cuadro.total.costo // Costo real del sistema (CMV)
 
-          // Obtener subcuentas RRHH reales
+          // Obtener subcuentas RRHH y Costos Fijos reales
           const rrhhSubcuentas = await getRRHHSubcuentas(periodo.key, sucursalId)
+          const costosFijosSubcuentas = await getCostosFijosSubcuentas(periodo.key, sucursalId)
 
           const pl = calcularCuadroResultado(
             facturacion,
             iva,
             cmv,
             configuracionPL!,
-            rrhhSubcuentas
+            rrhhSubcuentas,
+            costosFijosSubcuentas
           )
 
           const kpis = generarKPIsComplementarios(pl.ventasSinIva, configuracionPL!)
@@ -522,13 +564,16 @@ export function CuadroSimplificado({
                         <tr 
                           className={cn(
                             "border-b border-border transition-all hover:bg-muted/50",
-                            key === 'rrhh' && "cursor-pointer", // RRHH es expandible
+                            (key === 'rrhh' || key === 'costosFijos') && "cursor-pointer", // RRHH y Costos Fijos son expandibles
                             tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5 border-primary/30 font-semibold",
                             tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5 border-success/30 font-semibold",
                             tipo === 'resultado-total' && "bg-primary border-primary/50 font-bold text-primary-foreground",
                             tipo === 'ingreso-base' && "bg-success/3 border-success/20",
                           )}
-                          onClick={() => key === 'rrhh' && setRrhhExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
+                          onClick={() => {
+                            if (key === 'rrhh') setRrhhExpanded(prev => ({ ...prev, [key]: !prev[key] }))
+                            if (key === 'costosFijos') setCostosFijosExpanded(prev => ({ ...prev, [key]: !prev[key] }))
+                          }}
                         >
                           <td className={cn(
                             "sticky left-0 z-10 px-4 py-3.5 min-w-[300px] border-r border-border/40 font-medium text-sm",
@@ -541,6 +586,11 @@ export function CuadroSimplificado({
                             <div className="flex items-center gap-2 group">
                               {key === 'rrhh' && (
                                 rrhhExpanded[key] 
+                                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                              {key === 'costosFijos' && (
+                                costosFijosExpanded[key] 
                                   ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                   : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                               )}
@@ -670,6 +720,177 @@ export function CuadroSimplificado({
                               {periodosVisibles.map(({ pl }, idx) => (
                                 <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
                                   {pl ? formatCurrency(pl.rrhhSubcuentas.tabla_merito) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                          </>
+                        )}
+                        
+                        {/* Subcuentas Costos Fijos (acordeón expandible - 15 cuentas) */}
+                        {key === 'costosFijos' && costosFijosExpanded[key] && (
+                          <>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Alquileres
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.alquileres) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Honorarios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.honorarios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Tasas y Servicios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.tasas_servicios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Mantenimiento y Servicios Técnicos
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.mantenimiento_servicios_tecnicos) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Pérdida en Gestión de Inventarios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.perdida_gestion_inventarios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Seguridad y Vigilancia
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.seguridad_vigilancia) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Otros Servicios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.otros_servicios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Gastos en Personal
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_personal) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Otros Gastos
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.otros_gastos) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Comisiones y Gastos Bancarios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.comisiones_gastos_bancarios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Gastos Extraordinarios
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_extraordinarios) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Gastos de Comercialización
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_comercializacion) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Gastos de Administración
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_administracion) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Gastos de Financiación
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_financiacion) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Diferencias de Caja - Pérdida
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.costosFijosSubcuentas.diferencias_caja_perdida) : '—'}
                                 </td>
                               ))}
                               <td className="px-4 py-2.5 bg-muted/10"></td>
