@@ -1,17 +1,20 @@
 // components/monarca/views/carga-costos-fijos.tsx
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   Calculator, 
   TrendingUp, 
   Upload, 
   CheckCircle2, 
   AlertCircle,
-  Info
+  Info,
+  FileText,
+  Download
 } from "lucide-react"
 import { PageHeader } from "@/components/monarca/shared"
 import { distribuirCostosFijos, distribuirIngresosFinancieros } from "@/lib/distribucion-costos"
@@ -73,6 +76,7 @@ export function CargaCostosFijos({
 }) {
   const [loading, setLoading] = useState(false)
   const [resultado, setResultado] = useState<{ success: boolean; message: string; detalles?: any[] } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [costosFijos, setCostosFijos] = useState<CostosFijosForm>({
     alquileres: '',
@@ -114,6 +118,103 @@ export function CargaCostosFijos({
 
   const calcularTotalIngresos = () => {
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
+  }
+
+  // Procesar archivo CSV
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line)
+        
+        if (lines.length < 2) {
+          setResultado({
+            success: false,
+            message: 'El archivo CSV está vacío o no tiene el formato correcto'
+          })
+          return
+        }
+
+        // Procesar líneas (ignorar header)
+        const newCostos: Partial<CostosFijosForm> = {}
+        const newIngresos: Partial<IngresosFinancierosForm> = {}
+        
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i]
+          const parts = line.split(',').map(p => p.trim().replace(/"/g, ''))
+          
+          if (parts.length < 2) continue
+          
+          const denominacion = parts[0].toLowerCase()
+          const monto = parts[1].replace(/[^0-9.]/g, '')
+          
+          // Mapear denominaciones a campos
+          if (denominacion.includes('alquiler')) newCostos.alquileres = monto
+          else if (denominacion.includes('honorario')) newCostos.honorarios = monto
+          else if (denominacion.includes('tasas') || denominacion.includes('servicio')) newCostos.tasas_servicios = monto
+          else if (denominacion.includes('mantenimiento') || denominacion.includes('tecnico')) newCostos.mantenimiento_servicios_tecnicos = monto
+          else if (denominacion.includes('perdida') || denominacion.includes('inventario')) newCostos.perdida_gestion_inventarios = monto
+          else if (denominacion.includes('seguridad') || denominacion.includes('vigilancia')) newCostos.seguridad_vigilancia = monto
+          else if (denominacion.includes('otros servicios')) newCostos.otros_servicios = monto
+          else if (denominacion.includes('gastos en personal') || denominacion.includes('gasto personal')) newCostos.gastos_personal = monto
+          else if (denominacion.includes('otros gastos')) newCostos.otros_gastos = monto
+          else if (denominacion.includes('comision') || denominacion.includes('bancario')) newCostos.comisiones_gastos_bancarios = monto
+          else if (denominacion.includes('extraordinario')) newCostos.gastos_extraordinarios = monto
+          else if (denominacion.includes('comercializ')) newCostos.gastos_comercializacion = monto
+          else if (denominacion.includes('administra')) newCostos.gastos_administracion = monto
+          else if (denominacion.includes('financia')) newCostos.gastos_financiacion = monto
+          else if (denominacion.includes('diferencia') || denominacion.includes('caja')) newCostos.diferencias_caja_perdida = monto
+          else if (denominacion.includes('operatoria financiera')) newIngresos.operatoria_financiera = monto
+          else if (denominacion.includes('rendimiento')) newIngresos.rendimientos_financieros = monto
+        }
+        
+        setCostosFijos(prev => ({ ...prev, ...newCostos }))
+        setIngresosFinancieros(prev => ({ ...prev, ...newIngresos }))
+        
+        setResultado({
+          success: true,
+          message: `Archivo cargado exitosamente. Se importaron ${Object.keys(newCostos).length} costos fijos y ${Object.keys(newIngresos).length} ingresos financieros.`
+        })
+      } catch (error) {
+        setResultado({
+          success: false,
+          message: `Error al procesar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`
+        })
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  // Descargar plantilla CSV
+  const handleDownloadTemplate = () => {
+    const template = `Denominación,Total,Mes
+Alquileres,0,${periodoKey}
+Honorarios,0,${periodoKey}
+Tasas y Servicios,0,${periodoKey}
+Mantenimiento y Servicios Técnicos,0,${periodoKey}
+Pérdida en Gestión de Inventarios,0,${periodoKey}
+Seguridad y Vigilancia,0,${periodoKey}
+Otros Servicios,0,${periodoKey}
+Gastos en Personal,0,${periodoKey}
+Otros Gastos,0,${periodoKey}
+Comisiones y Gastos Bancarios,0,${periodoKey}
+Gastos Extraordinarios,0,${periodoKey}
+Gastos de Comercialización,0,${periodoKey}
+Gastos de Administración,0,${periodoKey}
+Gastos de Financiación,0,${periodoKey}
+Diferencias de Caja - Pérdida,0,${periodoKey}
+Operatoria Financiera,0,${periodoKey}
+Rendimientos Financieros,0,${periodoKey}`
+
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `plantilla_costos_fijos_${periodoKey}.csv`
+    link.click()
   }
 
   const handleSubmitCostos = async () => {
@@ -235,7 +336,15 @@ export function CargaCostosFijos({
         </CardContent>
       </Card>
 
-      {/* Sección 1: Costos Fijos */}
+      {/* Tabs para carga manual o desde archivo */}
+      <Tabs defaultValue="manual" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="manual">Carga Manual</TabsTrigger>
+          <TabsTrigger value="archivo">Carga desde Archivo CSV</TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Carga Manual */}
+        <TabsContent value="manual" className="space-y-6 mt-6">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -343,6 +452,111 @@ export function CargaCostosFijos({
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Tab: Carga desde Archivo CSV */}
+        <TabsContent value="archivo" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Importar desde CSV
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Información sobre el formato */}
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <h4 className="text-sm font-semibold mb-2">Formato del Archivo CSV</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  El archivo CSV debe tener 3 columnas: <strong>Denominación</strong>, <strong>Total</strong>, <strong>Mes</strong>
+                </p>
+                <div className="text-xs font-mono bg-background p-3 rounded border border-border overflow-x-auto">
+                  <div>Denominación,Total,Mes</div>
+                  <div className="text-muted-foreground">Alquileres,22022608.27,jun-26</div>
+                  <div className="text-muted-foreground">Honorarios,589438.00,jun-26</div>
+                  <div className="text-muted-foreground">...</div>
+                </div>
+              </div>
+
+              {/* Botón para descargar plantilla */}
+              <Button
+                onClick={handleDownloadTemplate}
+                variant="outline"
+                className="w-full"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Descargar Plantilla CSV
+              </Button>
+
+              {/* Input de archivo oculto */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              {/* Botón para seleccionar archivo */}
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="secondary"
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Seleccionar Archivo CSV
+              </Button>
+
+              {/* Mensaje informativo */}
+              <p className="text-xs text-muted-foreground text-center">
+                Una vez cargado el archivo, los valores se completarán automáticamente en los formularios.
+                Cambiá a la pestaña "Carga Manual" para revisar y distribuir.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Mostrar vista previa de datos cargados */}
+      {(totalCostos > 0 || totalIngresos > 0) && (
+        <Card className="border-success/30 bg-success/5">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              Datos Cargados - Listos para Distribuir
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="font-medium">Total Costos Fijos:</span>
+              <span className="text-lg font-bold">{formatCurrency(totalCostos)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Total Ingresos Financieros:</span>
+              <span className="text-lg font-bold">{formatCurrency(totalIngresos)}</span>
+            </div>
+            <div className="mt-4 pt-3 border-t space-y-2">
+              <Button 
+                onClick={handleSubmitCostos} 
+                disabled={loading || totalCostos === 0}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {loading ? 'Distribuyendo...' : 'Distribuir Costos Fijos por Sucursal'}
+              </Button>
+              <Button 
+                onClick={handleSubmitIngresos} 
+                disabled={loading || totalIngresos === 0}
+                className="w-full"
+                variant="secondary"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {loading ? 'Distribuyendo...' : 'Distribuir Ingresos Financieros por Sucursal'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Resultado */}
       {resultado && (

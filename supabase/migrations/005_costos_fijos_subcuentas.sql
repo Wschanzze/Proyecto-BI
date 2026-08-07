@@ -220,6 +220,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trigger_costos_actualiza_fijos ON costos_estructurales;
 CREATE TRIGGER trigger_costos_actualiza_fijos
 AFTER INSERT OR UPDATE ON costos_estructurales
 FOR EACH ROW
@@ -232,6 +233,11 @@ CREATE INDEX IF NOT EXISTS idx_costos_fijos_subcuentas_sucursal ON costos_fijos_
 -- 5. ROW LEVEL SECURITY
 ALTER TABLE costos_fijos_subcuentas ENABLE ROW LEVEL SECURITY;
 
+-- Eliminar políticas existentes si existen
+DROP POLICY IF EXISTS "public read costos_fijos_subcuentas" ON costos_fijos_subcuentas;
+DROP POLICY IF EXISTS "admin write costos_fijos_subcuentas" ON costos_fijos_subcuentas;
+
+-- Crear políticas
 CREATE POLICY "public read costos_fijos_subcuentas" ON costos_fijos_subcuentas FOR SELECT USING (true);
 CREATE POLICY "admin write costos_fijos_subcuentas" ON costos_fijos_subcuentas FOR ALL USING (true);
 
@@ -250,6 +256,7 @@ END;
 $$;
 
 -- 7. VISTA CONSOLIDADA DE COSTOS FIJOS
+DROP VIEW IF EXISTS vista_costos_fijos_consolidado;
 CREATE OR REPLACE VIEW vista_costos_fijos_consolidado AS
 SELECT 
   p.anio,

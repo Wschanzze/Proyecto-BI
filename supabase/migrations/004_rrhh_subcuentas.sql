@@ -76,6 +76,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trigger_nomina_actualiza_rrhh ON nomina_mensual;
 CREATE TRIGGER trigger_nomina_actualiza_rrhh
 AFTER INSERT OR UPDATE ON nomina_mensual
 FOR EACH ROW
@@ -87,6 +88,10 @@ CREATE INDEX IF NOT EXISTS idx_rrhh_subcuentas_sucursal ON rrhh_subcuentas(sucur
 
 -- 5. ROW LEVEL SECURITY
 ALTER TABLE rrhh_subcuentas ENABLE ROW LEVEL SECURITY;
+
+-- Eliminar políticas existentes si existen
+DROP POLICY IF EXISTS "public read rrhh_subcuentas" ON rrhh_subcuentas;
+DROP POLICY IF EXISTS "admin write rrhh_subcuentas" ON rrhh_subcuentas;
 
 -- Políticas de lectura pública
 CREATE POLICY "public read rrhh_subcuentas" ON rrhh_subcuentas FOR SELECT USING (true);
@@ -111,6 +116,7 @@ $$;
 
 -- 7. VISTA CONSOLIDADA DE RRHH
 -- Facilita la consulta de RRHH con datos consolidados
+DROP VIEW IF EXISTS vista_rrhh_consolidado;
 CREATE OR REPLACE VIEW vista_rrhh_consolidado AS
 SELECT 
   p.anio,

@@ -34,10 +34,16 @@ CREATE INDEX IF NOT EXISTS idx_ingresos_financieros_sucursal ON ingresos_financi
 -- 3. ROW LEVEL SECURITY
 ALTER TABLE ingresos_financieros_subcuentas ENABLE ROW LEVEL SECURITY;
 
+-- Eliminar políticas existentes si existen
+DROP POLICY IF EXISTS "public read ingresos_financieros_subcuentas" ON ingresos_financieros_subcuentas;
+DROP POLICY IF EXISTS "admin write ingresos_financieros_subcuentas" ON ingresos_financieros_subcuentas;
+
+-- Crear políticas
 CREATE POLICY "public read ingresos_financieros_subcuentas" ON ingresos_financieros_subcuentas FOR SELECT USING (true);
 CREATE POLICY "admin write ingresos_financieros_subcuentas" ON ingresos_financieros_subcuentas FOR ALL USING (true);
 
 -- 4. VISTA CONSOLIDADA DE INGRESOS FINANCIEROS
+DROP VIEW IF EXISTS vista_ingresos_financieros_consolidado;
 CREATE OR REPLACE VIEW vista_ingresos_financieros_consolidado AS
 SELECT 
   p.anio,
