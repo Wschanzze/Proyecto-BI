@@ -6,12 +6,13 @@ import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react"
 import { CargarDatos } from "@/components/monarca/views/cargar-datos"
 import { Documentacion } from "@/components/monarca/views/documentacion"
 import { MetricasAdmin } from "@/components/monarca/views/metricas-admin"
+import { GestionCargas } from "@/components/monarca/views/gestion-cargas"
 import { TopBar } from "@/components/monarca/top-bar"
 
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
 
-type AdminTab = "cargar" | "documentacion" | "metricas"
+type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas"
 
 /* ─── PIN gate ─────────────────────────────────────────────────────────── */
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
@@ -165,8 +166,9 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 /* ─── Admin shell (after unlock) ───────────────────────────────────────── */
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "cargar", label: "Cargar Datos" },
-  { id: "documentacion", label: "Documentación" },
+  { id: "gestion-cargas", label: "Gestión Cargas & Datos" },
   { id: "metricas", label: "Métricas P&L" },
+  { id: "documentacion", label: "Documentación" },
 ]
 
 function AdminShell() {
@@ -210,8 +212,9 @@ function AdminShell() {
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 md:px-6 md:py-8">
         {tab === "cargar" && <CargarDatos />}
-        {tab === "documentacion" && <Documentacion />}
+        {tab === "gestion-cargas" && <GestionCargas />}
         {tab === "metricas" && <MetricasAdmin />}
+        {tab === "documentacion" && <Documentacion />}
       </main>
 
       <footer className="border-t border-border bg-card py-4">

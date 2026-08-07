@@ -82,6 +82,133 @@ export interface MetricaConfigurable {
   creado_por: string | null
 }
 
+// RRHH y Empleados
+export interface Empleado {
+  id: number
+  legajo: string
+  apellido: string
+  nombre: string
+  dni: string
+  cuil: string
+  sucursal_id: string
+  puesto: string
+  categoria: 'gerencial' | 'administrativo' | 'operativo' | 'temporal'
+  fecha_ingreso: string
+  fecha_egreso: string | null
+  sueldo_basico: number
+  activo: boolean
+  creado_en: string
+  actualizado_en: string
+}
+
+export interface NominaMensual {
+  id: number
+  periodo_id: number
+  sucursal_id: string
+  empleado_id: number
+  
+  // Conceptos de liquidación
+  sueldo_basico: number
+  horas_extras: number
+  premios: number
+  bonificaciones: number
+  total_remunerativo: number
+  
+  // Adicionales no remunerativos
+  viaticos: number
+  total_no_remunerativo: number
+  
+  // Descuentos
+  jubilacion: number
+  obra_social: number
+  sindicato: number
+  seguro_vida: number
+  otros_descuentos: number
+  total_descuentos: number
+  
+  // Cargas sociales
+  aportes_patronales: number
+  art: number
+  
+  // Resultado
+  neto_a_cobrar: number
+  costo_total_empresa: number
+  
+  // Metadata
+  dias_trabajados: number
+  ausentismos: number
+  observaciones: string | null
+  archivo_origen: string | null
+  creado_en: string
+}
+
+export interface CostoEstructural {
+  id: number
+  periodo_id: number
+  sucursal_id: string
+  categoria_costo: 'servicios' | 'alquileres' | 'seguros' | 'impuestos' | 'mantenimiento' | 'marketing' | 'otros'
+  subcategoria: string
+  descripcion: string
+  
+  importe: number
+  importe_variable: number
+  importe_fijo: number
+  
+  tipo_gasto: 'operativo' | 'administrativo' | 'comercial' | 'financiero'
+  centro_costo: string | null
+  cuenta_contable: string | null
+  
+  proveedor: string | null
+  numero_factura: string | null
+  fecha_vencimiento: string | null
+  observaciones: string | null
+  archivo_origen: string | null
+  creado_en: string
+}
+
+export interface PlantillaEmpleado {
+  id: number
+  sucursal_id: string
+  legajo: string
+  apellido: string
+  nombre: string
+  puesto: string
+  categoria: string
+  sueldo_basico_default: number
+  activo: boolean
+  orden_carga: number
+}
+
+// Template para carga de RRHH
+export interface TemplateRRHH {
+  legajo: string
+  apellido: string
+  nombre: string
+  sueldo_basico: number
+  horas_extras?: number
+  premios?: number
+  bonificaciones?: number
+  viaticos?: number
+  dias_trabajados?: number
+  ausentismos?: number
+  observaciones?: string
+}
+
+// Template para carga de costos
+export interface TemplateCosto {
+  categoria_costo: string
+  subcategoria: string
+  descripcion: string
+  importe: number
+  importe_variable?: number
+  importe_fijo?: number
+  tipo_gasto?: string
+  proveedor?: string
+  numero_factura?: string
+  fecha_vencimiento?: string
+  observaciones?: string
+}
+
 // Configuración consolidada para P&L
 export interface ConfiguracionPL {
   ratios: {
