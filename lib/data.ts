@@ -693,6 +693,7 @@ export interface Periodo {
   anio: number
   mes: number
   index: number
+  label?: string // Label opcional del período (ej: "Julio 2026")
 }
 
 export const PERIODOS: Periodo[] = (() => {

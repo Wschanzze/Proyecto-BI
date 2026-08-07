@@ -7,12 +7,16 @@ import { CargarDatos } from "@/components/monarca/views/cargar-datos"
 import { Documentacion } from "@/components/monarca/views/documentacion"
 import { MetricasAdmin } from "@/components/monarca/views/metricas-admin"
 import { GestionCargas } from "@/components/monarca/views/gestion-cargas"
+import { CargaCostosFijos } from "@/components/monarca/views/carga-costos-fijos"
 import { TopBar } from "@/components/monarca/top-bar"
+import { getPeriodosDB, getSucursalesDB } from "@/lib/data-db"
+import type { Periodo } from "@/lib/data"
+import type { DBSucursal } from "@/lib/supabase"
 
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
 
-type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas"
+type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas" | "costos-fijos"
 
 /* ─── PIN gate ─────────────────────────────────────────────────────────── */
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
@@ -167,12 +171,44 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "cargar", label: "Cargar Datos" },
   { id: "gestion-cargas", label: "Gestión Cargas & Datos" },
+  { id: "costos-fijos", label: "Costos Fijos & Ingresos" },
   { id: "metricas", label: "Métricas P&L" },
   { id: "documentacion", label: "Documentación" },
 ]
 
 function AdminShell() {
   const [tab, setTab] = useState<AdminTab>("cargar")
+  const [periodoKey, setPeriodoKey] = useState("2026-07")
+  const [periodos, setPeriodos] = useState<Periodo[]>([])
+  const [sucursales, setSucursales] = useState<DBSucursal[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Cargar períodos y sucursales desde la DB al montar
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [periodosData, sucursalesData] = await Promise.all([
+          getPeriodosDB(),
+          getSucursalesDB()
+        ])
+        
+        setPeriodos(periodosData)
+        setSucursales(sucursalesData)
+        
+        // Si hay períodos, usar el más reciente como default
+        if (periodosData.length > 0) {
+          const ultimoPeriodo = periodosData[periodosData.length - 1]
+          setPeriodoKey(ultimoPeriodo.key)
+        }
+      } catch (error) {
+        console.error('Error al cargar datos:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -211,10 +247,29 @@ function AdminShell() {
       </nav>
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 md:px-6 md:py-8">
-        {tab === "cargar" && <CargarDatos />}
-        {tab === "gestion-cargas" && <GestionCargas />}
-        {tab === "metricas" && <MetricasAdmin />}
-        {tab === "documentacion" && <Documentacion />}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+              <p className="mt-4 text-sm text-muted-foreground">Cargando datos...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {tab === "cargar" && <CargarDatos />}
+            {tab === "gestion-cargas" && <GestionCargas />}
+            {tab === "costos-fijos" && (
+              <CargaCostosFijos 
+                periodoKey={periodoKey}
+                onPeriodoChange={setPeriodoKey}
+                periodos={periodos}
+                sucursales={sucursales}
+              />
+            )}
+            {tab === "metricas" && <MetricasAdmin />}
+            {tab === "documentacion" && <Documentacion />}
+          </>
+        )}
       </main>
 
       <footer className="border-t border-border bg-card py-4">
