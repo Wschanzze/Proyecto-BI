@@ -582,6 +582,7 @@ export function CuadroSimplificado({
                           onClick={() => {
                             if (key === 'rrhh') setRrhhExpanded(prev => ({ ...prev, [key]: !prev[key] }))
                             if (key === 'costosFijos') setCostosFijosExpanded(prev => ({ ...prev, [key]: !prev[key] }))
+                            if (key === 'ingresosFinancieros') setIngresosFinancierosExpanded(prev => ({ ...prev, [key]: !prev[key] }))
                           }}
                         >
                           <td className={cn(
@@ -600,6 +601,11 @@ export function CuadroSimplificado({
                               )}
                               {key === 'costosFijos' && (
                                 costosFijosExpanded[key] 
+                                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                              {key === 'ingresosFinancieros' && (
+                                ingresosFinancierosExpanded[key] 
                                   ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                   : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                               )}
