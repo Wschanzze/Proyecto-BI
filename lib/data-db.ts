@@ -77,6 +77,8 @@ export function invalidateCatalogoCache() {
 function emptyMetrics(): Metrics {
   return {
     facturacion: 0,
+    iva: 0,
+    costo: 0,
     articulos: 0,
     cmg: 0,
     resultadoOperativo: 0,
@@ -86,11 +88,13 @@ function emptyMetrics(): Metrics {
   }
 }
 
-function metricsFromRaw(facturacion: number, costo: number, cantidad: number): Metrics {
+function metricsFromRaw(facturacion: number, iva: number, costo: number, cantidad: number): Metrics {
   const cmgMonto = facturacion - costo
   const cmgPct = facturacion > 0 ? (cmgMonto / facturacion) * 100 : 0
   return {
     facturacion,
+    iva,
+    costo,
     articulos: cantidad,
     cmg: cmgPct,
     resultadoOperativo: cmgMonto,
@@ -106,6 +110,8 @@ function aggregate(items: Metrics[]): Metrics {
   const acc = items.reduce(
     (a, m) => {
       a.facturacion += m.facturacion
+      a.iva += m.iva
+      a.costo += m.costo
       a.articulos += m.articulos
       a.margenBruto += (m.facturacion * m.cmg) / 100
       a.rrhhMonto += (m.facturacion * m.rrhhSobreVentas) / 100
@@ -114,10 +120,12 @@ function aggregate(items: Metrics[]): Metrics {
       a.resultadoFinal += m.resultadoFinal
       return a
     },
-    { facturacion: 0, articulos: 0, margenBruto: 0, rrhhMonto: 0, resultadoOperativo: 0, acciones: 0, resultadoFinal: 0 }
+    { facturacion: 0, iva: 0, costo: 0, articulos: 0, margenBruto: 0, rrhhMonto: 0, resultadoOperativo: 0, acciones: 0, resultadoFinal: 0 }
   )
   return {
     facturacion: acc.facturacion,
+    iva: acc.iva,
+    costo: acc.costo,
     articulos: acc.articulos,
     cmg: totalFact > 0 ? (acc.margenBruto / totalFact) * 100 : 0,
     resultadoOperativo: acc.resultadoOperativo,
@@ -189,11 +197,12 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
     if (resError || !resultados?.length) return null
 
     // 4. Agregar por grupo sumando todas las filas coincidentes
-    const porGrupo = new Map<string, { facturacion: number; costo: number; cantidad: number }>()
+    const porGrupo = new Map<string, { facturacion: number; iva: number; costo: number; cantidad: number }>()
     for (const r of resultados as DBResultado[]) {
-      const prev = porGrupo.get(r.grupo_id) ?? { facturacion: 0, costo: 0, cantidad: 0 }
+      const prev = porGrupo.get(r.grupo_id) ?? { facturacion: 0, iva: 0, costo: 0, cantidad: 0 }
       porGrupo.set(r.grupo_id, {
         facturacion: prev.facturacion + Number(r.facturacion),
+        iva: prev.iva + Number(r.iva),
         costo: prev.costo + Number(r.costo),
         cantidad: prev.cantidad + Number(r.cantidad),
       })
@@ -207,7 +216,7 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
     let totalFacturacion = 0
     let totalResultadoOperativo = 0
     for (const [, v] of porGrupo) {
-      const m = metricsFromRaw(v.facturacion, v.costo, v.cantidad)
+      const m = metricsFromRaw(v.facturacion, v.iva, v.costo, v.cantidad)
       totalFacturacion += m.facturacion
       totalResultadoOperativo += m.resultadoOperativo
     }
@@ -228,7 +237,7 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
           const grupos: GrupoNode[] = gruposDeSec.map((g) => {
             const raw = porGrupo.get(g.id)
             const gMetrics = raw
-              ? metricsFromRaw(raw.facturacion, raw.costo, raw.cantidad)
+              ? metricsFromRaw(raw.facturacion, raw.iva, raw.costo, raw.cantidad)
               : emptyMetrics()
 
             const gPrevFact = prevMap.get(g.id) ?? null

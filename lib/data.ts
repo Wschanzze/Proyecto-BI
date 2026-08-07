@@ -10,6 +10,8 @@
 
 export interface Metrics {
   facturacion: number // Facturación s/IVA
+  iva: number // IVA (monto del impuesto)
+  costo: number // Costo de mercadería vendida (CMV)
   articulos: number // Cantidad de artículos
   cmg: number // Contribución Marginal (%)
   resultadoOperativo: number // Resultado Operativo (monto)
@@ -700,6 +702,8 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
   if (def.desde !== undefined && periodo.index < def.desde) {
     return {
       facturacion: 0,
+      iva: 0,
+      costo: 0,
       articulos: 0,
       cmg: 0,
       resultadoOperativo: 0,
@@ -712,6 +716,8 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
   const seasonal = SEASONAL[periodo.mes] ?? 1
   const noise = 0.9 + seeded(`${def.id}-${periodo.index}`) * 0.2 // 0.9..1.1
   const facturacion = Math.round(def.base * trend * seasonal * noise)
+  const iva = Math.round(facturacion * 0.21) // IVA 21%
+  const costo = Math.round(facturacion * (1 - def.cmg / 100)) // Costo basado en margen
 
   const rdoOpFactor = 0.85 + seeded(`op-${def.id}-${periodo.index}`) * 0.3
   const rdoOperativo = Math.round((facturacion * def.rdoOp * rdoOpFactor) / 100)
@@ -720,6 +726,8 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
 
   return {
     facturacion,
+    iva,
+    costo,
     articulos: def.articulos,
     cmg: def.cmg,
     resultadoOperativo: rdoOperativo,
@@ -732,6 +740,8 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
 function emptyMetrics(): Metrics {
   return {
     facturacion: 0,
+    iva: 0,
+    costo: 0,
     articulos: 0,
     cmg: 0,
     resultadoOperativo: 0,
@@ -747,6 +757,10 @@ function aggregate(items: Metrics[]): Metrics {
     (a, m) => {
       a.facturacion += m.facturacion
       a.articulos += m.articulos
+      a.facturacion += m.facturacion
+      a.iva += m.iva
+      a.costo += m.costo
+      a.articulos += m.articulos
       a.margenBruto += (m.facturacion * m.cmg) / 100
       a.rrhhMonto += (m.facturacion * m.rrhhSobreVentas) / 100
       a.resultadoOperativo += m.resultadoOperativo
@@ -754,10 +768,12 @@ function aggregate(items: Metrics[]): Metrics {
       a.resultadoFinal += m.resultadoFinal
       return a
     },
-    { facturacion: 0, articulos: 0, margenBruto: 0, rrhhMonto: 0, resultadoOperativo: 0, acciones: 0, resultadoFinal: 0 },
+    { facturacion: 0, iva: 0, costo: 0, articulos: 0, margenBruto: 0, rrhhMonto: 0, resultadoOperativo: 0, acciones: 0, resultadoFinal: 0 },
   )
   return {
     facturacion: acc.facturacion,
+    iva: acc.iva,
+    costo: acc.costo,
     articulos: acc.articulos,
     cmg: totalFact ? (acc.margenBruto / totalFact) * 100 : 0,
     resultadoOperativo: acc.resultadoOperativo,

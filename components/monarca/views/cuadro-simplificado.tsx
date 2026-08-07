@@ -217,17 +217,18 @@ export function CuadroSimplificado({
     loadData()
   }, [periodos, sucursalId])
 
-  // Calcular P&L para cada período usando configuración dinámica
+  // Calcular P&L para cada período usando datos REALES de la base de datos
   const cuadrosResultado = useMemo(() => {
     if (!configuracionPL) return []
     
     return cuadrosPorPeriodo.map(({ periodo, cuadro }) => {
       if (!cuadro) return { periodo, pl: null, kpis: null }
       
-      // Convertir datos actuales a estructura P&L usando configuración dinámica
-      const ventasConIva = cuadro.total.facturacion * (1 + configuracionPL.ratios.iva)
-      const iva = ventasConIva - cuadro.total.facturacion
-      const cmv = cuadro.total.costo || (cuadro.total.facturacion * configuracionPL.estimaciones.cmvSalon)
+      // USAR DATOS REALES de la base de datos (no estimaciones)
+      // cuadro.total tiene los valores REALES cargados en "Gestión de Cargas & Datos"
+      const ventasConIva = cuadro.total.facturacion + cuadro.total.iva // Facturación + IVA
+      const iva = cuadro.total.iva // IVA real del sistema
+      const cmv = cuadro.total.costo // Costo real del sistema (CMV)
 
       const pl = calcularCuadroResultado(
         ventasConIva,
