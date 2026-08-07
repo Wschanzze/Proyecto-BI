@@ -33,7 +33,8 @@ import { getCuadroAsync } from "@/lib/data"
 import { getConfiguracionPL } from "@/lib/metricas-admin"
 import { getRRHHSubcuentas } from "@/lib/rrhh-subcuentas"
 import { getCostosFijosSubcuentas } from "@/lib/costos-fijos-subcuentas"
-import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL, RRHHSubcuentasDetalle, CostosFijosSubcuentasDetalle } from "@/lib/data"
+import { getIngresosFinancierosSubcuentas } from "@/lib/ingresos-financieros-subcuentas"
+import type { Cuadro, Periodo, CuadroResultadoLinea, KPIsComplementarios, ConfiguracionPL, RRHHSubcuentasDetalle, CostosFijosSubcuentasDetalle, IngresosFinancierosSubcuentasDetalle } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
 import {
   formatCurrency,
@@ -51,7 +52,8 @@ function calcularCuadroResultado(
   cmv: number,
   config: ConfiguracionPL,
   rrhhSubcuentas: RRHHSubcuentasDetalle | null,
-  costosFijosSubcuentas: CostosFijosSubcuentasDetalle | null
+  costosFijosSubcuentas: CostosFijosSubcuentasDetalle | null,
+  ingresosFinancierosSubcuentas: IngresosFinancierosSubcuentasDetalle | null
 ): CuadroResultadoLinea {
   const ventasSinIva = facturacion - iva
   const contribucionMarginal = ventasSinIva - cmv
@@ -61,16 +63,14 @@ function calcularCuadroResultado(
   let subcuentasRRHH: RRHHSubcuentasDetalle
   
   if (rrhhSubcuentas && rrhhSubcuentas.sueldos > 0) {
-    // Usar datos reales cargados
     rrhh = rrhhSubcuentas.sueldos + rrhhSubcuentas.cargas_sociales + 
            rrhhSubcuentas.indemnizaciones + rrhhSubcuentas.tabla_merito
     subcuentasRRHH = rrhhSubcuentas
   } else {
-    // Fallback a ratio si no hay datos cargados
     rrhh = ventasSinIva * config.ratios.rrhh
     subcuentasRRHH = {
-      sueldos: rrhh * 0.70, // 70% sueldos
-      cargas_sociales: rrhh * 0.30, // 30% cargas
+      sueldos: rrhh * 0.70,
+      cargas_sociales: rrhh * 0.30,
       indemnizaciones: 0,
       tabla_merito: 0,
     }
@@ -81,7 +81,6 @@ function calcularCuadroResultado(
   let subcuentasCostosFijos: CostosFijosSubcuentasDetalle
   
   if (costosFijosSubcuentas && costosFijosSubcuentas.alquileres > 0) {
-    // Usar datos reales cargados
     costosFijos = costosFijosSubcuentas.alquileres + costosFijosSubcuentas.honorarios +
                   costosFijosSubcuentas.tasas_servicios + costosFijosSubcuentas.mantenimiento_servicios_tecnicos +
                   costosFijosSubcuentas.perdida_gestion_inventarios + costosFijosSubcuentas.seguridad_vigilancia +
@@ -92,7 +91,6 @@ function calcularCuadroResultado(
                   costosFijosSubcuentas.diferencias_caja_perdida
     subcuentasCostosFijos = costosFijosSubcuentas
   } else {
-    // Fallback a ratio si no hay datos cargados (antes gastosComerciales)
     costosFijos = ventasSinIva * config.ratios.gastosComerciales
     subcuentasCostosFijos = {
       alquileres: costosFijos * 0.25,
@@ -115,13 +113,26 @@ function calcularCuadroResultado(
   
   const resultadoOperativo = contribucionMarginal - rrhh - costosFijos
   const impuestos = ventasSinIva * config.ratios.impuestosOperativos
-  const gastos = ventasSinIva * config.ratios.gastosGenerales
   const merma = ventasSinIva * config.ratios.merma
-  const resultadoSupermercado = resultadoOperativo - impuestos - gastos - merma
-  const ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
-  const resultadoFinal = resultadoSupermercado + ingresosFinancieros
-  const resultadoImpositivo = (iva * config.impuestos.ivaResultado) + (ventasSinIva * config.impuestos.iibb) + (ventasSinIva * config.impuestos.tuae)
-  const resultadoTotal = resultadoFinal + resultadoImpositivo
+  const resultadoSupermercado = resultadoOperativo - impuestos - merma
+  
+  // INGRESOS FINANCIEROS: usar datos reales si existen, sino usar ratio
+  let ingresosFinancieros: number
+  let subcuentasIngresosFinancieros: IngresosFinancierosSubcuentasDetalle
+  
+  if (ingresosFinancierosSubcuentas && (ingresosFinancierosSubcuentas.operatoria_financiera > 0 || ingresosFinancierosSubcuentas.rendimientos_financieros > 0)) {
+    ingresosFinancieros = ingresosFinancierosSubcuentas.operatoria_financiera + ingresosFinancierosSubcuentas.rendimientos_financieros
+    subcuentasIngresosFinancieros = ingresosFinancierosSubcuentas
+  } else {
+    ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
+    subcuentasIngresosFinancieros = {
+      operatoria_financiera: ingresosFinancieros * 0.70, // 70% operatoria
+      rendimientos_financieros: ingresosFinancieros * 0.30, // 30% rendimientos
+    }
+  }
+  
+  // RESULTADO TOTAL = Resultado Supermercado + Ingresos Financieros (ELIMINADO Resultado Final)
+  const resultadoTotal = resultadoSupermercado + ingresosFinancieros
 
   return {
     facturacion,
@@ -135,12 +146,10 @@ function calcularCuadroResultado(
     costosFijosSubcuentas: subcuentasCostosFijos,
     resultadoOperativo,
     impuestos,
-    gastos,
     merma,
     resultadoSupermercado,
     ingresosFinancieros,
-    resultadoFinal,
-    resultadoImpositivo,
+    ingresosFinancierosSubcuentas: subcuentasIngresosFinancieros,
     resultadoTotal,
   }
 }
@@ -217,8 +226,7 @@ const LINEAS_PL = [
   { key: 'rrhh', label: 'RRHH (Personal y Cargas Sociales)', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos de personal y cargas sociales' },
   { key: 'costosFijos', label: 'Costos Fijos', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Costos fijos operativos (alquileres, servicios, etc.)' },
   { key: 'impuestos', label: 'Impuestos Operativos', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Impuestos y cargas operativas' },
-  { key: 'gastos', label: 'Gastos Generales', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Gastos operativos generales' },
-  { key: 'merma', label: 'Merma', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Pérdidas por merma (1.6% × Ventas sin IVA)' },
+  { key: 'merma', label: 'Merma', tipo: 'gasto-op', seccion: 'Gastos Operativos', tooltip: 'Pérdidas por merma' },
   { key: 'resultadoOperativo', label: 'Resultado Operativo', tipo: 'resultado', seccion: 'Resultado Operativo', tooltip: 'Margen bruto menos gastos operativos' },
   
   // RESULTADO SUPERMERCADO
@@ -226,11 +234,9 @@ const LINEAS_PL = [
   
   // OTROS INGRESOS
   { key: 'ingresosFinancieros', label: 'Ingresos Financieros', tipo: 'ingreso-otro', seccion: 'Otros Ingresos', tooltip: 'Ingresos financieros externos a la operación comercial' },
-  { key: 'resultadoFinal', label: 'Resultado Final', tipo: 'resultado-final', seccion: 'Resultado Final', tooltip: 'Resultado supermercado + Ingresos financieros' },
   
-  // IMPACTO TRIBUTARIO
-  { key: 'resultadoImpositivo', label: 'Ajustes Tributarios', tipo: 'separado', seccion: 'Impacto Tributario', tooltip: '19% IVA + IIBB + TUAE' },
-  { key: 'resultadoTotal', label: 'Resultado Total (NETO)', tipo: 'resultado-total', seccion: 'Resultado Total', tooltip: 'Resultado final + Ajustes tributarios' },
+  // RESULTADO TOTAL (ELIMINADO "Resultado Final")
+  { key: 'resultadoTotal', label: 'Resultado Total (NETO)', tipo: 'resultado-total', seccion: 'Resultado Total', tooltip: 'Resultado supermercado + Ingresos financieros' },
 ] as const
 export function CuadroSimplificado({
   periodoKey,
@@ -253,6 +259,7 @@ export function CuadroSimplificado({
   const [configuracionPL, setConfiguracionPL] = useState<ConfiguracionPL | null>(null)
   const [rrhhExpanded, setRrhhExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón RRHH
   const [costosFijosExpanded, setCostosFijosExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón Costos Fijos
+  const [ingresosFinancierosExpanded, setIngresosFinancierosExpanded] = useState<{ [key: string]: boolean }>({}) // Estado del acordeón Ingresos Financieros
 
   // Cargar datos de todos los períodos y configuración
   const loadData = async () => {
@@ -300,9 +307,10 @@ export function CuadroSimplificado({
           const iva = cuadro.total.iva // IVA real del sistema
           const cmv = cuadro.total.costo // Costo real del sistema (CMV)
 
-          // Obtener subcuentas RRHH y Costos Fijos reales
+          // Obtener subcuentas RRHH, Costos Fijos e Ingresos Financieros reales
           const rrhhSubcuentas = await getRRHHSubcuentas(periodo.key, sucursalId)
           const costosFijosSubcuentas = await getCostosFijosSubcuentas(periodo.key, sucursalId)
+          const ingresosFinancierosSubcuentas = await getIngresosFinancierosSubcuentas(periodo.key, sucursalId)
 
           const pl = calcularCuadroResultado(
             facturacion,
@@ -310,7 +318,8 @@ export function CuadroSimplificado({
             cmv,
             configuracionPL!,
             rrhhSubcuentas,
-            costosFijosSubcuentas
+            costosFijosSubcuentas,
+            ingresosFinancierosSubcuentas
           )
 
           const kpis = generarKPIsComplementarios(pl.ventasSinIva, configuracionPL!)
@@ -891,6 +900,34 @@ export function CuadroSimplificado({
                               {periodosVisibles.map(({ pl }, idx) => (
                                 <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.diferencias_caja_perdida) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                          </>
+                        )}
+                        
+                        {/* Subcuentas Ingresos Financieros (acordeón expandible - 2 cuentas) */}
+                        {key === 'ingresosFinancieros' && ingresosFinancierosExpanded[key] && (
+                          <>
+                            <tr className="bg-muted/10 border-b border-border/30 text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Operatoria Financiera
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.ingresosFinancierosSubcuentas.operatoria_financiera) : '—'}
+                                </td>
+                              ))}
+                              <td className="px-4 py-2.5 bg-muted/10"></td>
+                            </tr>
+                            <tr className="bg-muted/10 border-b border-border text-xs">
+                              <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
+                                └─ Rendimientos Financieros
+                              </td>
+                              {periodosVisibles.map(({ pl }, idx) => (
+                                <td key={idx} className="px-4 py-2.5 text-right tabular-nums bg-muted/10 text-muted-foreground">
+                                  {pl ? formatCurrency(pl.ingresosFinancierosSubcuentas.rendimientos_financieros) : '—'}
                                 </td>
                               ))}
                               <td className="px-4 py-2.5 bg-muted/10"></td>

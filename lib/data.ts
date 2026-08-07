@@ -33,13 +33,11 @@ export interface CuadroResultadoLinea {
   costosFijosSubcuentas: CostosFijosSubcuentasDetalle // Detalle de subcuentas Costos Fijos
   resultadoOperativo: number // = Contribución marginal - RRHH - Costos Fijos
   impuestos: number // Impuestos y cargas operativas
-  gastos: number // Gastos operativos generales
   merma: number // = 1.6% × Ventas sin IVA
-  resultadoSupermercado: number // = Resultado operativo - Impuestos - Gastos - Merma
-  ingresosFinancieros: number // Ingresos financieros
-  resultadoFinal: number // = Resultado supermercado + Ingresos financieros
-  resultadoImpositivo: number // = 19% IVA + IIBB + TUAE
-  resultadoTotal: number // = Resultado final + Resultado impositivo
+  resultadoSupermercado: number // = Resultado operativo - Impuestos - Merma
+  ingresosFinancieros: number // Ingresos financieros (TOTAL)
+  ingresosFinancierosSubcuentas: IngresosFinancierosSubcuentasDetalle // Detalle de subcuentas Ingresos Financieros
+  resultadoTotal: number // = Resultado supermercado + Ingresos financieros (RESULTADO FINAL)
 }
 
 // Subcuentas detalladas de RRHH
@@ -67,6 +65,12 @@ export interface CostosFijosSubcuentasDetalle {
   gastos_administracion: number
   gastos_financiacion: number
   diferencias_caja_perdida: number
+}
+
+// Subcuentas detalladas de Ingresos Financieros
+export interface IngresosFinancierosSubcuentasDetalle {
+  operatoria_financiera: number
+  rendimientos_financieros: number
 }
 
 // KPIs complementarios por período
