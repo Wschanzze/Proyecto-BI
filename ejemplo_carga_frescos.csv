@@ -1,0 +1,31 @@
+Categoria,Grupo,Subgrupo,Mes,Sucursal,Facturación s/IVA,IVA,Costo,Cantidad
+Frescos,Carniceria,Achuras,jun-26,Colón,125000,26250,75000,85
+Frescos,Carniceria,Carne Porcina,jun-26,Colón,850000,178500,510000,320
+Frescos,Carniceria,Carne Vacuna,jun-26,Colón,1500000,315000,900000,450
+Frescos,Carniceria,Pescado,jun-26,Colón,420000,88200,252000,180
+Frescos,Carniceria,Pollo,jun-26,Colón,980000,205800,588000,650
+Frescos,Carniceria,Producción,jun-26,Colón,350000,73500,210000,220
+Frescos,Fiambreria,Dulces,jun-26,Colón,180000,37800,108000,95
+Frescos,Fiambreria,Encurtidos,jun-26,Colón,95000,19950,57000,65
+Frescos,Fiambreria,Fiambres,jun-26,Colón,1200000,252000,720000,580
+Frescos,Fiambreria,Frutas,jun-26,Colón,280000,58800,168000,195
+Frescos,Fiambreria,Quesos,jun-26,Colón,950000,199500,570000,410
+Frescos,Frutas y Verduras,FRUTAS FRESCAS,jun-26,Colón,650000,136500,390000,890
+Frescos,Frutas y Verduras,HUEVOS,jun-26,Colón,320000,67200,192000,450
+Frescos,Frutas y Verduras,LEÑA Y CARBON,jun-26,Colón,85000,17850,51000,120
+Frescos,Frutas y Verduras,VERDURAS FRESCAS,jun-26,Colón,720000,151200,432000,1250
+Frescos,Rotiseria,Arrollado,jun-26,Colón,180000,37800,108000,95
+Frescos,Rotiseria,Arroz,jun-26,Colón,120000,25200,72000,180
+Frescos,Rotiseria,Carnes,jun-26,Colón,450000,94500,270000,220
+Frescos,Rotiseria,Cerdo,jun-26,Colón,380000,79800,228000,165
+Frescos,Rotiseria,Empanadas,jun-26,Colón,280000,58800,168000,320
+Frescos,Rotiseria,Ensaladas,jun-26,Colón,220000,46200,132000,280
+Frescos,Rotiseria,Entrada,jun-26,Colón,150000,31500,90000,125
+Frescos,Rotiseria,Milanesas,jun-26,Colón,520000,109200,312000,285
+Frescos,Rotiseria,Papas,jun-26,Colón,190000,39900,114000,350
+Frescos,Rotiseria,Pastas,jun-26,Colón,380000,79800,228000,420
+Frescos,Rotiseria,Pescado,jun-26,Colón,290000,60900,174000,145
+Frescos,Rotiseria,Pollo,jun-26,Colón,550000,115500,330000,380
+Frescos,Rotiseria,Postre,jun-26,Colón,210000,44100,126000,190
+Frescos,Rotiseria,Tartas y tortillas,jun-26,Colón,260000,54600,156000,240
+Frescos,Rotiseria,Verduras,jun-26,Colón,180000,37800,108000,295

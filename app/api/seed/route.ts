@@ -29,12 +29,10 @@ const SECTORES = [
   { id: 'salon-productos-frescos',   categoria_id: 'salon',   nombre: 'Productos Frescos',    orden: 14 },
   { id: 'salon-sidras',              categoria_id: 'salon',   nombre: 'Sidras',               orden: 15 },
   // Frescos
-  { id: 'frescos-carniceria', categoria_id: 'frescos', nombre: 'Carnicería',       orden: 1 },
-  { id: 'frescos-verduleria', categoria_id: 'frescos', nombre: 'Verdulería',       orden: 2 },
-  { id: 'frescos-fiambreria', categoria_id: 'frescos', nombre: 'Fiambrería',       orden: 3 },
-  { id: 'frescos-lacteos',    categoria_id: 'frescos', nombre: 'Lácteos Frescos',  orden: 4 },
-  { id: 'frescos-panaderia',  categoria_id: 'frescos', nombre: 'Panadería',        orden: 5 },
-  { id: 'frescos-rotiseria',  categoria_id: 'frescos', nombre: 'Rotisería',        orden: 6 },
+  { id: 'frescos-carniceria',        categoria_id: 'frescos', nombre: 'Carnicería',          orden: 1 },
+  { id: 'frescos-fiambreria',        categoria_id: 'frescos', nombre: 'Fiambrería',          orden: 2 },
+  { id: 'frescos-frutas-y-verduras', categoria_id: 'frescos', nombre: 'Frutas y Verduras',   orden: 3 },
+  { id: 'frescos-rotiseria',         categoria_id: 'frescos', nombre: 'Rotisería',           orden: 4 },
 ]
 
 const GRUPOS = [
@@ -173,15 +171,40 @@ const GRUPOS = [
   { id: 'salon-pfr-tapas-prepizzas',                  sector_id: 'salon-productos-frescos',   nombre: 'Tapas y Prepizzas',             orden: 6  },
   // SIDRAS
   { id: 'salon-sid-sidras',                           sector_id: 'salon-sidras',              nombre: 'Sidras',                        orden: 1  },
-  // FRESCOS
-  { id: 'frescos-car-vacuno',                         sector_id: 'frescos-carniceria',        nombre: 'Vacuno',                        orden: 1  },
-  { id: 'frescos-car-otras-carnes',                   sector_id: 'frescos-carniceria',        nombre: 'Otras Carnes',                  orden: 2  },
-  { id: 'frescos-ver-frutas',                         sector_id: 'frescos-verduleria',        nombre: 'Frutas',                        orden: 1  },
-  { id: 'frescos-ver-verduras',                       sector_id: 'frescos-verduleria',        nombre: 'Verduras',                      orden: 2  },
-  { id: 'frescos-fia-fiambres',                       sector_id: 'frescos-fiambreria',        nombre: 'Fiambres',                      orden: 1  },
-  { id: 'frescos-lac-refrigerados',                   sector_id: 'frescos-lacteos',           nombre: 'Refrigerados',                  orden: 1  },
-  { id: 'frescos-pan-elaboracion',                    sector_id: 'frescos-panaderia',         nombre: 'Elaboración',                   orden: 1  },
-  { id: 'frescos-rot-comidas',                        sector_id: 'frescos-rotiseria',         nombre: 'Comidas',                       orden: 1  },
+  // FRESCOS - CARNICERÍA
+  { id: 'frescos-car-achuras',                        sector_id: 'frescos-carniceria',        nombre: 'Achuras',                       orden: 1  },
+  { id: 'frescos-car-carne-porcina',                  sector_id: 'frescos-carniceria',        nombre: 'Carne Porcina',                 orden: 2  },
+  { id: 'frescos-car-carne-vacuna',                   sector_id: 'frescos-carniceria',        nombre: 'Carne Vacuna',                  orden: 3  },
+  { id: 'frescos-car-pescado',                        sector_id: 'frescos-carniceria',        nombre: 'Pescado',                       orden: 4  },
+  { id: 'frescos-car-pollo',                          sector_id: 'frescos-carniceria',        nombre: 'Pollo',                         orden: 5  },
+  { id: 'frescos-car-produccion',                     sector_id: 'frescos-carniceria',        nombre: 'Producción',                    orden: 6  },
+  // FRESCOS - FIAMBRERÍA
+  { id: 'frescos-fia-dulces',                         sector_id: 'frescos-fiambreria',        nombre: 'Dulces',                        orden: 1  },
+  { id: 'frescos-fia-encurtidos',                     sector_id: 'frescos-fiambreria',        nombre: 'Encurtidos',                    orden: 2  },
+  { id: 'frescos-fia-fiambres',                       sector_id: 'frescos-fiambreria',        nombre: 'Fiambres',                      orden: 3  },
+  { id: 'frescos-fia-frutas',                         sector_id: 'frescos-fiambreria',        nombre: 'Frutas',                        orden: 4  },
+  { id: 'frescos-fia-quesos',                         sector_id: 'frescos-fiambreria',        nombre: 'Quesos',                        orden: 5  },
+  // FRESCOS - FRUTAS Y VERDURAS
+  { id: 'frescos-fyv-frutas-frescas',                 sector_id: 'frescos-frutas-y-verduras', nombre: 'Frutas Frescas',                orden: 1  },
+  { id: 'frescos-fyv-huevos',                         sector_id: 'frescos-frutas-y-verduras', nombre: 'Huevos',                        orden: 2  },
+  { id: 'frescos-fyv-lena-y-carbon',                  sector_id: 'frescos-frutas-y-verduras', nombre: 'Leña y Carbón',                 orden: 3  },
+  { id: 'frescos-fyv-verduras-frescas',               sector_id: 'frescos-frutas-y-verduras', nombre: 'Verduras Frescas',              orden: 4  },
+  // FRESCOS - ROTISERÍA
+  { id: 'frescos-rot-arrollado',                      sector_id: 'frescos-rotiseria',         nombre: 'Arrollado',                     orden: 1  },
+  { id: 'frescos-rot-arroz',                          sector_id: 'frescos-rotiseria',         nombre: 'Arroz',                         orden: 2  },
+  { id: 'frescos-rot-carnes',                         sector_id: 'frescos-rotiseria',         nombre: 'Carnes',                        orden: 3  },
+  { id: 'frescos-rot-cerdo',                          sector_id: 'frescos-rotiseria',         nombre: 'Cerdo',                         orden: 4  },
+  { id: 'frescos-rot-empanadas',                      sector_id: 'frescos-rotiseria',         nombre: 'Empanadas',                     orden: 5  },
+  { id: 'frescos-rot-ensaladas',                      sector_id: 'frescos-rotiseria',         nombre: 'Ensaladas',                     orden: 6  },
+  { id: 'frescos-rot-entrada',                        sector_id: 'frescos-rotiseria',         nombre: 'Entrada',                       orden: 7  },
+  { id: 'frescos-rot-milanesas',                      sector_id: 'frescos-rotiseria',         nombre: 'Milanesas',                     orden: 8  },
+  { id: 'frescos-rot-papas',                          sector_id: 'frescos-rotiseria',         nombre: 'Papas',                         orden: 9  },
+  { id: 'frescos-rot-pastas',                         sector_id: 'frescos-rotiseria',         nombre: 'Pastas',                        orden: 10 },
+  { id: 'frescos-rot-pescado',                        sector_id: 'frescos-rotiseria',         nombre: 'Pescado',                       orden: 11 },
+  { id: 'frescos-rot-pollo',                          sector_id: 'frescos-rotiseria',         nombre: 'Pollo',                         orden: 12 },
+  { id: 'frescos-rot-postre',                         sector_id: 'frescos-rotiseria',         nombre: 'Postre',                        orden: 13 },
+  { id: 'frescos-rot-tartas-y-tortillas',             sector_id: 'frescos-rotiseria',         nombre: 'Tartas y Tortillas',            orden: 14 },
+  { id: 'frescos-rot-verduras',                       sector_id: 'frescos-rotiseria',         nombre: 'Verduras',                      orden: 15 },
 ]
 
 const SUCURSALES = ['colon', 'san-martin', 'falucho', 'peron', 'virtual']
