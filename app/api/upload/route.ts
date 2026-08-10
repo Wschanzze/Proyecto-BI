@@ -122,6 +122,8 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
+    const modoIncremental = formData.get('incremental') === 'true' // Nuevo parámetro opcional
+    
     if (!file) {
       return NextResponse.json({ error: 'No se subió ningún archivo' }, { status: 400 })
     }
@@ -314,15 +316,19 @@ export async function POST(req: Request) {
     const affectedPeriodIds = Array.from(new Set(Array.from(resultadosMap.values()).map(r => r.periodoId)))
     const affectedGrupoIds = Array.from(new Set(Array.from(resultadosMap.values()).map(r => r.grupoId)))
     
-    console.log("Limpiando registros afectados - Períodos:", affectedPeriodIds, "Grupos:", affectedGrupoIds.length)
-    
-    // Eliminar solo las combinaciones período × grupo que están en el archivo
-    for (const periodoId of affectedPeriodIds) {
-      await client
-        .from('resultados')
-        .delete()
-        .eq('periodo_id', periodoId)
-        .in('grupo_id', affectedGrupoIds)
+    if (!modoIncremental) {
+      // Modo normal: eliminar los grupos del archivo antes de insertar
+      console.log("Limpiando registros afectados - Períodos:", affectedPeriodIds, "Grupos:", affectedGrupoIds.length)
+      
+      for (const periodoId of affectedPeriodIds) {
+        await client
+          .from('resultados')
+          .delete()
+          .eq('periodo_id', periodoId)
+          .in('grupo_id', affectedGrupoIds)
+      }
+    } else {
+      console.log("Modo incremental activado - No se borrarán datos existentes")
     }
 
     // Convertir Map a Array para inserción en DB

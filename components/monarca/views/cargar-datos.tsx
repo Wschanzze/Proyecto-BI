@@ -43,6 +43,7 @@ export function CargarDatos() {
   const [dragOver, setDragOver] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [infoCarga, setInfoCarga] = useState<{ period: string; records: number; warnings: string | null; detallesIgnorados?: string[] } | null>(null)
+  const [modoIncremental, setModoIncremental] = useState(false) // Nuevo estado
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Estado de Historial
@@ -83,6 +84,9 @@ export function CargarDatos() {
     
     const formData = new FormData()
     formData.append("file", file)
+    if (modoIncremental) {
+      formData.append("incremental", "true")
+    }
 
     try {
       const res = await fetch("/api/upload", {
@@ -319,6 +323,47 @@ export function CargarDatos() {
 
               {/* Panel lateral informativo */}
               <div className="space-y-6">
+                {/* Modo de carga */}
+                <Card className="border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="text-base font-bold text-primary">Modo de Carga</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={modoIncremental}
+                        onChange={(e) => setModoIncremental(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                          Modo Incremental
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Activá esta opción si querés cargar solo algunos grupos (ej: solo FRESCOS) sin reemplazar los datos existentes de otros grupos (ej: SALON).
+                        </p>
+                      </div>
+                    </label>
+                    
+                    <div className={`rounded-lg p-3 text-xs border transition-colors ${
+                      modoIncremental 
+                        ? "bg-success/5 border-success/20 text-success-foreground" 
+                        : "bg-warning/5 border-warning/20 text-warning-foreground"
+                    }`}>
+                      <p className="font-semibold mb-1">
+                        {modoIncremental ? "✓ Modo Incremental Activo" : "⚠ Modo Reemplazo (por defecto)"}
+                      </p>
+                      <p>
+                        {modoIncremental 
+                          ? "Los grupos del archivo se agregarán o actualizarán sin borrar datos de otros grupos."
+                          : "Los grupos del archivo reemplazarán completamente los datos existentes de esos grupos para el período."
+                        }
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base font-bold text-primary">Estructura esperada del Excel</CardTitle>
