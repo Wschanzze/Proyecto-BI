@@ -32,7 +32,8 @@ const SECTORES = [
   { id: 'frescos-carniceria',        categoria_id: 'frescos', nombre: 'Carnicería',          orden: 1 },
   { id: 'frescos-fiambreria',        categoria_id: 'frescos', nombre: 'Fiambrería',          orden: 2 },
   { id: 'frescos-frutas-y-verduras', categoria_id: 'frescos', nombre: 'Frutas y Verduras',   orden: 3 },
-  { id: 'frescos-rotiseria',         categoria_id: 'frescos', nombre: 'Rotisería',           orden: 4 },
+  { id: 'frescos-panaderia',         categoria_id: 'frescos', nombre: 'Panadería',           orden: 4 },
+  { id: 'frescos-rotiseria',         categoria_id: 'frescos', nombre: 'Rotisería',           orden: 5 },
 ]
 
 const GRUPOS = [
@@ -189,6 +190,17 @@ const GRUPOS = [
   { id: 'frescos-fyv-huevos',                         sector_id: 'frescos-frutas-y-verduras', nombre: 'Huevos',                        orden: 2  },
   { id: 'frescos-fyv-lena-y-carbon',                  sector_id: 'frescos-frutas-y-verduras', nombre: 'Leña y Carbón',                 orden: 3  },
   { id: 'frescos-fyv-verduras-frescas',               sector_id: 'frescos-frutas-y-verduras', nombre: 'Verduras Frescas',              orden: 4  },
+  // FRESCOS - PANADERÍA
+  { id: 'frescos-pan-budines',                        sector_id: 'frescos-panaderia',         nombre: 'Budines',                       orden: 1  },
+  { id: 'frescos-pan-facturas',                       sector_id: 'frescos-panaderia',         nombre: 'Facturas',                      orden: 2  },
+  { id: 'frescos-pan-fiestas',                        sector_id: 'frescos-panaderia',         nombre: 'Fiestas',                       orden: 3  },
+  { id: 'frescos-pan-masa-salada',                    sector_id: 'frescos-panaderia',         nombre: 'Masa Salada',                   orden: 4  },
+  { id: 'frescos-pan-masas-dulces',                   sector_id: 'frescos-panaderia',         nombre: 'Masas Dulces',                  orden: 5  },
+  { id: 'frescos-pan-miga',                           sector_id: 'frescos-panaderia',         nombre: 'Miga',                          orden: 6  },
+  { id: 'frescos-pan-pan',                            sector_id: 'frescos-panaderia',         nombre: 'Pan',                           orden: 7  },
+  { id: 'frescos-pan-pizza',                          sector_id: 'frescos-panaderia',         nombre: 'Pizza',                         orden: 8  },
+  { id: 'frescos-pan-postre',                         sector_id: 'frescos-panaderia',         nombre: 'Postre',                        orden: 9  },
+  { id: 'frescos-pan-tapas',                          sector_id: 'frescos-panaderia',         nombre: 'Tapas',                         orden: 10 },
   // FRESCOS - ROTISERÍA
   { id: 'frescos-rot-arrollado',                      sector_id: 'frescos-rotiseria',         nombre: 'Arrollado',                     orden: 1  },
   { id: 'frescos-rot-arroz',                          sector_id: 'frescos-rotiseria',         nombre: 'Arroz',                         orden: 2  },

@@ -11,13 +11,14 @@ Se ha actualizado la estructura de la categoría **FRESCOS** en el sistema Monar
 ✅ **Archivo creado**: `supabase/migrations/007_frescos_estructura_completa.sql`
 
 **Contenido**:
-- Elimina los sectores antiguos de FRESCOS (Verdulería, Lácteos Frescos, Panadería)
-- Crea 4 sectores principales:
+- Elimina los sectores antiguos de FRESCOS (Verdulería, Lácteos Frescos, Panadería antigua)
+- Crea 5 sectores principales:
   - **Carnicería** (6 subgrupos)
   - **Fiambrería** (5 subgrupos)
   - **Frutas y Verduras** (4 subgrupos)
+  - **Panadería** (10 subgrupos)
   - **Rotisería** (15 subgrupos)
-- Inserta **30 grupos/subgrupos** en total para FRESCOS
+- Inserta **40 grupos/subgrupos** en total para FRESCOS
 
 ### 2. **Actualización del Seed** (`app/api/seed/route.ts`)
 
@@ -25,7 +26,7 @@ Se ha actualizado la estructura de la categoría **FRESCOS** en el sistema Monar
 
 **Cambios**:
 - Actualizados los sectores de FRESCOS
-- Reemplazados los 8 grupos antiguos por los 30 nuevos grupos completos
+- Reemplazados los 8 grupos antiguos por los 40 nuevos grupos completos
 - Los datos de seed ahora generarán métricas para todos los nuevos subgrupos
 
 ### 3. **Documentación de Mapeo** (`MAPEO_FRESCOS.md`)
@@ -61,6 +62,18 @@ Se ha actualizado la estructura de la categoría **FRESCOS** en el sistema Monar
 2. Huevos
 3. Leña y Carbón
 4. Verduras Frescas
+
+### 🥖 Panadería (10 subgrupos)
+1. Budines
+2. Facturas
+3. Fiestas
+4. Masa Salada
+5. Masas Dulces
+6. Miga
+7. Pan
+8. Pizza
+9. Postre
+10. Tapas
 
 ### 🍗 Rotisería (15 subgrupos)
 1. Arrollado
@@ -126,7 +139,7 @@ Después de aplicar los cambios:
    -- Verificar sectores de FRESCOS
    SELECT * FROM sectores WHERE categoria_id = 'frescos';
    
-   -- Verificar grupos de FRESCOS (debería retornar 30)
+   -- Verificar grupos de FRESCOS (debería retornar 40)
    SELECT COUNT(*) FROM grupos WHERE sector_id LIKE 'frescos-%';
    ```
 
@@ -135,7 +148,7 @@ Después de aplicar los cambios:
    - Verifica que no aparezcan grupos "ignorados" en el resultado
    - Ve al **Cuadro de Resultados — Detallado**
    - Expande la categoría **FRESCOS**
-   - Deberías ver los 4 sectores (Carnicería, Fiambrería, Frutas y Verduras, Rotisería)
+   - Deberías ver los 5 sectores (Carnicería, Fiambrería, Frutas y Verduras, Panadería, Rotisería)
    - Al expandir cada sector, deberías ver sus subgrupos correspondientes
 
 3. **Prueba con Datos CSV**:
@@ -143,6 +156,7 @@ Después de aplicar los cambios:
    Categoria,Grupo,Subgrupo,Mes,Sucursal,Facturación s/IVA,IVA,Costo,Cantidad
    Frescos,Carniceria,Carne Vacuna,jun-26,Colón,1500000,315000,900000,450
    Frescos,Fiambreria,Quesos,jun-26,San Martín,850000,178500,510000,280
+   Frescos,Panaderia,Pan,jun-26,Falucho,680000,142800,408000,920
    Frescos,Rotiseria,Empanadas,jun-26,Falucho,280000,58800,140000,320
    ```
 
@@ -151,9 +165,9 @@ Después de aplicar los cambios:
 En el **Cuadro de Resultados — Detallado**:
 
 - ✅ La categoría **FRESCOS** aparecerá como sección
-- ✅ Al hacer clic en el chevron, se expandirán los 4 sectores
+- ✅ Al hacer clic en el chevron, se expandirán los 5 sectores
 - ✅ Cada sector mostrará sus métricas agregadas
-- ✅ Al expandir un sector (ej: Rotisería), se mostrarán sus 15 subgrupos
+- ✅ Al expandir un sector (ej: Panadería), se mostrarán sus 10 subgrupos
 - ✅ Cada subgrupo mostrará sus métricas individuales
 - ✅ Los colores y estilos son consistentes con SALON
 

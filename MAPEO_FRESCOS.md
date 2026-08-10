@@ -4,7 +4,7 @@ Este documento describe cómo se mapean los datos del archivo CSV cargado en `/a
 
 ## Estructura de FRESCOS
 
-La categoría FRESCOS está organizada en 4 **Sectores** (Grupos principales) con sus respectivos **Subgrupos**:
+La categoría FRESCOS está organizada en 5 **Sectores** (Grupos principales) con sus respectivos **Subgrupos**:
 
 ### 1. Carnicería (`frescos-carniceria`)
 
@@ -36,7 +36,22 @@ La categoría FRESCOS está organizada en 4 **Sectores** (Grupos principales) co
 | LEÑA Y CARBON | `frescos-fyv-lena-y-carbon` | Leña y Carbón |
 | VERDURAS FRESCAS | `frescos-fyv-verduras-frescas` | Verduras Frescas |
 
-### 4. Rotisería (`frescos-rotiseria`)
+### 4. Panadería (`frescos-panaderia`)
+
+| Subgrupo en CSV | ID en DB | Nombre en App |
+|----------------|----------|---------------|
+| Budines | `frescos-pan-budines` | Budines |
+| Facturas | `frescos-pan-facturas` | Facturas |
+| Fiestas | `frescos-pan-fiestas` | Fiestas |
+| Masa Salada | `frescos-pan-masa-salada` | Masa Salada |
+| Masas Dulces | `frescos-pan-masas-dulces` | Masas Dulces |
+| Miga | `frescos-pan-miga` | Miga |
+| Pan | `frescos-pan-pan` | Pan |
+| Pizza | `frescos-pan-pizza` | Pizza |
+| Postre | `frescos-pan-postre` | Postre |
+| Tapas | `frescos-pan-tapas` | Tapas |
+
+### 5. Rotisería (`frescos-rotiseria`)
 
 | Subgrupo en CSV | ID en DB | Nombre en App |
 |----------------|----------|---------------|
@@ -93,7 +108,8 @@ El sistema realiza el mapeo en el siguiente orden:
 ```csv
 Categoria,Grupo,Subgrupo,Mes,Sucursal,Facturación s/IVA,IVA,Costo,Cantidad
 Frescos,Carniceria,Carne Vacuna,jun-26,Colón,1500000,315000,900000,450
-Frescos,Rotiseria,Empanadas,jun-26,San Martín,280000,58800,140000,320
+Frescos,Panaderia,Pan,jun-26,San Martín,680000,142800,408000,920
+Frescos,Rotiseria,Empanadas,jun-26,Falucho,280000,58800,140000,320
 Frescos,Frutas y Verduras,FRUTAS FRESCAS,jun-26,Falucho,650000,136500,390000,890
 ```
 

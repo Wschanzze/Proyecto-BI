@@ -7,7 +7,7 @@
 SELECT * FROM categorias WHERE id = 'frescos';
 -- Esperado: 1 fila (id: frescos, nombre: Frescos, orden: 2)
 
--- 2. Verificar sectores de FRESCOS (debería haber 4)
+-- 2. Verificar sectores de FRESCOS (debería haber 5)
 SELECT 
   id,
   nombre,
@@ -15,11 +15,12 @@ SELECT
 FROM sectores 
 WHERE categoria_id = 'frescos'
 ORDER BY orden;
--- Esperado: 4 filas
+-- Esperado: 5 filas
 -- frescos-carniceria | Carnicería | 1
 -- frescos-fiambreria | Fiambrería | 2
 -- frescos-frutas-y-verduras | Frutas y Verduras | 3
--- frescos-rotiseria | Rotisería | 4
+-- frescos-panaderia | Panadería | 4
+-- frescos-rotiseria | Rotisería | 5
 
 -- 3. Verificar grupos de CARNICERÍA (debería haber 6)
 SELECT 
@@ -63,12 +64,23 @@ ORDER BY orden;
 --                      Entrada, Milanesas, Papas, Pastas, Pescado, Pollo, 
 --                      Postre, Tartas y Tortillas, Verduras)
 
--- 7. Contar TOTAL de grupos de FRESCOS (debería ser 30)
+-- 6b. Verificar grupos de PANADERÍA (debería haber 10)
+SELECT 
+  id,
+  nombre,
+  orden
+FROM grupos 
+WHERE sector_id = 'frescos-panaderia'
+ORDER BY orden;
+-- Esperado: 10 grupos (Budines, Facturas, Fiestas, Masa Salada, Masas Dulces,
+--                      Miga, Pan, Pizza, Postre, Tapas)
+
+-- 7. Contar TOTAL de grupos de FRESCOS (debería ser 40)
 SELECT COUNT(*) as total_grupos_frescos
 FROM grupos g
 JOIN sectores s ON g.sector_id = s.id
 WHERE s.categoria_id = 'frescos';
--- Esperado: 30
+-- Esperado: 40
 
 -- 8. Ver estructura completa de FRESCOS en formato jerárquico
 SELECT 
@@ -83,12 +95,13 @@ JOIN sectores s ON s.categoria_id = c.id
 JOIN grupos g ON g.sector_id = s.id
 WHERE c.id = 'frescos'
 ORDER BY s.orden, g.orden;
--- Esperado: 30 filas con la estructura completa
+-- Esperado: 40 filas con la estructura completa
 
 -- 9. Verificar que NO existen sectores antiguos de FRESCOS
 SELECT * FROM sectores 
-WHERE id IN ('frescos-verduleria', 'frescos-lacteos', 'frescos-panaderia');
+WHERE id IN ('frescos-verduleria', 'frescos-lacteos');
 -- Esperado: 0 filas (estos sectores deben haber sido eliminados)
+-- NOTA: 'frescos-panaderia' fue recreado con la nueva estructura
 
 -- 10. Verificar que NO existen grupos huérfanos de FRESCOS antiguos
 SELECT * FROM grupos 
@@ -133,7 +146,7 @@ LEFT JOIN resultados r ON r.grupo_id = g.id
 WHERE s.categoria_id = 'frescos'
 GROUP BY s.id, s.nombre
 ORDER BY s.orden;
--- Esperado: 4 filas con el resumen por sector
+-- Esperado: 5 filas con el resumen por sector
 
 -- ============================================================
 -- TESTS DE INTEGRIDAD

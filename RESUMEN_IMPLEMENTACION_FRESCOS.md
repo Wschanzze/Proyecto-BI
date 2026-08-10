@@ -6,11 +6,12 @@
 
 ## 🎯 Objetivo Cumplido
 
-Se ha implementado la estructura completa de la categoría **FRESCOS** con sus 4 sectores principales y 30 subgrupos, tal como solicitaste. El sistema ahora soporta:
+Se ha implementado la estructura completa de la categoría **FRESCOS** con sus 5 sectores principales y 40 subgrupos, tal como solicitaste. El sistema ahora soporta:
 
 - ✅ **Carnicería** (6 subgrupos)
 - ✅ **Fiambrería** (5 subgrupos)  
 - ✅ **Frutas y Verduras** (4 subgrupos)
+- ✅ **Panadería** (10 subgrupos)
 - ✅ **Rotisería** (15 subgrupos)
 
 ---
@@ -71,7 +72,7 @@ Ejecuta las consultas del archivo `VERIFICACION_FRESCOS.sql` para confirmar:
 1. Ve a `/admin` en tu aplicación
 2. Carga el archivo `ejemplo_carga_frescos.csv`
 3. Verifica que el resultado muestre:
-   - ✓ 30 registros insertados
+   - ✓ 40 registros insertados (ahora incluye Panadería)
    - ✓ 0 subgrupos ignorados
    - ✓ Período: JUN-26
 
@@ -100,6 +101,17 @@ Ejecuta las consultas del archivo `VERIFICACION_FRESCOS.sql` para confirmar:
          • Huevos
          • Leña y Carbón
          • Verduras Frescas
+      📁 Panadería
+         • Budines
+         • Facturas
+         • Fiestas
+         • Masa Salada
+         • Masas Dulces
+         • Miga
+         • Pan
+         • Pizza
+         • Postre
+         • Tapas
       📁 Rotisería
          • (15 subgrupos)
    ```
@@ -128,6 +140,18 @@ Ejecuta las consultas del archivo `VERIFICACION_FRESCOS.sql` para confirmar:
 - Huevos
 - Leña y Carbón
 - Verduras Frescas
+
+### Panadería (10)
+- Budines
+- Facturas
+- Fiestas
+- Masa Salada
+- Masas Dulces
+- Miga
+- Pan
+- Pizza
+- Postre
+- Tapas
 
 ### Rotisería (15)
 - Arrollado
@@ -175,7 +199,7 @@ Frescos,Rotiseria,Empanadas,jun-26,Falucho,280000,58800,168000,320
 Sectores eliminados:
 - ❌ Verdulería
 - ❌ Lácteos Frescos  
-- ❌ Panadería
+- ❌ Panadería (versión antigua con solo "Elaboración")
 
 Grupos eliminados:
 - ❌ Vacuno
@@ -196,7 +220,7 @@ Grupos eliminados:
 
 1. **Test de Migración:**
    ```sql
-   -- Debe retornar 30
+   -- Debe retornar 40
    SELECT COUNT(*) FROM grupos g
    JOIN sectores s ON g.sector_id = s.id
    WHERE s.categoria_id = 'frescos';
@@ -209,7 +233,7 @@ Grupos eliminados:
 3. **Test Visual:**
    - Abrir Cuadro Detallado
    - Expandir FRESCOS
-   - Verificar que aparecen los 4 sectores con todos sus subgrupos
+   - Verificar que aparecen los 5 sectores con todos sus subgrupos
 
 4. **Test de Métricas:**
    - Verificar que las sumas agregadas son correctas

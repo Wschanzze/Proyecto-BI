@@ -2,7 +2,7 @@
 -- Migración 007: Estructura Completa de FRESCOS
 -- Actualiza los sectores y grupos de la categoría FRESCOS
 -- con la jerarquía completa: Carnicería, Fiambrería, 
--- Frutas y Verduras, y Rotisería con todos sus subgrupos
+-- Frutas y Verduras, Panadería, y Rotisería con todos sus subgrupos
 -- ============================================================
 
 -- 1. ELIMINAR SECTORES Y GRUPOS ANTIGUOS DE FRESCOS
@@ -16,7 +16,8 @@ INSERT INTO sectores (id, categoria_id, nombre, orden) VALUES
   ('frescos-carniceria',        'frescos', 'Carnicería',        1),
   ('frescos-fiambreria',        'frescos', 'Fiambrería',        2),
   ('frescos-frutas-y-verduras', 'frescos', 'Frutas y Verduras', 3),
-  ('frescos-rotiseria',         'frescos', 'Rotisería',         4)
+  ('frescos-panaderia',         'frescos', 'Panadería',         4),
+  ('frescos-rotiseria',         'frescos', 'Rotisería',         5)
 ON CONFLICT (id) DO UPDATE SET
   nombre = EXCLUDED.nombre,
   orden = EXCLUDED.orden;
@@ -57,7 +58,24 @@ ON CONFLICT (id) DO UPDATE SET
   nombre = EXCLUDED.nombre,
   orden = EXCLUDED.orden;
 
--- 6. INSERTAR GRUPOS DE ROTISERÍA
+-- 6. INSERTAR GRUPOS DE PANADERÍA
+
+INSERT INTO grupos (id, sector_id, nombre, orden) VALUES
+  ('frescos-pan-budines',      'frescos-panaderia', 'Budines',      1),
+  ('frescos-pan-facturas',     'frescos-panaderia', 'Facturas',     2),
+  ('frescos-pan-fiestas',      'frescos-panaderia', 'Fiestas',      3),
+  ('frescos-pan-masa-salada',  'frescos-panaderia', 'Masa Salada',  4),
+  ('frescos-pan-masas-dulces', 'frescos-panaderia', 'Masas Dulces', 5),
+  ('frescos-pan-miga',         'frescos-panaderia', 'Miga',         6),
+  ('frescos-pan-pan',          'frescos-panaderia', 'Pan',          7),
+  ('frescos-pan-pizza',        'frescos-panaderia', 'Pizza',        8),
+  ('frescos-pan-postre',       'frescos-panaderia', 'Postre',       9),
+  ('frescos-pan-tapas',        'frescos-panaderia', 'Tapas',       10)
+ON CONFLICT (id) DO UPDATE SET
+  nombre = EXCLUDED.nombre,
+  orden = EXCLUDED.orden;
+
+-- 7. INSERTAR GRUPOS DE ROTISERÍA
 
 INSERT INTO grupos (id, sector_id, nombre, orden) VALUES
   ('frescos-rot-arrollado',           'frescos-rotiseria', 'Arrollado',           1),
