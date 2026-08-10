@@ -51,6 +51,8 @@ export function CargarDatos() {
   const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [deleteConfirmKey, setDeleteConfirmKey] = useState<PeriodoHistorial | null>(null)
+  const [selectedPeriodos, setSelectedPeriodos] = useState<Set<string>>(new Set())
+  const [deletingMultiple, setDeletingMultiple] = useState(false)
 
   const cargarHistorial = async () => {
     setLoadingHistorial(true)
@@ -139,6 +141,67 @@ export function CargarDatos() {
     } finally {
       setDeletingKey(null)
     }
+  }
+
+  const toggleSeleccionPeriodo = (key: string) => {
+    setSelectedPeriodos(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(key)) {
+        newSet.delete(key)
+      } else {
+        newSet.add(key)
+      }
+      return newSet
+    })
+  }
+
+  const seleccionarTodos = () => {
+    if (selectedPeriodos.size === historial.length) {
+      setSelectedPeriodos(new Set())
+    } else {
+      setSelectedPeriodos(new Set(historial.map(p => p.key)))
+    }
+  }
+
+  const eliminarSeleccionados = async () => {
+    if (selectedPeriodos.size === 0) return
+    
+    const confirmacion = window.confirm(
+      `¿Estás seguro de eliminar ${selectedPeriodos.size} período(s)?\n\n` +
+      `Esta acción es irreversible y borrará todos los datos de esos períodos.`
+    )
+    
+    if (!confirmacion) return
+
+    setDeletingMultiple(true)
+    let errores = 0
+    let exitosos = 0
+
+    for (const key of selectedPeriodos) {
+      try {
+        const res = await fetch(`/api/periodos?key=${key}`, {
+          method: "DELETE",
+        })
+        if (!res.ok) {
+          throw new Error(`Error al eliminar ${key}`)
+        }
+        exitosos++
+      } catch (err) {
+        console.error(`Error eliminando ${key}:`, err)
+        errores++
+      }
+    }
+
+    setDeletingMultiple(false)
+    setSelectedPeriodos(new Set())
+    
+    if (errores > 0) {
+      alert(`Se eliminaron ${exitosos} período(s) con ${errores} error(es)`)
+    } else {
+      alert(`Se eliminaron ${exitosos} período(s) exitosamente`)
+    }
+    
+    cargarHistorial()
   }
 
   const formatFecha = (isoStr: string) => {
@@ -397,10 +460,33 @@ export function CargarDatos() {
                 Listado de todos los meses de datos financieros almacenados en Supabase. Podés eliminar cualquier mes si necesitás volver a cargarlo.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={cargarHistorial} disabled={loadingHistorial} className="gap-2">
-              <RefreshCw className={`h-3.5 w-3.5 ${loadingHistorial ? "animate-spin" : ""}`} />
-              Actualizar
-            </Button>
+            <div className="flex items-center gap-2">
+              {selectedPeriodos.size > 0 && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={eliminarSeleccionados}
+                  disabled={deletingMultiple}
+                  className="gap-2"
+                >
+                  {deletingMultiple ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Eliminar {selectedPeriodos.size} seleccionado(s)
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={cargarHistorial} disabled={loadingHistorial} className="gap-2">
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingHistorial ? "animate-spin" : ""}`} />
+                Actualizar
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingHistorial ? (
@@ -425,50 +511,92 @@ export function CargarDatos() {
                 </Button>
               </div>
             ) : (
-              <div className="divide-y divide-border border rounded-lg overflow-hidden">
-                {historial.map((periodo) => (
-                  <div key={periodo.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-muted/30 transition-colors gap-4">
-                    <div className="flex items-start sm:items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold">
-                        <Calendar className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground uppercase tracking-wide">
-                            {periodo.label}
-                          </span>
-                          <Badge variant="outline" className="text-[10px] font-mono">
-                            {periodo.key}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
-                          <span className="flex items-center gap-1">
-                            <FileText className="h-3.5 w-3.5" />
-                            {periodo.archivo_nombre}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Database className="h-3.5 w-3.5 text-primary" />
-                            <strong className="text-foreground">{periodo.total_registros}</strong> registros
-                          </span>
-                          <span>
-                            Cargado: {formatFecha(periodo.fecha_carga)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {/* Controles de selección */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedPeriodos.size === historial.length && historial.length > 0}
+                      onChange={seleccionarTodos}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    />
+                    <span className="text-sm font-medium">
+                      {selectedPeriodos.size === historial.length && historial.length > 0
+                        ? "Deseleccionar todos"
+                        : "Seleccionar todos"}
+                    </span>
+                  </label>
+                  {selectedPeriodos.size > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedPeriodos.size} de {historial.length} seleccionado(s)
+                    </span>
+                  )}
+                </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteConfirmKey(periodo)}
-                      disabled={deletingKey === periodo.key}
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 self-end sm:self-center gap-1.5"
+                {/* Lista de períodos */}
+                <div className="divide-y divide-border border rounded-lg overflow-hidden">
+                  {historial.map((periodo) => (
+                    <div 
+                      key={periodo.key} 
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 transition-colors gap-4 ${
+                        selectedPeriodos.has(periodo.key) 
+                          ? 'bg-primary/5 border-l-4 border-l-primary' 
+                          : 'bg-card hover:bg-muted/30'
+                      }`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                      Eliminar Carga
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-start sm:items-center gap-3 flex-1">
+                        {/* Checkbox de selección */}
+                        <input
+                          type="checkbox"
+                          checked={selectedPeriodos.has(periodo.key)}
+                          onChange={() => toggleSeleccionPeriodo(periodo.key)}
+                          className="mt-1 sm:mt-0 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                        />
+                        
+                        <div className="flex items-start sm:items-center gap-3 flex-1">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold">
+                            <Calendar className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground uppercase tracking-wide">
+                                {periodo.label}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] font-mono">
+                                {periodo.key}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <FileText className="h-3.5 w-3.5" />
+                                {periodo.archivo_nombre}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Database className="h-3.5 w-3.5 text-primary" />
+                                <strong className="text-foreground">{periodo.total_registros}</strong> registros
+                              </span>
+                              <span>
+                                Cargado: {formatFecha(periodo.fecha_carga)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteConfirmKey(periodo)}
+                        disabled={deletingKey === periodo.key || deletingMultiple}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 self-end sm:self-center gap-1.5"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
