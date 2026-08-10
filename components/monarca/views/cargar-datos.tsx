@@ -14,7 +14,8 @@ import {
   Calendar, 
   Database,
   ArrowRight,
-  HardDrive
+  HardDrive,
+  Zap
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -35,7 +36,7 @@ interface PeriodoHistorial {
 }
 
 export function CargarDatos() {
-  const [activeTab, setActiveTab] = useState<"cargar" | "historial">("cargar")
+  const [activeTab, setActiveTab] = useState<"cargar" | "historial" | "costos">("cargar")
   
   // Estado de Carga
   const [estado, setEstado] = useState<Estado>("idle")
@@ -53,6 +54,17 @@ export function CargarDatos() {
   const [deleteConfirmKey, setDeleteConfirmKey] = useState<PeriodoHistorial | null>(null)
   const [selectedPeriodos, setSelectedPeriodos] = useState<Set<string>>(new Set())
   const [deletingMultiple, setDeletingMultiple] = useState(false)
+
+  // Estado de Costos Globales
+  const [estadoCostos, setEstadoCostos] = useState<Estado>("idle")
+  const [archivoCostos, setArchivoCostos] = useState<File | null>(null)
+  const [dragOverCostos, setDragOverCostos] = useState(false)
+  const [errorMsgCostos, setErrorMsgCostos] = useState("")
+  const [infoCostos, setInfoCostos] = useState<{ periodoKey: string; records: number; unmappedCount: number; detalles?: string[] } | null>(null)
+  const [lotesHistorial, setLotesHistorial] = useState<any[]>([])
+  const [loadingLotes, setLoadingLotes] = useState(false)
+  const [deletingLoteId, setDeletingLoteId] = useState<string | null>(null)
+  const inputRefCostos = useRef<HTMLInputElement>(null)
 
   const cargarHistorial = async () => {
     setLoadingHistorial(true)
@@ -72,6 +84,19 @@ export function CargarDatos() {
   useEffect(() => {
     cargarHistorial()
   }, [])
+
+  const cargarLotesCostos = async () => {
+    setLoadingLotes(true)
+    try {
+      const res = await fetch("/api/costos")
+      const data = await res.json()
+      if (data.ok) setLotesHistorial(data.lotes)
+    } catch (err) {
+      console.error("Error al cargar historial de costos:", err)
+    } finally {
+      setLoadingLotes(false)
+    }
+  }
 
   const onFiles = (files: FileList | null) => {
     if (!files || !files.length) return
@@ -251,6 +276,26 @@ export function CargarDatos() {
           {historial.length > 0 && (
             <Badge variant="secondary" className="ml-1 px-1.5 py-0.2 text-xs">
               {historial.length}
+            </Badge>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("costos")
+            cargarLotesCostos()
+          }}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+            activeTab === "costos"
+              ? "border-amber-500 text-amber-500"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Zap className="h-4 w-4" />
+          Costos Globales
+          {lotesHistorial.length > 0 && (
+            <Badge variant="secondary" className="ml-1 px-1.5 py-0.2 text-xs">
+              {lotesHistorial.length}
             </Badge>
           )}
         </button>
@@ -655,6 +700,251 @@ export function CargarDatos() {
                 )}
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+    
+      {/* CONTENIDO TAB 3: COSTOS GLOBALES */}
+      {activeTab === "costos" && (
+        <div className="space-y-6">
+          {/* Descripción */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Costos Globales de Cadena
+              </CardTitle>
+              <CardDescription>
+                Para grupos o subgrupos cuyo costo <strong>no está segmentado por sucursal</strong> (ej: Carnicería — Achuras, Carne Vacuna, Pollo; Frutas y Verduras — Frutas Frescas, Verduras Frescas).
+                El sistema distribuye automáticamente el costo total entre cada sucursal en proporción a su participación en la facturación total. Las filas afectadas se marcan con{" "}
+                <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-semibold text-amber-500">⚡ Prorrateado</span>{" "}
+                en el Cuadro de Resultados.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          {/* Formato esperado */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Formato del Archivo</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              <p>El archivo debe tener las siguientes columnas (Excel o CSV):</p>
+              <div className="overflow-x-auto">
+                <table className="text-xs border border-border rounded w-full">
+                  <thead>
+                    <tr className="bg-muted/40">
+                      {["Sucursal", "Grupo", "subgrupo", "Costo", "Mes"].map(h => (
+                        <th key={h} className="px-3 py-1.5 text-left font-semibold border-b border-border">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ["Total", "Carniceria", "Achuras", "$ 1,223.83", "01/01/2026"],
+                      ["Total", "Carniceria", "Carne Vacuna", "$ 16,870.32", "01/01/2026"],
+                      ["Total", "Frutas y Verduras", "FRUTAS FRESCAS", "$ 18,955.26", "01/01/2026"],
+                      ["Total", "Frutas y Verduras", "VERDURAS FRESCAS", "$ 49,131.37", "01/01/2026"],
+                    ].map((row, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        {row.map((cell, j) => (
+                          <td key={j} className="px-3 py-1">{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground/70">La columna <strong>Sucursal</strong> debe decir &quot;Total&quot;. Las filas con sucursal específica son ignoradas (van al upload principal).</p>
+            </CardContent>
+          </Card>
+
+          {/* Upload */}
+          {estadoCostos === "guardado" && infoCostos ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10">
+                  <Zap className="h-8 w-8 text-amber-500" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold">¡Costos globales cargados!</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Período: <strong>{infoCostos.periodoKey}</strong> · {infoCostos.records} grupos registrados
+                  </p>
+                  {infoCostos.unmappedCount > 0 && (
+                    <p className="mt-1 text-xs text-amber-500">
+                      ⚠ {infoCostos.unmappedCount} subgrupo(s) no pudieron mapearse al catálogo.
+                    </p>
+                  )}
+                  {infoCostos.detalles && infoCostos.detalles.length > 0 && (
+                    <div className="mt-2 text-left text-xs bg-muted/40 rounded p-2 max-h-28 overflow-y-auto">
+                      {infoCostos.detalles.map((d, i) => <div key={i}>{d}</div>)}
+                    </div>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => { setEstadoCostos("idle"); setArchivoCostos(null); setInfoCostos(null); if (inputRefCostos.current) inputRefCostos.current.value = "" }}>
+                  Cargar otro archivo
+                </Button>
+              </CardContent>
+            </Card>
+          ) : estadoCostos === "error" ? (
+            <Card className="border-destructive/40">
+              <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+                <AlertTriangle className="h-8 w-8 text-destructive" />
+                <p className="text-sm font-medium text-destructive">{errorMsgCostos}</p>
+                <Button variant="outline" size="sm" onClick={() => { setEstadoCostos("idle"); setErrorMsgCostos("") }}>Reintentar</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Subir Archivo de Costos Globales</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCostos(true) }}
+                  onDragLeave={() => setDragOverCostos(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setDragOverCostos(false)
+                    const files = e.dataTransfer.files
+                    if (!files?.length) return
+                    const f = files[0]
+                    setArchivoCostos(f)
+                    const formData = new FormData()
+                    formData.append("file", f)
+                    setEstadoCostos("loading")
+                    setErrorMsgCostos("")
+                    fetch("/api/costos/upload", { method: "POST", body: formData })
+                      .then(r => r.json())
+                      .then(data => {
+                        if (!data.ok && !data.records) throw new Error(data.error || "Error al procesar el archivo")
+                        setInfoCostos({ periodoKey: data.periodoKey, records: data.records, unmappedCount: data.unmappedCount || 0, detalles: data.detallesIgnorados })
+                        setEstadoCostos("guardado")
+                        cargarLotesCostos()
+                      })
+                      .catch(err => { setErrorMsgCostos(err.message); setEstadoCostos("error") })
+                  }}
+                  className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 transition-colors cursor-pointer ${
+                    dragOverCostos ? "border-amber-500 bg-amber-500/5" : estadoCostos === "loading" ? "border-border bg-muted/20" : "border-border hover:border-amber-500/50 hover:bg-muted/10"
+                  }`}
+                  onClick={() => estadoCostos !== "loading" && inputRefCostos.current?.click()}
+                >
+                  <input
+                    ref={inputRefCostos}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (!f) return
+                      setArchivoCostos(f)
+                      const formData = new FormData()
+                      formData.append("file", f)
+                      setEstadoCostos("loading")
+                      setErrorMsgCostos("")
+                      fetch("/api/costos/upload", { method: "POST", body: formData })
+                        .then(r => r.json())
+                        .then(data => {
+                          if (!data.ok && !data.records) throw new Error(data.error || "Error al procesar el archivo")
+                          setInfoCostos({ periodoKey: data.periodoKey, records: data.records, unmappedCount: data.unmappedCount || 0, detalles: data.detallesIgnorados })
+                          setEstadoCostos("guardado")
+                          cargarLotesCostos()
+                        })
+                        .catch(err => { setErrorMsgCostos(err.message); setEstadoCostos("error") })
+                    }}
+                  />
+                  {estadoCostos === "loading" ? (
+                    <><RefreshCw className="h-8 w-8 animate-spin text-amber-500" /><span className="text-sm text-muted-foreground">Procesando archivo de costos...</span></>
+                  ) : (
+                    <><UploadCloud className="h-8 w-8 text-amber-500/60" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Arrastrá el archivo aquí o hacé clic para seleccionarlo</p>
+                      <p className="text-xs text-muted-foreground">Excel (.xlsx) o CSV con columnas: Sucursal (Total), Grupo, subgrupo, Costo, Mes</p>
+                    </div>
+                    {archivoCostos && <p className="text-xs text-muted-foreground">📎 {archivoCostos.name}</p>}
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Historial de lotes de costos */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <History className="h-4 w-4" />
+                Historial de Cargas de Costos Globales
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={cargarLotesCostos} disabled={loadingLotes} className="h-7 gap-1.5">
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingLotes ? "animate-spin" : ""}`} />
+                Actualizar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingLotes ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Cargando historial...
+                </div>
+              ) : lotesHistorial.length === 0 ? (
+                <p className="py-4 text-sm text-muted-foreground">No hay cargas de costos globales registradas.</p>
+              ) : (
+                <div className="space-y-3">
+                  {lotesHistorial.map((lote) => (
+                    <div key={lote.id} className="rounded-lg border border-border bg-muted/10 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-500 uppercase">{lote.periodo_key}</span>
+                            <span className="text-sm font-medium">{lote.nombre_archivo || "Archivo sin nombre"}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {lote.total_registros} grupos · Cargado el {new Date(lote.uploaded_at).toLocaleDateString("es-AR")} {new Date(lote.uploaded_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                          </p>
+                          {lote.costos && lote.costos.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {lote.costos.slice(0, 8).map((c: any) => (
+                                <span key={c.grupo_id} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                  {c.grupo_id.split("-").slice(-2).join(" ")}: ${Number(c.costo_total).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                                </span>
+                              ))}
+                              {lote.costos.length > 8 && <span className="text-[10px] text-muted-foreground">+{lote.costos.length - 8} más</span>}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingLoteId === lote.id}
+                          onClick={async () => {
+                            if (!window.confirm(`¿Eliminar este lote de costos globales?\n\nPeríodo: ${lote.periodo_key}\nEsta acción es irreversible.`)) return
+                            setDeletingLoteId(lote.id)
+                            try {
+                              const res = await fetch(`/api/costos?lote=${lote.id}`, { method: "DELETE" })
+                              const data = await res.json()
+                              if (!res.ok) throw new Error(data.error)
+                              cargarLotesCostos()
+                            } catch (err: any) {
+                              alert(`Error: ${err.message}`)
+                            } finally {
+                              setDeletingLoteId(null)
+                            }
+                          }}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          {deletingLoteId === lote.id ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
           </Card>
         </div>
       )}

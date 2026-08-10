@@ -212,6 +212,37 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
     const prevMap = await loadFacturacionMap(getPrevKey(periodoKey), sucursalId)
     const yoyMap  = await loadFacturacionMap(getYoyKey(periodoKey), sucursalId)
 
+    // 5b. Cargar costos globales para este período (costos de cadena sin segmentar por sucursal)
+    const { data: costosGlobalesRows } = await supabase
+      .from('costos_globales')
+      .select('grupo_id, costo_total')
+      .eq('periodo_key', periodoKey)
+
+    // Mapa: grupo_id → costo_total global
+    const costosGlobalesMap = new Map<string, number>()
+    for (const cg of (costosGlobalesRows || [])) {
+      costosGlobalesMap.set(cg.grupo_id, Number(cg.costo_total))
+    }
+
+    // Si hay costos globales y estamos en vista por sucursal, necesitamos la facturación
+    // total de TODAS las sucursales para cada grupo afectado (para calcular participación)
+    const factTotalCadenaPorGrupo = new Map<string, number>()
+    if (costosGlobalesMap.size > 0 && sucursalId !== '__consolidado__') {
+      const grupoIdsConCosto = Array.from(costosGlobalesMap.keys())
+      const { data: totalesCadena } = await supabase
+        .from('resultados')
+        .select('grupo_id, facturacion')
+        .eq('periodo_id', dbPeriodo.id)
+        .in('grupo_id', grupoIdsConCosto)
+
+      for (const row of (totalesCadena || [])) {
+        factTotalCadenaPorGrupo.set(
+          row.grupo_id,
+          (factTotalCadenaPorGrupo.get(row.grupo_id) || 0) + Number(row.facturacion)
+        )
+      }
+    }
+
     // 6. Primera pasada: totales globales
     let totalFacturacion = 0
     let totalResultadoOperativo = 0
@@ -236,9 +267,37 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
 
           const grupos: GrupoNode[] = gruposDeSec.map((g) => {
             const raw = porGrupo.get(g.id)
-            const gMetrics = raw
+            let gMetrics = raw
               ? metricsFromRaw(raw.facturacion, raw.iva, raw.costo, raw.cantidad)
               : emptyMetrics()
+
+            // ── Prorrateo de costos globales ────────────────────────────────
+            // Si este grupo tiene un costo global cargado (no segmentado por sucursal),
+            // sumamos el costo prorrateado según participación en facturación total de la cadena.
+            let esProrrateado = false
+            const costoGlobal = costosGlobalesMap.get(g.id)
+            if (costoGlobal && costoGlobal > 0) {
+              let costoAdicional = 0
+              if (sucursalId === '__consolidado__') {
+                // Vista consolidada: usar el costo total directamente
+                costoAdicional = costoGlobal
+              } else {
+                // Vista por sucursal: prorratear por participación en facturación de la cadena
+                const factTotalCadena = factTotalCadenaPorGrupo.get(g.id) || 0
+                const factSucursal = raw?.facturacion || 0
+                if (factTotalCadena > 0 && factSucursal > 0) {
+                  const participacion = factSucursal / factTotalCadena
+                  costoAdicional = costoGlobal * participacion
+                }
+              }
+              if (costoAdicional > 0) {
+                // Sumar el costo prorrateado al costo existente y recalcular métricas
+                const nuevoCosto = gMetrics.costo + costoAdicional
+                gMetrics = metricsFromRaw(gMetrics.facturacion, gMetrics.iva, nuevoCosto, gMetrics.articulos)
+                esProrrateado = true
+              }
+            }
+            // ───────────────────────────────────────────────────────────────
 
             const gPrevFact = prevMap.get(g.id) ?? null
             const gYoyFact  = yoyMap.get(g.id) ?? null
@@ -254,6 +313,7 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
               nombre: g.nombre,
               metrics: derivar(gMetrics, totalFacturacion, totalResultadoOperativo, gPrevFact, gYoyFact),
               subgrupos: [subgrupo],
+              costoProrrateado: esProrrateado,
             }
           })
 

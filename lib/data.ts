@@ -829,6 +829,8 @@ export interface GrupoNode {
   nombre: string
   metrics: MetricsConDerivados
   subgrupos: SubgrupoNode[]
+  /** true si el costo de este grupo proviene de un costo global prorrateado por participación en facturación */
+  costoProrrateado?: boolean
 }
 export interface CategoriaNode {
   id: string

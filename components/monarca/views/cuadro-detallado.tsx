@@ -342,6 +342,15 @@ function FragmentGrupo({
     grupo.subgrupos.length > 1 ||
     (grupo.subgrupos.length === 1 && grupo.subgrupos[0].nombre !== grupo.nombre)
 
+  const badgeProrrateo = grupo.costoProrrateado ? (
+    <span
+      title="Costo prorrateado — distribuido por participación en facturación de la cadena"
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-semibold text-amber-500 cursor-help"
+    >
+      ⚡ Prorrateado
+    </span>
+  ) : null
+
   return (
     <>
       <tr className="border-b border-border/60 bg-muted/20 text-[13px]">
@@ -350,9 +359,13 @@ function FragmentGrupo({
             <button type="button" onClick={() => toggleGrupo(grupo.id)} className="flex items-center gap-1.5 font-medium">
               <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", abierto && "rotate-90")} />
               {grupo.nombre}
+              {badgeProrrateo}
             </button>
           ) : (
-            <span className="font-medium pl-5">{grupo.nombre}</span>
+            <span className="font-medium pl-5 inline-flex items-center gap-1">
+              {grupo.nombre}
+              {badgeProrrateo}
+            </span>
           )}
         </td>
         <MetricCells m={grupo.metrics} />
@@ -367,6 +380,7 @@ function FragmentGrupo({
     </>
   )
 }
+
 
 function metricRow(nivel: string, nombre: string, m: MetricsConDerivados): string[] {
   return [nivel, nombre, ...totalCells(m)]
