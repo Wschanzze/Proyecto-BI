@@ -831,6 +831,12 @@ export interface GrupoNode {
   subgrupos: SubgrupoNode[]
   /** true si el costo de este grupo proviene de un costo global prorrateado por participación en facturación */
   costoProrrateado?: boolean
+  /**
+   * Indica el método de cálculo automático del costo:
+   * - 'prorrateado': distribuido desde un costo global de cadena por participación en facturación
+   * - 'formula_markup': calculado con fórmula de markup fijo (ej: Rotisería = facturación / 1.4)
+   */
+  costoCalculadoTipo?: 'prorrateado' | 'formula_markup'
 }
 export interface CategoriaNode {
   id: string

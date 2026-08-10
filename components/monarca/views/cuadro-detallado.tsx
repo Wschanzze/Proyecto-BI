@@ -349,6 +349,20 @@ function FragmentGrupo({
     >
       ⚡ Prorrateado
     </span>
+  ) : grupo.costoCalculadoTipo === 'formula_markup' ? (
+    <span
+      title="CMV auto-calculado — Rotisería: Costo = Facturación ÷ 1.4 (markup 40%)"
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-500/15 px-1 py-0.5 text-[10px] font-semibold text-blue-400 cursor-help"
+    >
+      📊 CMV auto
+    </span>
+  ) : grupo.costoCalculadoTipo === 'prorrateado' ? (
+    <span
+      title="Costo prorrateado — distribuido por participación en facturación de la cadena"
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-semibold text-amber-500 cursor-help"
+    >
+      ⚡ Prorrateado
+    </span>
   ) : null
 
   return (

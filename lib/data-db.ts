@@ -297,6 +297,20 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
                 esProrrateado = true
               }
             }
+            // ── Fórmula de markup fijo: Rotiseria ────────────────────────────
+            // Rotisería tiene costo = facturación / 1.4 (markup 40% sobre costo).
+            // El costo no está segmentado ni puede cargarse por sucursal,
+            // por lo que se calcula automáticamente a partir de la facturación.
+            const SECTOR_ID_ROTISERIA = 'frescos-rotiseria'
+            let costoCalculadoTipo: 'prorrateado' | 'formula_markup' | undefined =
+              esProrrateado ? 'prorrateado' : undefined
+
+            if (g.sector_id === SECTOR_ID_ROTISERIA && gMetrics.facturacion > 0) {
+              // Reemplazar el costo con la fórmula: costo = facturación / 1.4
+              const costoFormula = gMetrics.facturacion / 1.4
+              gMetrics = metricsFromRaw(gMetrics.facturacion, gMetrics.iva, costoFormula, gMetrics.articulos)
+              costoCalculadoTipo = 'formula_markup'
+            }
             // ───────────────────────────────────────────────────────────────
 
             const gPrevFact = prevMap.get(g.id) ?? null
@@ -314,6 +328,7 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
               metrics: derivar(gMetrics, totalFacturacion, totalResultadoOperativo, gPrevFact, gYoyFact),
               subgrupos: [subgrupo],
               costoProrrateado: esProrrateado,
+              costoCalculadoTipo,
             }
           })
 
