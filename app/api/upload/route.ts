@@ -309,10 +309,21 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
 
-    // Limpiar únicamente los períodos afectados que venían en este archivo
+    // Limpiar únicamente los registros específicos: período × sucursal × grupo
+    // Esto permite cargar FRESCOS sin borrar SALON, o recargar un mes sin afectar otros
     const affectedPeriodIds = Array.from(new Set(Array.from(resultadosMap.values()).map(r => r.periodoId)))
-    console.log("Limpiando períodos afectados:", affectedPeriodIds)
-    await client.from('resultados').delete().in('periodo_id', affectedPeriodIds)
+    const affectedGrupoIds = Array.from(new Set(Array.from(resultadosMap.values()).map(r => r.grupoId)))
+    
+    console.log("Limpiando registros afectados - Períodos:", affectedPeriodIds, "Grupos:", affectedGrupoIds.length)
+    
+    // Eliminar solo las combinaciones período × grupo que están en el archivo
+    for (const periodoId of affectedPeriodIds) {
+      await client
+        .from('resultados')
+        .delete()
+        .eq('periodo_id', periodoId)
+        .in('grupo_id', affectedGrupoIds)
+    }
 
     // Convertir Map a Array para inserción en DB
     const resultados = Array.from(resultadosMap.values()).map(v => ({
