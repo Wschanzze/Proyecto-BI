@@ -6,6 +6,41 @@ Anteriormente, al cargar un archivo con solo **FRESCOS**, el sistema borraba tod
 
 ---
 
+## 📋 Formato CSV Requerido
+
+### Columnas Necesarias
+
+Tu archivo CSV debe contener estas columnas (que ya tenés):
+
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| **Categoria** | Categoría del producto | `Salon`, `Frescos` |
+| **Grupo** | Sector o grupo principal | `Almacen`, `Carniceria`, `Rotiseria` |
+| **Subgrupo** | Subgrupo específico | `Aceites`, `Carne Vacuna`, `Postre` |
+| **Mes** | Período | `jun-26`, `01/06/2026` |
+| **Sucursal** | Sucursal | `Colón`, `San Martín`, `Falucho`, `Perón`, `Virtual` |
+| **Facturación s/IVA** | Facturación sin IVA | `1500000` |
+| **IVA** | Monto de IVA | `315000` |
+| **Costo** | Costo de mercadería vendida | `900000` |
+| **Cantidad** | Unidades vendidas | `450` |
+
+### ✅ Fix Implementado: Uso Correcto de Columnas
+
+El sistema **ahora usa** las columnas `Categoria` y `Grupo` para evitar mapeos incorrectos cuando hay subgrupos con nombres idénticos en diferentes sectores.
+
+**Problema resuelto:**
+- ❌ Antes: Sistema leía pero ignoraba `Categoria` y `Grupo`
+- ✅ Ahora: Sistema usa `Categoria` y `Grupo` para mapeo preciso
+
+**Nombres duplicados que ahora se mapean correctamente:**
+- `Salon → Desayuno → Postre` vs `Frescos → Rotisería → Postre`
+- `Frescos → Carnicería → Pescado` vs `Frescos → Rotisería → Pescado`
+- `Frescos → Carnicería → Pollo` vs `Frescos → Rotisería → Pollo`
+
+**No necesitás cambiar tus archivos CSV.** Ya tienen el formato correcto.
+
+---
+
 ## 📋 Dos Formas de Cargar Datos
 
 ### Opción 1: ✅ Archivo Unificado (Recomendado)

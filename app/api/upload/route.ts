@@ -223,8 +223,9 @@ export async function POST(req: Request) {
       
       const rawMes = getRowVal(row, ['Mes', 'mes', 'FECHA', 'Fecha', 'Periodo', 'periodo'])
       const rawSucursal = getRowVal(row, ['Sucursal', 'sucursal', 'SUCURSAL'])
+      const rawCategoria = getRowVal(row, ['Categoria', 'Categoría', 'categoria', 'CATEGORIA'])
+      const rawGrupo = getRowVal(row, ['Grupo', 'grupo', 'GRUPO', 'Sector', 'sector', 'SECTOR'])
       const rawSubgrupo = getRowVal(row, ['subgrupo', 'Subgrupo', 'SUBGRUPO'])
-      const rawGrupo = getRowVal(row, ['Grupo', 'grupo', 'GRUPO'])
       const leafStr = rawSubgrupo || rawGrupo
 
       if (!rawMes || !rawSucursal || !leafStr) {
@@ -238,21 +239,53 @@ export async function POST(req: Request) {
       // 2. Mapear Sucursal
       const sucursalId = mapSucursal(String(rawSucursal).trim())
       
-      // 3. Mapear Grupo
+      // 3. Mapear Grupo con contexto de Categoría y Sector
       const cleanLeaf = cleanCodePrefix(String(leafStr))
       const leafSlug = slugify(cleanLeaf)
+      
+      // Slugs de contexto para búsqueda más precisa
+      const categoriaSlug = rawCategoria ? slugify(String(rawCategoria).trim()) : null
+      const grupoSlug = rawGrupo ? slugify(cleanCodePrefix(String(rawGrupo).trim())) : null
 
-      let matchedGrp = gruposMapBySlug.get(leafSlug)
+      let matchedGrp = null
+      
+      // Paso 1: Búsqueda con contexto completo (categoría + sector + subgrupo)
+      if (categoriaSlug && grupoSlug) {
+        // Buscar grupo que pertenezca al sector correcto de la categoría correcta
+        matchedGrp = dbGrupos.find(g => {
+          const gSlug = slugify(g.nombre)
+          if (gSlug !== leafSlug) return false
+          
+          // Verificar que el grupo pertenece al sector correcto
+          const sector = dbSectores.find(s => s.id === g.sector_id)
+          if (!sector) return false
+          
+          const sectorSlug = slugify(sector.nombre)
+          if (sectorSlug !== grupoSlug) return false
+          
+          // Verificar que el sector pertenece a la categoría correcta
+          const categoria = sector.categoria_id
+          return slugify(categoria) === categoriaSlug
+        })
+      }
+      
+      // Paso 2: Búsqueda por slug del nombre (backward compatibility)
+      if (!matchedGrp) {
+        matchedGrp = gruposMapBySlug.get(leafSlug)
+      }
 
+      // Paso 3: Alias especiales
       if (!matchedGrp && specialSubgrupoAliases[leafSlug]) {
         const aliasId = specialSubgrupoAliases[leafSlug]
         matchedGrp = dbGrupos.find(g => g.id === aliasId)
       }
 
+      // Paso 4: Búsqueda por sector
       if (!matchedGrp && sectorToFirstGroupMap.has(leafSlug)) {
         matchedGrp = sectorToFirstGroupMap.get(leafSlug)
       }
 
+      // Paso 5: Búsqueda flexible ignorando guiones
       if (!matchedGrp) {
         for (const [s, g] of gruposMapBySlug.entries()) {
           if (s === leafSlug || s.replace(/-/g, '') === leafSlug.replace(/-/g, '')) {
@@ -263,7 +296,8 @@ export async function POST(req: Request) {
       }
 
       if (!matchedGrp) {
-        unmappedGroupsSet.add(`"${String(leafStr).trim()}" (Fila ${idx + 2})`)
+        const contexto = categoriaSlug && grupoSlug ? ` [${rawCategoria} → ${rawGrupo}]` : ''
+        unmappedGroupsSet.add(`"${String(leafStr).trim()}"${contexto} (Fila ${idx + 2})`)
         continue
       }
 
