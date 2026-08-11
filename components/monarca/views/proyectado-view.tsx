@@ -301,18 +301,30 @@ export function ProyectadoView() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b-2 border-accent bg-accent text-accent-foreground">
-                  <th className="sticky left-0 z-20 bg-accent px-4 py-4 text-left font-bold text-base min-w-[280px] border-r-2 border-accent/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <tr className="border-b border-border/50 bg-muted/30">
+                  <th rowSpan={2} className="sticky left-0 z-20 bg-card px-4 py-4 text-left font-bold text-base min-w-[280px] border-r-2 border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-bottom">
                     Línea de Resultado
                   </th>
+                  {mesesProyectados.map((m) => (
+                    <th key={m.key} className="px-4 pt-4 pb-2 text-center min-w-[150px] whitespace-nowrap">
+                      <div className="font-bold text-base text-foreground">{m.labelCorto}</div>
+                    </th>
+                  ))}
+                </tr>
+                <tr className="border-b-2 border-primary/20 bg-muted/30">
                   {mesesProyectados.map((m) => {
                     const esReal = !!realesPorMes[m.key]
                     return (
-                      <th key={m.key} className="px-4 py-4 text-right min-w-[150px] whitespace-nowrap">
-                        <div className="font-bold text-base">{m.labelCorto}</div>
-                        <div className={cn("text-xs font-normal mt-1", esReal ? "text-success" : "text-accent-foreground/70")}>
+                      <th key={m.key + '-status'} className="px-4 pb-4 pt-2 text-center min-w-[150px] whitespace-nowrap">
+                        <Badge 
+                          variant={esReal ? "default" : "secondary"} 
+                          className={cn(
+                            "text-[10px] uppercase tracking-wider font-semibold", 
+                            esReal ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/30"
+                          )}
+                        >
                           {esReal ? "Real" : "Proyectado"}
-                        </div>
+                        </Badge>
                       </th>
                     )
                   })}
@@ -330,20 +342,22 @@ export function ProyectadoView() {
                         linea.tipo === 'resultado-total' && "bg-accent/10 font-bold border-b-2 border-accent/30"
                       )}
                     >
-                      <td className={cn(
-                        "sticky left-0 z-10 px-4 py-3 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                        "bg-card group-hover:bg-muted/50 border-r-2 border-border",
-                        linea.tipo === 'resultado' && "bg-muted/50 group-hover:bg-muted",
-                        linea.tipo === 'resultado-principal' && "bg-primary/5 group-hover:bg-primary/10",
-                        linea.tipo === 'resultado-total' && "bg-accent/10 group-hover:bg-accent/20"
-                      )}>
-                        <div className="flex flex-col">
-                          <span className={cn(
-                            (linea.tipo === 'resultado' || linea.tipo === 'resultado-principal' || linea.tipo === 'resultado-total') 
-                              ? "text-foreground" : "text-muted-foreground"
-                          )}>
-                            {linea.label}
-                          </span>
+                      <td className="sticky left-0 z-10 p-0 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r-2 border-border bg-card">
+                        <div className={cn(
+                          "px-4 py-3 h-full w-full transition-colors",
+                          "group-hover:bg-muted/50",
+                          linea.tipo === 'resultado' && "bg-muted/50 group-hover:bg-muted",
+                          linea.tipo === 'resultado-principal' && "bg-primary/10 group-hover:bg-primary/20",
+                          linea.tipo === 'resultado-total' && "bg-accent/10 group-hover:bg-accent/20"
+                        )}>
+                          <div className="flex flex-col">
+                            <span className={cn(
+                              (linea.tipo === 'resultado' || linea.tipo === 'resultado-principal' || linea.tipo === 'resultado-total') 
+                                ? "text-foreground font-medium" : "text-muted-foreground"
+                            )}>
+                              {linea.label}
+                            </span>
+                          </div>
                         </div>
                       </td>
                       {mesesProyectados.map(m => {
