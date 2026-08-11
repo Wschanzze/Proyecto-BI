@@ -89,31 +89,49 @@ export function ProyectadoView() {
     })
   }, [mesesProyectados, realesPorMes])
 
-  // Calcular MAPEs para tarjetas superiores
+  // Calcular KPIs para tarjetas superiores
   const kpis = useMemo(() => {
     const rFact: number[] = []
     const pFact: number[] = []
-    const rCmv: number[] = []
-    const pCmv: number[] = []
     const rRes: number[] = []
     const pRes: number[] = []
     
+    let factProyTotal = 0
+    let factProyYTD = 0
+    let factRealYTD = 0
+    
+    let resProyTotal = 0
+    let resProyYTD = 0
+    let resRealYTD = 0
+    
     mesesProyectados.forEach(m => {
+      factProyTotal += m.facturacion
+      resProyTotal += m.resultadoOperativo
+      
       const real = realesPorMes[m.key]
       if (real) {
         rFact.push(real.facturacion)
         pFact.push(m.facturacion)
-        rCmv.push(real.cmv)
-        pCmv.push(m.cmv)
         rRes.push(real.resultadoOperativo)
         pRes.push(m.resultadoOperativo)
+        
+        factRealYTD += real.facturacion
+        factProyYTD += m.facturacion
+        resRealYTD += real.resultadoOperativo
+        resProyYTD += m.resultadoOperativo
       }
     })
     
+    const mapeGlobal = calcularMAPE([...rFact, ...rRes], [...pFact, ...pRes])
+    
     return {
-      mapeFacturacion: calcularMAPE(rFact, pFact),
-      mapeCmv: calcularMAPE(rCmv, pCmv),
-      mapeResultado: calcularMAPE(rRes, pRes),
+      factProyTotal,
+      factRealYTD,
+      factProyYTD,
+      resProyTotal,
+      resRealYTD,
+      resProyYTD,
+      mapeGlobal,
       mesesCargados: rFact.length
     }
   }, [mesesProyectados, realesPorMes])
@@ -149,58 +167,67 @@ export function ProyectadoView() {
         </div>
       </div>
 
-      {/* TARJETAS MAPE */}
+      {/* TARJETAS KPI */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="border-border">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-primary/10 rounded-full">
                 <DollarSign className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">MAPE Facturación</p>
-                <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-muted-foreground">Facturación Acumulada YTD</p>
+                <div className="flex items-end gap-2 mt-1">
                   <h3 className="text-2xl font-bold">
-                    {kpis.mapeFacturacion !== null ? formatPercent(kpis.mapeFacturacion) : "—"}
+                    {kpis.mesesCargados > 0 ? formatCurrency(kpis.factRealYTD) : "—"}
                   </h3>
-                  {kpis.mesesCargados > 0 && <Badge variant="outline" className="text-xs">YTD</Badge>}
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Proyectado YTD: <span className="font-medium">{formatCurrency(kpis.factProyYTD)}</span>
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-destructive/10 rounded-full">
-                <TrendingUp className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">MAPE CMV</p>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-2xl font-bold">
-                    {kpis.mapeCmv !== null ? formatPercent(kpis.mapeCmv) : "—"}
-                  </h3>
-                  {kpis.mesesCargados > 0 && <Badge variant="outline" className="text-xs">YTD</Badge>}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
+        
+        <Card className="border-border">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-success/10 rounded-full">
-                <Sparkles className="h-5 w-5 text-success" />
+                <TrendingUp className="h-5 w-5 text-success" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">MAPE Resultado Operativo</p>
-                <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-muted-foreground">Rtdo. Operativo Acumulado</p>
+                <div className="flex items-end gap-2 mt-1">
                   <h3 className="text-2xl font-bold">
-                    {kpis.mapeResultado !== null ? formatPercent(kpis.mapeResultado) : "—"}
+                    {kpis.mesesCargados > 0 ? formatCurrency(kpis.resRealYTD) : "—"}
                   </h3>
-                  {kpis.mesesCargados > 0 && <Badge variant="outline" className="text-xs">YTD</Badge>}
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Proyectado YTD: <span className="font-medium">{formatCurrency(kpis.resProyYTD)}</span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-accent/5">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-accent/20 rounded-full">
+                <Sparkles className="h-5 w-5 text-accent" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Margen de Error (MAPE Global)</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <h3 className="text-2xl font-bold">
+                    {kpis.mapeGlobal !== null ? formatPercent(kpis.mapeGlobal) : "—"}
+                  </h3>
+                  {kpis.mesesCargados > 0 && <Badge variant="secondary" className="text-xs">Precisión Promedio</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  En base a los {kpis.mesesCargados} meses transcurridos
+                </p>
               </div>
             </div>
           </CardContent>
@@ -239,17 +266,19 @@ export function ProyectadoView() {
                 <Line 
                   type="monotone" 
                   dataKey="Proyectado" 
-                  stroke="hsl(var(--accent))" 
+                  stroke="#94a3b8" 
                   strokeWidth={2} 
                   strokeDasharray="5 5" 
-                  dot={false}
+                  dot={{ r: 3, fill: '#94a3b8' }}
+                  activeDot={{ r: 5 }}
                 />
                 <Line 
                   type="monotone" 
                   dataKey="Real" 
-                  stroke="hsl(var(--primary))" 
+                  stroke="#0b4da2" 
                   strokeWidth={3}
-                  activeDot={{ r: 6 }}
+                  dot={{ r: 4, fill: '#0b4da2', strokeWidth: 2, stroke: 'white' }}
+                  activeDot={{ r: 7 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -273,13 +302,13 @@ export function ProyectadoView() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b-2 border-accent bg-accent text-accent-foreground">
-                  <th className="sticky left-0 z-10 bg-accent px-4 py-4 text-left font-bold text-base min-w-[280px] border-r-2 border-accent/30">
+                  <th className="sticky left-0 z-20 bg-accent px-4 py-4 text-left font-bold text-base min-w-[280px] border-r-2 border-accent/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                     Línea de Resultado
                   </th>
                   {mesesProyectados.map((m) => {
                     const esReal = !!realesPorMes[m.key]
                     return (
-                      <th key={m.key} className="px-4 py-4 text-right min-w-[120px]">
+                      <th key={m.key} className="px-4 py-4 text-right min-w-[150px] whitespace-nowrap">
                         <div className="font-bold text-base">{m.labelCorto}</div>
                         <div className={cn("text-xs font-normal mt-1", esReal ? "text-success" : "text-accent-foreground/70")}>
                           {esReal ? "Real" : "Proyectado"}
@@ -302,7 +331,7 @@ export function ProyectadoView() {
                       )}
                     >
                       <td className={cn(
-                        "sticky left-0 z-10 px-4 py-3",
+                        "sticky left-0 z-10 px-4 py-3 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
                         "bg-card group-hover:bg-muted/50 border-r-2 border-border",
                         linea.tipo === 'resultado' && "bg-muted/50 group-hover:bg-muted",
                         linea.tipo === 'resultado-principal' && "bg-primary/5 group-hover:bg-primary/10",
@@ -323,7 +352,7 @@ export function ProyectadoView() {
                         const valorReal = realObj ? ((realObj as any)[linea.key] as number) : null
                         
                         return (
-                          <td key={m.key} className="px-4 py-3 text-right">
+                          <td key={m.key} className="px-4 py-3 text-right whitespace-nowrap">
                             {valorReal !== null ? (
                               <div className="flex flex-col">
                                 <span className={cn(
