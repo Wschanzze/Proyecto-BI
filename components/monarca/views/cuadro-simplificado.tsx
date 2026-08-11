@@ -526,25 +526,34 @@ export function CuadroSimplificado({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b-2 border-accent bg-accent text-accent-foreground">
-                  <th className="sticky left-0 z-10 bg-accent px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-accent/30 text-accent-foreground">
+                <tr className="border-b border-border/50 bg-muted/30">
+                  <th rowSpan={2} className="sticky left-0 z-20 bg-card px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-bottom">
                     Línea de Resultado
                   </th>
                   {periodosVisibles.map(({ periodo }) => (
-                    <th key={periodo.key} className="px-4 py-4 text-right font-bold whitespace-nowrap min-w-[130px] text-accent-foreground">
-                      <span className="text-base">{periodoLabelCorto(periodo.anio, periodo.mes)}</span>
+                    <th key={periodo.key} className="px-4 pt-4 pb-2 text-center whitespace-nowrap min-w-[130px]">
+                      <div className="font-bold text-base text-foreground">{periodoLabelCorto(periodo.anio, periodo.mes)}</div>
                     </th>
                   ))}
-                  <th className="px-4 py-4 text-center font-bold min-w-[110px] text-accent-foreground">
-                    <span className="text-base">Variación</span>
+                  <th rowSpan={2} className="px-4 py-4 text-center font-bold min-w-[110px] bg-muted/10 align-bottom border-l-2 border-border/50">
+                    <span className="text-base text-muted-foreground">Variación</span>
                   </th>
+                </tr>
+                <tr className="border-b-2 border-primary/20 bg-muted/30">
+                  {periodosVisibles.map(({ periodo }) => (
+                    <th key={periodo.key + '-status'} className="px-4 pb-4 pt-2 text-center whitespace-nowrap min-w-[130px]">
+                       <Badge variant="secondary" className="bg-primary text-primary-foreground text-[10px] uppercase tracking-wider font-semibold border-0 hover:bg-primary/90">
+                         {periodo.anio}
+                       </Badge>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {(() => {
                   let seccionAnterior = ''
                   return LINEAS_PL.map(({ key, label, tipo, tooltip, seccion }) => {
-                    const valores = periodosVisibles.map(({ pl }) => pl?.[key as keyof CuadroResultadoLinea] || 0)
+                    const valores = periodosVisibles.map(({ pl }) => (pl?.[key as keyof CuadroResultadoLinea] as number) || 0)
                     const ultimoValor = valores[valores.length - 1]
                     const penultimoValor = valores.length > 1 ? valores[valores.length - 2] : null
                     
@@ -585,15 +594,15 @@ export function CuadroSimplificado({
                             if (key === 'ingresosFinancieros') setIngresosFinancierosExpanded(prev => ({ ...prev, [key]: !prev[key] }))
                           }}
                         >
-                          <td className={cn(
-                            "sticky left-0 z-10 px-4 py-3.5 min-w-[300px] border-r border-border/40 font-medium text-sm",
-                            tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/8 to-primary/5",
-                            tipo === 'resultado-final' && "bg-gradient-to-r from-success/8 to-success/5",
-                            tipo === 'resultado-total' && "bg-primary text-primary-foreground",
-                            tipo === 'ingreso-base' && "bg-success/3",
-                            !(tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total' || tipo === 'ingreso-base') && "bg-card"
-                          )}>
-                            <div className="flex items-center gap-2 group">
+                          <td className="sticky left-0 z-10 p-0 min-w-[300px] border-r-2 border-border bg-card shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                            <div className={cn(
+                              "px-4 py-3.5 h-full w-full transition-colors flex items-center gap-2",
+                              "group-hover:bg-muted/50",
+                              tipo === 'resultado-principal' && "bg-primary/10 group-hover:bg-primary/20",
+                              tipo === 'resultado-final' && "bg-success/10 group-hover:bg-success/20",
+                              tipo === 'resultado-total' && "bg-primary text-primary-foreground group-hover:bg-primary/90",
+                              tipo === 'ingreso-base' && "bg-success/10 group-hover:bg-success/20"
+                            )}>
                               {key === 'rrhh' && (
                                 rrhhExpanded[key] 
                                   ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -605,21 +614,29 @@ export function CuadroSimplificado({
                                   : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                               )}
                               {key === 'ingresosFinancieros' && (
-                                ingresosFinancierosExpanded[key] 
+                                ingresosFinancierosExpanded[key]
                                   ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                   : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                               )}
                               <span className={cn(
-                                tipo === 'resultado-total' && "text-primary-foreground font-bold",
-                                tipo === 'resultado-principal' && "text-primary",
-                                tipo === 'resultado-final' && "text-success",
+                                "font-medium text-sm",
+                                (tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total') ? "" : "text-muted-foreground",
+                                tipo === 'resultado-total' && "text-primary-foreground"
                               )}>
                                 {label}
+                                {tooltip && (
+                                  <TooltipProvider>
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-3 w-3 inline-block ml-1 text-muted-foreground/70 cursor-help opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-popover text-popover-foreground text-xs p-2 rounded shadow-lg border border-border">
+                                        {tooltip}
+                                      </TooltipContent>
+                                    </UITooltip>
+                                  </TooltipProvider>
+                                )}
                               </span>
-                              <Info className={cn(
-                                "h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help",
-                                tipo === 'resultado-total' ? "text-primary-foreground/60" : "text-muted-foreground/40"
-                              )} title={tooltip} />
                             </div>
                           </td>
                           

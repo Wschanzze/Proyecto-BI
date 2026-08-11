@@ -274,12 +274,11 @@ export interface ConfiguracionPL {
     stockoutPromedio: number
   }
   proyecciones: {
-    facturacionBase: number
-    crecimientoMensual: number
-    cmvPct: number
-    rrhhPct: number
-    gastosComercialesPct: number
-    mermasPct: number
+    facturacionMensual: number[]
+    cmvPctMensual: number[]
+    rrhhPctMensual: number[]
+    gastosComercialesPctMensual: number[]
+    mermasPctMensual: number[]
   }
 }
 

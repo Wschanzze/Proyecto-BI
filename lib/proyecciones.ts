@@ -11,27 +11,25 @@ export function calcularProyeccionAnual(anio: number, config: ConfiguracionPL): 
   const proy = config.proyecciones
   const meses: MesProyectado[] = []
   
-  let facturacionAcumulada = proy.facturacionBase
-  
   for (let mes = 1; mes <= 12; mes++) {
-    const facturacion = mes === 1 ? facturacionAcumulada : facturacionAcumulada * (1 + proy.crecimientoMensual)
-    facturacionAcumulada = facturacion // update for next month
+    const idx = mes - 1
+    const facturacion = proy.facturacionMensual[idx] || 0
     
     // Asumimos IVA 21% estándar para simplificar, o calcular inverso: facturacion / 1.21
     const ivaTasa = config.ratios.iva || 0.21
     const ventasSinIva = facturacion / (1 + ivaTasa)
     const iva = facturacion - ventasSinIva
     
-    const cmv = ventasSinIva * proy.cmvPct
+    const cmv = ventasSinIva * (proy.cmvPctMensual[idx] || 0)
     const contribucionMarginal = ventasSinIva - cmv
     
-    const rrhh = ventasSinIva * proy.rrhhPct
-    const costosFijos = ventasSinIva * proy.gastosComercialesPct
+    const rrhh = ventasSinIva * (proy.rrhhPctMensual[idx] || 0)
+    const costosFijos = ventasSinIva * (proy.gastosComercialesPctMensual[idx] || 0)
     
     const resultadoOperativo = contribucionMarginal - rrhh - costosFijos
     
     const impuestos = ventasSinIva * config.ratios.impuestosOperativos
-    const merma = ventasSinIva * proy.mermasPct
+    const merma = ventasSinIva * (proy.mermasPctMensual[idx] || 0)
     
     const resultadoSupermercado = resultadoOperativo - impuestos - merma
     const ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
@@ -47,6 +45,14 @@ export function calcularProyeccionAnual(anio: number, config: ConfiguracionPL): 
       otros_gastos: costosFijos * 0.07, comisiones_gastos_bancarios: costosFijos * 0.04, gastos_extraordinarios: costosFijos * 0.03, 
       gastos_comercializacion: costosFijos * 0.1, gastos_administracion: costosFijos * 0.05, gastos_financiacion: costosFijos * 0.02, 
       diferencias_caja_perdida: costosFijos * 0.01 
+    }
+    const ingresosFinancierosSubcuentas = {
+      intereses_plazos_fijos: ingresosFinancieros * 0.5,
+      rendimientos_fci: ingresosFinancieros * 0.3,
+      descuentos_obtenidos: ingresosFinancieros * 0.1,
+      diferencia_cambio: ingresosFinancieros * 0.1,
+      operatoria_financiera: 0,
+      rendimientos_financieros: 0
     }
 
     meses.push({
@@ -68,6 +74,7 @@ export function calcularProyeccionAnual(anio: number, config: ConfiguracionPL): 
       merma,
       resultadoSupermercado,
       ingresosFinancieros,
+      ingresosFinancierosSubcuentas,
       resultadoTotal
     })
   }

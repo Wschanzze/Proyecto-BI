@@ -6,6 +6,7 @@ import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react"
 import { CargarDatos } from "@/components/monarca/views/cargar-datos"
 import { Documentacion } from "@/components/monarca/views/documentacion"
 import { MetricasAdmin } from "@/components/monarca/views/metricas-admin"
+import { ProyeccionesAdmin } from "@/components/monarca/views/proyecciones-admin"
 import { GestionCargas } from "@/components/monarca/views/gestion-cargas"
 import { CargaCostosFijos } from "@/components/monarca/views/carga-costos-fijos"
 import { TopBar } from "@/components/monarca/top-bar"
@@ -16,7 +17,7 @@ import type { DBSucursal } from "@/lib/supabase"
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
 
-type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas" | "costos-fijos"
+type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas" | "costos-fijos" | "proyecciones"
 
 /* ─── PIN gate ─────────────────────────────────────────────────────────── */
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
@@ -173,6 +174,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "gestion-cargas", label: "Gestión Cargas & Datos" },
   { id: "costos-fijos", label: "Costos Fijos & Ingresos" },
   { id: "metricas", label: "Métricas P&L" },
+  { id: "proyecciones", label: "Supuestos Proyección" },
   { id: "documentacion", label: "Documentación" },
 ]
 
@@ -267,6 +269,7 @@ function AdminShell() {
               />
             )}
             {tab === "metricas" && <MetricasAdmin />}
+            {tab === "proyecciones" && <ProyeccionesAdmin />}
             {tab === "documentacion" && <Documentacion />}
           </>
         )}

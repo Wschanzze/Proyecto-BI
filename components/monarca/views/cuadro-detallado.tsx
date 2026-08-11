@@ -2,7 +2,8 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { ChevronRight, Download, Printer, RefreshCw, AlertCircle } from "lucide-react"
+import { ChevronRight, Download, Printer, RefreshCw, AlertCircle, ChevronDown } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader, FiltrosSelector, TransitionLoader } from "@/components/monarca/shared"
@@ -197,13 +198,22 @@ export function CuadroDetallado({
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border bg-accent text-accent-foreground">
-              <th className="sticky left-0 z-10 bg-accent px-4 py-2.5 text-left font-semibold text-accent-foreground min-w-[300px] whitespace-nowrap border-r border-white/20">
+            <tr className="border-b border-border/50 bg-muted/30">
+              <th rowSpan={2} className="sticky left-0 z-20 bg-card px-4 py-4 text-left font-bold text-base min-w-[300px] border-r-2 border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-bottom">
                 Categoría / Sector / Grupo
               </th>
               {COLS.map((c) => (
-                <th key={c} className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-accent-foreground">
+                <th key={c} className="whitespace-nowrap px-3 pt-4 pb-2 text-right font-bold text-base text-foreground">
                   {c}
+                </th>
+              ))}
+            </tr>
+            <tr className="border-b-2 border-primary/20 bg-muted/30">
+              {COLS.map((c) => (
+                <th key={c + '-status'} className="whitespace-nowrap px-3 pb-4 pt-2 text-right">
+                  <Badge variant="secondary" className="bg-primary text-primary-foreground text-[10px] uppercase tracking-wider font-semibold border-0 hover:bg-primary/90">
+                    MÉTRICA
+                  </Badge>
                 </th>
               ))}
             </tr>

@@ -1,3 +1,3 @@
 git add .
-git commit -m "style: split table head and fix sticky column transparency"
+git commit -m "feat: monthly projections and UI enhancements"
 git push origin main

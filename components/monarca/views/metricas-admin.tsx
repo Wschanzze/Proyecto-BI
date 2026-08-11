@@ -49,7 +49,6 @@ const CATEGORIAS_ADMIN = [
   { id: 'impuestos', nombre: 'Impuestos', descripcion: 'Tasas impositivas específicas', icon: DollarSign },
   { id: 'estimaciones', nombre: 'Estimaciones CMV', descripcion: 'Costos de mercadería por categoría', icon: Hash },
   { id: 'kpis', nombre: 'KPIs Base', descripcion: 'Métricas de referencia para cálculos', icon: Settings },
-  { id: 'proyecciones', nombre: 'Proyecciones Anuales', descripcion: 'Supuestos para P&L proyectado', icon: TrendingUp },
 ]
 
 function getIconoTipo(tipo: string) {
