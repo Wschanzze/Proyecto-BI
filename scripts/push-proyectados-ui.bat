@@ -1,3 +1,3 @@
 git add .
-git commit -m "fix: fetch existing costs/incomes when switching period in Costos Fijos tab to prevent overwriting with 0"
+git commit -m "feat: add modoIncremental support to Nomina/Costos uploads in gestion-cargas"
 git push origin main

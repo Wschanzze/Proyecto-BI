@@ -65,6 +65,7 @@ export function GestionCargas() {
   const [mensaje, setMensaje] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null)
   const [ultimaCarga, setUltimaCarga] = useState<CargaResultado | null>(null)
   const [sistemaListo, setSistemaListo] = useState(false)
+  const [modoIncremental, setModoIncremental] = useState<boolean>(false)
 
   // Datos simulados de períodos y sucursales (en producción vendrían de props o context)
   const periodos: Periodo[] = [
@@ -438,7 +439,8 @@ export function GestionCargas() {
         parseInt(periodoSeleccionado.split('-')[0]) * 100 + parseInt(periodoSeleccionado.split('-')[1]), // período ID simplificado
         sucursalSeleccionada,
         datosRRHH,
-        file.name
+        file.name,
+        modoIncremental
       )
 
       setUltimaCarga({
@@ -514,7 +516,8 @@ export function GestionCargas() {
         parseInt(periodoSeleccionado.split('-')[0]) * 100 + parseInt(periodoSeleccionado.split('-')[1]),
         sucursalSeleccionada,
         datosCostos,
-        file.name
+        file.name,
+        modoIncremental
       )
 
       setUltimaCarga({
@@ -669,6 +672,38 @@ export function GestionCargas() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modo de Carga */}
+      <Card className="border-primary/20 bg-card">
+        <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-primary flex items-center gap-2">
+              Modo de Carga de Archivos
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Define el comportamiento al subir planillas Excel de Nómina o Costos Estructurales para la sucursal y período seleccionados.
+            </p>
+          </div>
+          <div className="flex items-center gap-4 shrink-0">
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={modoIncremental}
+                onChange={(e) => setModoIncremental(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              />
+              <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                Modo Incremental
+              </span>
+            </label>
+            <Badge className={`text-[10px] uppercase font-bold px-2.5 py-0.5 border-0 ${
+              modoIncremental ? "bg-success/20 text-success hover:bg-success/30" : "bg-warning/20 text-warning hover:bg-warning/30"
+            }`}>
+              {modoIncremental ? "Fusión / Agregar" : "Reemplazar Existente"}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Sección RRHH */}
       <Card className="border-border">

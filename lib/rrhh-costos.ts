@@ -80,11 +80,25 @@ export async function cargarNominaMensual(
   periodoId: number,
   sucursalId: string,
   datosNomina: TemplateRRHH[],
-  archivoOrigen?: string
+  archivoOrigen?: string,
+  modoIncremental: boolean = false
 ): Promise<{ success: boolean; insertados: number; errores: string[] }> {
   try {
     const errores: string[] = []
     let insertados = 0
+
+    if (!modoIncremental) {
+      // Limpiar nómina anterior para este período y sucursal
+      const { error: deleteError } = await supabase
+        .from('nomina_mensual')
+        .delete()
+        .eq('periodo_id', periodoId)
+        .eq('sucursal_id', sucursalId)
+
+      if (deleteError) {
+        return { success: false, insertados: 0, errores: [`Error al limpiar nómina anterior: ${deleteError.message}`] }
+      }
+    }
 
     // Obtener plantilla de empleados para validar
     const plantilla = await getPlantillaEmpleados(sucursalId)
@@ -210,11 +224,25 @@ export async function cargarCostosEstructurales(
   periodoId: number,
   sucursalId: string,
   datosCostos: TemplateCosto[],
-  archivoOrigen?: string
+  archivoOrigen?: string,
+  modoIncremental: boolean = false
 ): Promise<{ success: boolean; insertados: number; errores: string[] }> {
   try {
     const errores: string[] = []
     const costosParaInsertar: Partial<CostoEstructural>[] = []
+
+    if (!modoIncremental) {
+      // Limpiar costos estructurales anteriores para este período y sucursal
+      const { error: deleteError } = await supabase
+        .from('costos_estructurales')
+        .delete()
+        .eq('periodo_id', periodoId)
+        .eq('sucursal_id', sucursalId)
+
+      if (deleteError) {
+        return { success: false, insertados: 0, errores: [`Error al limpiar costos estructurales anteriores: ${deleteError.message}`] }
+      }
+    }
 
     for (const [index, registro] of datosCostos.entries()) {
       // Validaciones básicas
