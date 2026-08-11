@@ -1,7 +1,7 @@
 // components/monarca/views/carga-costos-fijos.tsx
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,8 @@ import {
 } from "lucide-react"
 import { PageHeader } from "@/components/monarca/shared"
 import { distribuirCostosFijos, distribuirIngresosFinancieros } from "@/lib/distribucion-costos"
+import { getCostosFijosSubcuentas } from "@/lib/costos-fijos-subcuentas"
+import { getIngresosFinancierosSubcuentas } from "@/lib/ingresos-financieros-subcuentas"
 import { formatCurrency } from "@/lib/format"
 import type { Periodo } from "@/lib/data"
 import type { DBSucursal } from "@/lib/supabase"
@@ -100,6 +102,77 @@ export function CargaCostosFijos({
     operatoria_financiera: '',
     rendimientos_financieros: '',
   })
+
+  // Cargar datos existentes desde la base de datos al cambiar de período
+  useEffect(() => {
+    async function cargarDatosExistentes() {
+      if (!periodoKey) return
+      setLoading(true)
+      try {
+        const [cfData, ifData] = await Promise.all([
+          getCostosFijosSubcuentas(periodoKey, '__consolidado__'),
+          getIngresosFinancierosSubcuentas(periodoKey, '__consolidado__')
+        ])
+
+        if (cfData) {
+          setCostosFijos({
+            alquileres: cfData.alquileres ? String(cfData.alquileres) : '',
+            honorarios: cfData.honorarios ? String(cfData.honorarios) : '',
+            tasas_servicios: cfData.tasas_servicios ? String(cfData.tasas_servicios) : '',
+            mantenimiento_servicios_tecnicos: cfData.mantenimiento_servicios_tecnicos ? String(cfData.mantenimiento_servicios_tecnicos) : '',
+            perdida_gestion_inventarios: cfData.perdida_gestion_inventarios ? String(cfData.perdida_gestion_inventarios) : '',
+            seguridad_vigilancia: cfData.seguridad_vigilancia ? String(cfData.seguridad_vigilancia) : '',
+            otros_servicios: cfData.otros_servicios ? String(cfData.otros_servicios) : '',
+            gastos_personal: cfData.gastos_personal ? String(cfData.gastos_personal) : '',
+            otros_gastos: cfData.otros_gastos ? String(cfData.otros_gastos) : '',
+            comisiones_gastos_bancarios: cfData.comisiones_gastos_bancarios ? String(cfData.comisiones_gastos_bancarios) : '',
+            gastos_extraordinarios: cfData.gastos_extraordinarios ? String(cfData.gastos_extraordinarios) : '',
+            gastos_comercializacion: cfData.gastos_comercializacion ? String(cfData.gastos_comercializacion) : '',
+            gastos_administracion: cfData.gastos_administracion ? String(cfData.gastos_administracion) : '',
+            gastos_financiacion: cfData.gastos_financiacion ? String(cfData.gastos_financiacion) : '',
+            diferencias_caja_perdida: cfData.diferencias_caja_perdida ? String(cfData.diferencias_caja_perdida) : '',
+          })
+        } else {
+          // Resetear si no hay datos
+          setCostosFijos({
+            alquileres: '',
+            honorarios: '',
+            tasas_servicios: '',
+            mantenimiento_servicios_tecnicos: '',
+            perdida_gestion_inventarios: '',
+            seguridad_vigilancia: '',
+            otros_servicios: '',
+            gastos_personal: '',
+            otros_gastos: '',
+            comisiones_gastos_bancarios: '',
+            gastos_extraordinarios: '',
+            gastos_comercializacion: '',
+            gastos_administracion: '',
+            gastos_financiacion: '',
+            diferencias_caja_perdida: '',
+          })
+        }
+
+        if (ifData) {
+          setIngresosFinancieros({
+            operatoria_financiera: ifData.operatoria_financiera ? String(ifData.operatoria_financiera) : '',
+            rendimientos_financieros: ifData.rendimientos_financieros ? String(ifData.rendimientos_financieros) : '',
+          })
+        } else {
+          setIngresosFinancieros({
+            operatoria_financiera: '',
+            rendimientos_financieros: '',
+          })
+        }
+      } catch (err) {
+        console.error("Error al cargar datos existentes de costos/ingresos:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    cargarDatosExistentes()
+  }, [periodoKey])
 
   const handleCostoChange = (key: keyof CostosFijosForm, value: string) => {
     // Permitir solo números y punto decimal
