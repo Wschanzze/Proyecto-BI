@@ -624,19 +624,17 @@ export function CuadroSimplificado({
                                 tipo === 'resultado-total' && "text-primary-foreground"
                               )}>
                                 {label}
-                                {tooltip && (
-                                  <TooltipProvider>
-                                    <UITooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-3 w-3 inline-block ml-1 text-muted-foreground/70 cursor-help opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </TooltipTrigger>
-                                      <TooltipContent className="bg-popover text-popover-foreground text-xs p-2 rounded shadow-lg border border-border">
-                                        {tooltip}
-                                      </TooltipContent>
-                                    </UITooltip>
-                                  </TooltipProvider>
-                                )}
                               </span>
+                              {tooltip && (
+                                <span title={tooltip} className="inline-flex">
+                                  <Info 
+                                    className={cn(
+                                      "h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help",
+                                      tipo === 'resultado-total' ? "text-primary-foreground/60" : "text-muted-foreground/40"
+                                    )} 
+                                  />
+                                </span>
+                              )}
                             </div>
                           </td>
                           
