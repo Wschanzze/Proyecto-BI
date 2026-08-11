@@ -46,7 +46,7 @@ import {
 } from "@/lib/format"
 
 // Función para calcular cuadro de resultado P&L desde datos base
-function calcularCuadroResultado(
+export function calcularCuadroResultado(
   facturacion: number,
   iva: number,
   cmv: number,
@@ -212,7 +212,7 @@ function VariacionCell({ actual, anterior, esTotalNeto }: { actual: number; ante
 }
 
 // Definición de líneas del P&L con categorías de agrupación
-const LINEAS_PL = [
+export const LINEAS_PL = [
   // INGRESOS
   { key: 'facturacion', label: 'Facturación', tipo: 'ingreso', seccion: 'Ingresos', tooltip: 'Facturación total incluyendo IVA' },
   { key: 'iva', label: 'IVA', tipo: 'separado', seccion: 'Ingresos', tooltip: 'Impuesto al Valor Agregado' },

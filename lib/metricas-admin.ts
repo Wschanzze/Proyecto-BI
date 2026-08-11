@@ -62,6 +62,14 @@ export async function getConfiguracionPL(sucursalId?: string): Promise<Configura
       skuTotal: getValor('kpis', 'sku_total', 12500),
       rotacionPromedio: getValor('kpis', 'rotacion_promedio', 85),
       stockoutPromedio: getValor('kpis', 'stockout_promedio', 2.3),
+    },
+    proyecciones: {
+      facturacionBase: getValor('proyecciones', 'proy_facturacion_base', 100000000), // 100M default
+      crecimientoMensual: getValor('proyecciones', 'proy_crecimiento_mensual', 0.03), // 3% default
+      cmvPct: getValor('proyecciones', 'proy_cmv_pct', 0.70), // 70% default
+      rrhhPct: getValor('proyecciones', 'proy_rrhh_pct', 0.12), // 12% default
+      gastosComercialesPct: getValor('proyecciones', 'proy_gastos_comerciales_pct', 0.15), // 15% default
+      mermasPct: getValor('proyecciones', 'proy_mermas_pct', 0.02), // 2% default
     }
   }
 }

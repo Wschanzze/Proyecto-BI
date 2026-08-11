@@ -273,6 +273,14 @@ export interface ConfiguracionPL {
     rotacionPromedio: number
     stockoutPromedio: number
   }
+  proyecciones: {
+    facturacionBase: number
+    crecimientoMensual: number
+    cmvPct: number
+    rrhhPct: number
+    gastosComercialesPct: number
+    mermasPct: number
+  }
 }
 
 export interface MetricsConDerivados extends Metrics {
