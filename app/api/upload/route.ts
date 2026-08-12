@@ -237,7 +237,16 @@ export async function POST(req: Request) {
       if (!periodoObj) continue
 
       // 2. Mapear Sucursal
-      const sucursalId = mapSucursal(String(rawSucursal).trim())
+      let sucursalId = mapSucursal(String(rawSucursal).trim())
+
+      // Auto-corrección si las columnas de sucursal y grupo están cruzadas o desplazadas
+      const sucursalesValidas = ['colon', 'falucho', 'peron', 'san-martin', 'virtual']
+      if (!sucursalesValidas.includes(sucursalId) && rawGrupo) {
+        const sucursalDesdeGrupo = mapSucursal(String(rawGrupo).trim())
+        if (sucursalesValidas.includes(sucursalDesdeGrupo)) {
+          sucursalId = sucursalDesdeGrupo
+        }
+      }
       
       // 3. Mapear Grupo con contexto de Categoría y Sector
       const cleanLeaf = cleanCodePrefix(String(leafStr))
