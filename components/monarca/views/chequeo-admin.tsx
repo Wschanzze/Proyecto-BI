@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment } from "react"
 import { 
   Card, 
   CardContent, 
@@ -20,7 +20,8 @@ import {
   Users,
   DollarSign,
   TrendingUp,
-  Globe
+  Globe,
+  ChevronRight
 } from "lucide-react"
 import { PageHeader } from "@/components/monarca/shared"
 import { formatNumber } from "@/lib/format"
@@ -43,6 +44,16 @@ export function ChequeoAdmin() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filtroAnio, setFiltroAnio] = useState<string>("Todos")
+  const [periodosExpandidos, setPeriodosExpandidos] = useState<Set<string>>(new Set())
+
+  const togglePeriodo = (key: string) => {
+    setPeriodosExpandidos(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     cargarAuditoria()
@@ -233,92 +244,226 @@ export function ChequeoAdmin() {
                 <tbody className="divide-y divide-border/60">
                   {datosFiltrados.map((p) => {
                     const isAllOk = p.resultadosCount > 0 && p.costosFijosCount > 0 && p.nominaCount > 0 && p.costosEstructuralesCount > 0
+                    const isExpanded = periodosExpandidos.has(p.key)
 
                     return (
-                      <tr 
-                        key={p.key} 
-                        className={`transition-colors hover:bg-muted/10 ${isAllOk ? 'bg-success/[0.01]' : 'bg-warning/[0.01]'}`}
-                      >
-                        <td className="px-5 py-4 font-bold text-foreground whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span>{p.label.toUpperCase()}</span>
-                            {isAllOk ? (
-                              <Badge className="bg-success/10 text-success text-[10px] border-0 hover:bg-success/15 font-bold uppercase py-0.5">
-                                OK
+                      <Fragment key={p.key}>
+                        <tr 
+                          className={`transition-colors hover:bg-muted/10 ${isAllOk ? 'bg-success/[0.01]' : 'bg-warning/[0.01]'} ${isExpanded ? 'bg-muted/5' : ''}`}
+                        >
+                          <td 
+                            className="px-5 py-4 font-bold text-foreground whitespace-nowrap cursor-pointer hover:text-primary transition-colors select-none"
+                            onClick={() => togglePeriodo(p.key)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90 text-primary' : ''}`} />
+                              <span>{p.label.toUpperCase()}</span>
+                              {isAllOk ? (
+                                <Badge className="bg-success/10 text-success text-[10px] border-0 hover:bg-success/15 font-bold uppercase py-0.5">
+                                  OK
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-warning/10 text-warning text-[10px] border-0 hover:bg-warning/15 font-bold uppercase py-0.5">
+                                  Incompleto
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Cargar Datos (Resultados Ventas/CMV) */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {p.resultadosCount > 0 ? (
+                              <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
+                                Cargado ({formatNumber(p.resultadosCount)} reg)
                               </Badge>
                             ) : (
-                              <Badge className="bg-warning/10 text-warning text-[10px] border-0 hover:bg-warning/15 font-bold uppercase py-0.5">
-                                Incompleto
+                              <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
+                                Pendiente
                               </Badge>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Cargar Datos (Resultados Ventas/CMV) */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {p.resultadosCount > 0 ? (
-                            <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
-                              Cargado ({formatNumber(p.resultadosCount)} reg)
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
-                              Pendiente
-                            </Badge>
-                          )}
-                        </td>
+                          {/* Costos Fijos & Ingresos Consolidados */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {p.costosFijosCount > 0 ? (
+                              <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
+                                Distribuido ({formatNumber(p.costosFijosCount)} reg)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
+                                Pendiente
+                              </Badge>
+                            )}
+                          </td>
 
-                        {/* Costos Fijos & Ingresos Consolidados */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {p.costosFijosCount > 0 ? (
-                            <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
-                              Distribuido ({formatNumber(p.costosFijosCount)} reg)
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
-                              Pendiente
-                            </Badge>
-                          )}
-                        </td>
+                          {/* Nómina RRHH (Gestion Cargas) */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {p.nominaCount > 0 ? (
+                              <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
+                                Cargado ({formatNumber(p.nominaCount)} emp)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
+                                Pendiente
+                              </Badge>
+                            )}
+                          </td>
 
-                        {/* Nómina RRHH (Gestion Cargas) */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {p.nominaCount > 0 ? (
-                            <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
-                              Cargado ({formatNumber(p.nominaCount)} emp)
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
-                              Pendiente
-                            </Badge>
-                          )}
-                        </td>
+                          {/* Costos Estructurales (Gestion Cargas) */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {p.costosEstructuralesCount > 0 ? (
+                              <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
+                                Cargado ({formatNumber(p.costosEstructuralesCount)} conceptos)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
+                                Pendiente
+                              </Badge>
+                            )}
+                          </td>
 
-                        {/* Costos Estructurales (Gestion Cargas) */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {p.costosEstructuralesCount > 0 ? (
-                            <Badge className="bg-success/10 text-success border-0 hover:bg-success/15 font-medium py-1 px-2.5">
-                              Cargado ({formatNumber(p.costosEstructuralesCount)} conceptos)
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground/60 border-dashed py-1 px-2.5">
-                              Pendiente
-                            </Badge>
-                          )}
-                        </td>
+                          {/* Costos Globales (Prorrateo) */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {p.costosGlobalesCount > 0 ? (
+                              <Badge className="bg-info/10 text-info border-0 hover:bg-info/15 font-medium py-1 px-2.5">
+                                Sincronizado ({formatNumber(p.costosGlobalesCount)} reg)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground/40 border-dashed py-1 px-2.5">
+                                Ninguno (opcional)
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
 
-                        {/* Costos Globales (Prorrateo) */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {p.costosGlobalesCount > 0 ? (
-                            <Badge className="bg-info/10 text-info border-0 hover:bg-info/15 font-medium py-1 px-2.5">
-                              Sincronizado ({formatNumber(p.costosGlobalesCount)} reg)
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground/40 border-dashed py-1 px-2.5">
-                              Ninguno (opcional)
-                            </Badge>
-                          )}
-                        </td>
-                      </tr>
+                        {/* Fila en cascada (Checklist) */}
+                        {isExpanded && (
+                          <tr className="bg-muted/10 border-b border-border/40 animate-[fadeIn_0.2s_ease]">
+                            <td colSpan={6} className="px-8 py-4">
+                              <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 max-w-4xl shadow-md">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                    Checklist de Documentación Requerida — {p.label.toUpperCase()}
+                                  </h4>
+                                  <Badge className={`text-[10px] uppercase font-bold px-2 py-0.5 border-0 ${
+                                    isAllOk ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
+                                  }`}>
+                                    {isAllOk ? "100% Completado" : "Pendiente de Completar"}
+                                  </Badge>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  
+                                  {/* Item 1: Ventas y CMV */}
+                                  <div className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                                    p.resultadosCount > 0 
+                                      ? "border-success/20 bg-success/[0.02]" 
+                                      : "border-destructive/20 bg-destructive/[0.02]"
+                                  }`}>
+                                    <span className="mt-0.5 shrink-0">
+                                      {p.resultadosCount > 0 ? (
+                                        <CheckCircle2 className="h-5 w-5 text-success" />
+                                      ) : (
+                                        <XCircle className="h-5 w-5 text-destructive" />
+                                      )}
+                                    </span>
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        Planilla Ventas & CMV
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted">Cargar Datos</Badge>
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {p.resultadosCount > 0 
+                                          ? `¡Confirmado! Se cargaron ${formatNumber(p.resultadosCount)} registros de salón.`
+                                          : "Pendiente: Cargar archivo Excel/CSV con las facturaciones e IVAs de las sucursales."}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Item 2: Costos Fijos */}
+                                  <div className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                                    p.costosFijosCount > 0 
+                                      ? "border-success/20 bg-success/[0.02]" 
+                                      : "border-destructive/20 bg-destructive/[0.02]"
+                                  }`}>
+                                    <span className="mt-0.5 shrink-0">
+                                      {p.costosFijosCount > 0 ? (
+                                        <CheckCircle2 className="h-5 w-5 text-success" />
+                                      ) : (
+                                        <XCircle className="h-5 w-5 text-destructive" />
+                                      )}
+                                    </span>
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        Distribución Costos Fijos
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted">Costos Fijos & Ingresos</Badge>
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {p.costosFijosCount > 0 
+                                          ? `¡Confirmado! ${formatNumber(p.costosFijosCount)} subcuentas distribuidas por sucursal.`
+                                          : "Pendiente: Cargar, validar y distribuir los costos consolidados y financieros del período."}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Item 3: Nómina RRHH */}
+                                  <div className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                                    p.nominaCount > 0 
+                                      ? "border-success/20 bg-success/[0.02]" 
+                                      : "border-destructive/20 bg-destructive/[0.02]"
+                                  }`}>
+                                    <span className="mt-0.5 shrink-0">
+                                      {p.nominaCount > 0 ? (
+                                        <CheckCircle2 className="h-5 w-5 text-success" />
+                                      ) : (
+                                        <XCircle className="h-5 w-5 text-destructive" />
+                                      )}
+                                    </span>
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        Nómina Mensual RRHH
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted">Gestión Cargas</Badge>
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {p.nominaCount > 0 
+                                          ? `¡Confirmado! Liquidación de ${formatNumber(p.nominaCount)} empleados cargada.`
+                                          : "Pendiente: Subir planilla Excel con haberes y cargas sociales de personal."}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Item 4: Costos Estructurales */}
+                                  <div className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                                    p.costosEstructuralesCount > 0 
+                                      ? "border-success/20 bg-success/[0.02]" 
+                                      : "border-destructive/20 bg-destructive/[0.02]"
+                                  }`}>
+                                    <span className="mt-0.5 shrink-0">
+                                      {p.costosEstructuralesCount > 0 ? (
+                                        <CheckCircle2 className="h-5 w-5 text-success" />
+                                      ) : (
+                                        <XCircle className="h-5 w-5 text-destructive" />
+                                      )}
+                                    </span>
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                        Costos Estructurales
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted">Gestión Cargas</Badge>
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {p.costosEstructuralesCount > 0 
+                                          ? `¡Confirmado! ${formatNumber(p.costosEstructuralesCount)} conceptos de costos fijos cargados.`
+                                          : "Pendiente: Subir planilla Excel con alquileres, impuestos y servicios del mes."}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
