@@ -9,6 +9,7 @@ import { MetricasAdmin } from "@/components/monarca/views/metricas-admin"
 import { ProyeccionesAdmin } from "@/components/monarca/views/proyecciones-admin"
 import { GestionCargas } from "@/components/monarca/views/gestion-cargas"
 import { CargaCostosFijos } from "@/components/monarca/views/carga-costos-fijos"
+import { EstacionalidadAdmin } from "@/components/monarca/views/estacionalidad-admin"
 import { ChequeoAdmin } from "@/components/monarca/views/chequeo-admin"
 import { TopBar } from "@/components/monarca/top-bar"
 import { getPeriodosDB, getSucursalesDB } from "@/lib/data-db"
@@ -18,7 +19,7 @@ import type { DBSucursal } from "@/lib/supabase"
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
 
-type AdminTab = "cargar" | "documentacion" | "metricas" | "gestion-cargas" | "costos-fijos" | "proyecciones" | "chequeo"
+type AdminTab = "cargar" | "gestion-cargas" | "costos-fijos" | "estacionalidad" | "chequeo" | "metricas" | "proyecciones" | "documentacion"
 
 /* ─── PIN gate ─────────────────────────────────────────────────────────── */
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
@@ -174,6 +175,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "cargar", label: "Cargar Datos" },
   { id: "gestion-cargas", label: "Gestión Cargas & Datos" },
   { id: "costos-fijos", label: "Costos Fijos & Ingresos" },
+  { id: "estacionalidad", label: "Estacionalidad" },
   { id: "chequeo", label: "Chequeo" },
   { id: "metricas", label: "Métricas P&L" },
   { id: "proyecciones", label: "Supuestos Proyección" },
@@ -270,6 +272,7 @@ function AdminShell() {
                 sucursales={sucursales}
               />
             )}
+            {tab === "estacionalidad" && <EstacionalidadAdmin />}
             {tab === "metricas" && <MetricasAdmin />}
             {tab === "proyecciones" && <ProyeccionesAdmin />}
             {tab === "chequeo" && <ChequeoAdmin />}
