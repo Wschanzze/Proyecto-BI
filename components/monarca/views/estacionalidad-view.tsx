@@ -702,8 +702,11 @@ export function EstacionalidadView() {
                   <BarChart3 className="h-4 w-4 text-emerald-500" />
                   Media Estacional por Mes (%)
                 </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground leading-relaxed mt-1">
+                  Variación promedio histórica del mes. Muestra el comportamiento típico (picos o caídas habituales) para proyectar compras y ventas.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="h-[220px]">
+              <CardContent className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={(matrizCampo === 'varClientes' ? data?.matrizClientes.estadisticas : data?.matrizFacturacion.estadisticas) || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -727,8 +730,11 @@ export function EstacionalidadView() {
                   <Activity className="h-4 w-4 text-amber-500" />
                   Desvío Estándar (Volatilidad)
                 </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground leading-relaxed mt-1">
+                  Mide la inestabilidad. Valores altos indican un mes muy variable e impredecible; valores bajos representan gran estabilidad interanual.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="h-[220px]">
+              <CardContent className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={(matrizCampo === 'varClientes' ? data?.matrizClientes.estadisticas : data?.matrizFacturacion.estadisticas) || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -748,8 +754,11 @@ export function EstacionalidadView() {
                   <Layers className="h-4 w-4 text-purple-500" />
                   Kurtosis Estacional
                 </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground leading-relaxed mt-1">
+                  Muestra la frecuencia de eventos extremos o atípicos (&gt;0 indica picos o caídas extraordinarias aisladas registradas en ese mes).
+                </CardDescription>
               </CardHeader>
-              <CardContent className="h-[220px]">
+              <CardContent className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={(matrizCampo === 'varClientes' ? data?.matrizClientes.estadisticas : data?.matrizFacturacion.estadisticas) || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
