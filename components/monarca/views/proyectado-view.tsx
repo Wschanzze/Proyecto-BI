@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw } from "lucide-react"
+import { Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { TransitionLoader } from "../shared"
 import { getCuadroFromDB } from "@/lib/data-db"
 import { getConfiguracionPL } from "@/lib/metricas-admin"
@@ -13,7 +13,7 @@ import { getCostosFijosSubcuentas } from "@/lib/costos-fijos-subcuentas"
 import { getIngresosFinancierosSubcuentas } from "@/lib/ingresos-financieros-subcuentas"
 import { calcularProyeccionAnual, calcularMAPE, type MesProyectado } from "@/lib/proyecciones"
 import { calcularCuadroResultado, LINEAS_PL } from "./cuadro-simplificado"
-import { formatCurrency, formatPercent, periodoLabelCorto } from "@/lib/format"
+import { formatCurrency, formatCurrencyCompact, formatPercent, formatSigned, periodoLabelCorto } from "@/lib/format"
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   Legend, ResponsiveContainer, ReferenceLine 
@@ -112,25 +112,25 @@ export function ProyectadoView() {
       if (real) {
         rFact.push(real.facturacion)
         pFact.push(m.facturacion)
-        rRes.push(real.resultadoOperativo)
-        pRes.push(m.resultadoOperativo)
-        
-        factRealYTD += real.facturacion
-        factProyYTD += m.facturacion
-        resRealYTD += real.resultadoOperativo
-        resProyYTD += m.resultadoOperativo
-      }
-    })
-    
-    const mapeGlobal = calcularMAPE([...rFact, ...rRes], [...pFact, ...pRes])
-    
+    const rFact = realesPorMes.map(r => r.facturacion)
+    const rRes = realesPorMes.map(r => r.resultado)
+    const pFact = mesesProyectados.slice(0, rFact.length).map(p => p.facturacion)
+    const pRes = mesesProyectados.slice(0, rRes.length).map(p => p.resultado)
+
+    const sumRFact = rFact.reduce((a, b) => a + b, 0)
+    const sumPFact = pFact.reduce((a, b) => a + b, 0)
+    const sumRRes = rRes.reduce((a, b) => a + b, 0)
+    const sumPRes = pRes.reduce((a, b) => a + b, 0)
+
+    const mapeFact = calcularMAPE(rFact, pFact)
+    const mapeRes = calcularMAPE(rRes, pRes)
+    const mapeGlobal = (mapeFact !== null && mapeRes !== null) ? (mapeFact + mapeRes) / 2 : (mapeFact ?? mapeRes)
+
     return {
-      factProyTotal,
-      factRealYTD,
-      factProyYTD,
-      resProyTotal,
-      resRealYTD,
-      resProyYTD,
+      factRealYTD: sumRFact,
+      factProyYTD: sumPFact,
+      resRealYTD: sumRRes,
+      resProyYTD: sumPRes,
       mapeGlobal,
       mesesCargados: rFact.length
     }
@@ -142,96 +142,136 @@ export function ProyectadoView() {
 
   return (
     <div className="space-y-6">
-      {/* HEADER & SELECTOR DE AÑO */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-accent" />
-            Proyecciones Anuales {anioSeleccionado}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Comparativa de P&L: Datos reales vs Presupuesto proyectado matemáticamente.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={anioSeleccionado} onValueChange={setAnioSeleccionado}>
-            <SelectTrigger className="w-[120px] bg-card">
-              <SelectValue placeholder="Año" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2027">2027</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {/* BANNER EJECUTIVO PROYECCIONES - AZUL CORPORATIVO MONARCA */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-accent/40 bg-gradient-to-r from-primary via-primary/95 to-primary p-6 sm:p-8 text-primary-foreground shadow-2xl shadow-primary/30 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-accent">
+        {/* Marca de Agua con Logo de Monarca */}
+        <img
+          src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
+          alt="Monarca Watermark"
+          className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-15 pointer-events-none select-none filter brightness-200 contrast-125"
+        />
 
-      {/* TARJETAS KPI */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/10 rounded-full">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Facturación Acumulada YTD</p>
-                <div className="flex items-end gap-2 mt-1">
-                  <h3 className="text-2xl font-bold">
-                    {kpis.mesesCargados > 0 ? formatCurrency(kpis.factRealYTD) : "—"}
-                  </h3>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Proyectado YTD: <span className="font-medium">{formatCurrency(kpis.factProyYTD)}</span>
-                </p>
-              </div>
+        {/* Encabezado del Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-primary-foreground/20 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-xs font-bold">
+              <Sparkles className="h-4 w-4" />
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-success/10 rounded-full">
-                <TrendingUp className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Rtdo. Operativo Acumulado</p>
-                <div className="flex items-end gap-2 mt-1">
-                  <h3 className="text-2xl font-bold">
-                    {kpis.mesesCargados > 0 ? formatCurrency(kpis.resRealYTD) : "—"}
-                  </h3>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Proyectado YTD: <span className="font-medium">{formatCurrency(kpis.resProyYTD)}</span>
-                </p>
-              </div>
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-primary-foreground flex items-center gap-2">
+                Proyecciones Anuales
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-accent/20 text-accent-foreground border border-accent/40 lowercase">
+                  presupuesto vs real
+                </span>
+              </h2>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-primary-foreground/80 font-medium">Ejercicio:</span>
+              <Select value={anioSeleccionado} onValueChange={setAnioSeleccionado}>
+                <SelectTrigger className="w-[110px] bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground font-bold h-8">
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                  <SelectItem value="2027">2027</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-xs text-primary-foreground/80">
+              <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+              <span className="font-medium">Modelo Matemático Proyectado</span>
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-border bg-accent/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-accent/20 rounded-full">
-                <Sparkles className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Margen de Error (MAPE Global)</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <h3 className="text-2xl font-bold">
-                    {kpis.mapeGlobal !== null ? formatPercent(kpis.mapeGlobal) : "—"}
-                  </h3>
-                  {kpis.mesesCargados > 0 && <Badge variant="secondary" className="text-xs">Precisión Promedio</Badge>}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  En base a los {kpis.mesesCargados} meses transcurridos
-                </p>
-              </div>
+        {/* Grid de 4 KPIs Unificados */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-primary-foreground/20">
+          
+          {/* KPI 1: Facturación YTD */}
+          <div className="flex flex-col justify-between space-y-3 lg:pr-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <DollarSign className="h-4 w-4 text-accent" />
+                Facturación Acumulada YTD
+              </span>
+              <DarkVariacionBadge actual={kpis.factRealYTD} anterior={kpis.factProyYTD} />
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                {kpis.mesesCargados > 0 ? formatCurrencyCompact(kpis.factRealYTD) : "—"}
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Proyectado YTD: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(kpis.factProyYTD)}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 2: Resultado Operativo YTD */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-accent" />
+                Resultado Operativo YTD
+              </span>
+              <DarkVariacionBadge actual={kpis.resRealYTD} anterior={kpis.resProyYTD} />
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                {kpis.mesesCargados > 0 ? formatCurrencyCompact(kpis.resRealYTD) : "—"}
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Proyectado YTD: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(kpis.resProyYTD)}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 3: Precisión de Proyección (MAPE) */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-accent" />
+                Error de Proyección (MAPE)
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent-foreground border border-accent/40">
+                Precisión Promedio
+              </span>
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                {kpis.mapeGlobal !== null ? formatPercent(kpis.mapeGlobal) : "—"}
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Desviación sobre <span className="font-semibold text-primary-foreground">{kpis.mesesCargados} meses</span> transcurridos
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 4: Progreso y Avance Anual */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:pl-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-accent" />
+                Avance del Ejercicio
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-400/40">
+                {formatPercent((kpis.mesesCargados / 12) * 100)} del año
+              </span>
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                {kpis.mesesCargados} / 12 meses
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Períodos reales procesados en sistema
+              </p>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* GRÁFICO */}

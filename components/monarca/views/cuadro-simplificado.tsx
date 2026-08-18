@@ -16,6 +16,7 @@ import {
   Info,
   ChevronDown,
   ChevronRight,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -395,107 +396,125 @@ export function CuadroSimplificado({
         }
       />
 
-      {/* KPIs Complementarios */}
+      {/* BANNER EJECUTIVO P&L - AZUL CORPORATIVO MONARCA */}
       {mostrarKPIs && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* KPI Sucursales */}
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1">
-                  <Building2 className="h-4 w-4 text-primary" />
-                  Sucursales
-                </h4>
-                <Badge variant="secondary" className="text-xs">
-                  {periodosVisibles[periodosVisibles.length - 1]?.kpis?.sucursales.activas || 0}
-                </Badge>
+        <div className="relative overflow-hidden rounded-2xl border-2 border-accent/40 bg-gradient-to-r from-primary via-primary/95 to-primary p-6 sm:p-8 text-primary-foreground shadow-2xl shadow-primary/30 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-accent">
+          {/* Marca de Agua con Logo de Monarca */}
+          <img
+            src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
+            alt="Monarca Watermark"
+            className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-15 pointer-events-none select-none filter brightness-200 contrast-125"
+          />
+
+          {/* Encabezado del Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-primary-foreground/20 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-xs font-bold">
+                <Sparkles className="h-4 w-4" />
               </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Activas:</span>
-                  <span className="font-medium">{periodosVisibles[periodosVisibles.length - 1]?.kpis?.sucursales.activas || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Nuevas:</span>
-                  <span className="font-medium">{periodosVisibles[periodosVisibles.length - 1]?.kpis?.sucursales.nuevas || 0}</span>
-                </div>
+              <div>
+                <h2 className="text-sm font-extrabold uppercase tracking-wider text-primary-foreground flex items-center gap-2">
+                  KPIs de Gestión y Operaciones
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-accent/20 text-accent-foreground border border-accent/40 lowercase">
+                    {periodoLabel(periodoKey)}
+                  </span>
+                </h2>
               </div>
-            </CardContent>
-          </Card>
-          {/* KPI Clientes */}
-          <Card className="border-success/20 bg-success/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1">
-                  <Users className="h-4 w-4 text-success" />
-                  Clientes
-                </h4>
-                <Badge variant="secondary" className="text-xs">
+            </div>
+            <div className="flex items-center gap-2 text-xs text-primary-foreground/80">
+              <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+              <span className="font-medium">P&L Ejecutivo</span>
+            </div>
+          </div>
+
+          {/* Grid de 4 KPIs Unificados */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-primary-foreground/20">
+            
+            {/* KPI 1: Sucursales */}
+            <div className="flex flex-col justify-between space-y-3 lg:pr-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4 text-accent" />
+                  Sucursales Activas
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-400/40">
+                  +{periodosVisibles[periodosVisibles.length - 1]?.kpis?.sucursales.nuevas || 0} nuevas
+                </span>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                  {periodosVisibles[periodosVisibles.length - 1]?.kpis?.sucursales.activas || 0} sucursales
+                </div>
+                <p className="mt-1 text-xs text-primary-foreground/80">
+                  Red de locales en operación activa
+                </p>
+              </div>
+            </div>
+
+            {/* KPI 2: Clientes */}
+            <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-accent" />
+                  Clientes Activos
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent-foreground border border-accent/40">
+                  Ticket: {formatCurrency(periodosVisibles[periodosVisibles.length - 1]?.kpis?.clientes.ticketPromedio || 0)}
+                </span>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                   {formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.clientes.activos || 0)}
-                </Badge>
-              </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Ticket Prom:</span>
-                  <span className="font-medium">{formatCurrency(periodosVisibles[periodosVisibles.length - 1]?.kpis?.clientes.ticketPromedio || 0)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Nuevos:</span>
-                  <span className="font-medium">{formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.clientes.nuevos || 0)}</span>
-                </div>
+                <p className="mt-1 text-xs text-primary-foreground/80">
+                  Nuevos clientes: <span className="font-semibold text-primary-foreground">+{formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.clientes.nuevos || 0)}</span>
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* KPI Artículos */}
-          <Card className="border-warning/20 bg-warning/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1">
-                  <Package className="h-4 w-4 text-warning" />
-                  Artículos
-                </h4>
-                <Badge variant="secondary" className="text-xs">
+            {/* KPI 3: Artículos */}
+            <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                  <Package className="h-4 w-4 text-accent" />
+                  Catálogo de Artículos
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent-foreground border border-accent/40">
+                  Rotación: {periodosVisibles[periodosVisibles.length - 1]?.kpis?.articulos.rotacion || 0}%
+                </span>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                   {formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.articulos.sku || 0)} SKUs
-                </Badge>
-              </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Rotación:</span>
-                  <span className="font-medium">{periodosVisibles[periodosVisibles.length - 1]?.kpis?.articulos.rotacion || 0}%</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Stockout:</span>
-                  <span className="font-medium">{periodosVisibles[periodosVisibles.length - 1]?.kpis?.articulos.stockout || 0}%</span>
-                </div>
+                <p className="mt-1 text-xs text-primary-foreground/80">
+                  Stockout estimado: <span className="font-semibold text-accent-foreground">{periodosVisibles[periodosVisibles.length - 1]?.kpis?.articulos.stockout || 0}%</span>
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* KPI Metros */}
-          <Card className="border-accent/20 bg-accent/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1">
+            {/* KPI 4: Metros */}
+            <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:pl-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
                   <Ruler className="h-4 w-4 text-accent" />
-                  Metros
-                </h4>
-                <Badge variant="secondary" className="text-xs">
+                  Superficie & Rendimiento
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent-foreground border border-accent/40">
                   {formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.metros.metrosCuadrados || 0)} m²
-                </Badge>
+                </span>
               </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Fact/m²:</span>
-                  <span className="font-medium">{formatCurrency(periodosVisibles[periodosVisibles.length - 1]?.kpis?.metros.facturacionPorMetro || 0)}</span>
+              <div>
+                <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
+                  {formatCurrency(periodosVisibles[periodosVisibles.length - 1]?.kpis?.metros.facturacionPorMetro || 0)}/m²
                 </div>
-                <div className="flex justify-between">
-                  <span>Salón:</span>
-                  <span className="font-medium">{formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.metros.totalSalon || 0)} m²</span>
-                </div>
+                <p className="mt-1 text-xs text-primary-foreground/80">
+                  Superficie de salón: <span className="font-semibold text-primary-foreground">{formatNumber(periodosVisibles[periodosVisibles.length - 1]?.kpis?.metros.totalSalon || 0)} m²</span>
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+          </div>
         </div>
       )}
       {/* Cuadro Principal P&L */}
