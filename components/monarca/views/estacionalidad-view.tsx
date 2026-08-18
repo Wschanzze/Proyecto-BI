@@ -151,9 +151,9 @@ export function EstacionalidadView() {
   const datosCombinados = useMemo(() => {
     if (!data) return []
     const infMap = new Map<string, RegistroInflacion>()
-    data.inflacion.forEach(i => infMap.set(i.periodoKey, i))
+    ;(data.inflacion || []).forEach(i => infMap.set(i.periodoKey, i))
 
-    return data.datosMensuales.map(d => {
+    return (data.datosMensuales || []).map(d => {
       const inf = infMap.get(d.fechaKey)
       return {
         key: d.fechaKey,

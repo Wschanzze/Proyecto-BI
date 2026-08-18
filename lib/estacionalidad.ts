@@ -2,6 +2,8 @@
 import fs from 'fs'
 import path from 'path'
 import * as XLSX from 'xlsx'
+import fallbackEstacionalidad from './datos_estacionalidad_fallback.json'
+import fallbackInflacion from './inflacion_fallback.json'
 
 export interface RegistroMensualEstacionalidad {
   fechaKey: string // 'YYYY-MM'
@@ -76,14 +78,21 @@ function parseExcelDate(val: any): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-// 1. CARGA DE DATOS HISTÓRICOS DESDE EXCEL
+// 1. CARGA DE DATOS HISTÓRICOS (EXCEL LOCAL O JSON FALLBACK BUNDLE)
 export function cargarDatosEstacionalidadLocal(): RegistroMensualEstacionalidad[] {
-  const filePath = path.join(process.cwd(), 'datos_estacionalidad.xlsx')
-  if (!fs.existsSync(filePath)) return []
-
-  const wb = XLSX.readFile(filePath)
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows: any[] = XLSX.utils.sheet_to_json(sheet)
+  let rows: any[] = []
+  try {
+    const filePath = path.join(process.cwd(), 'datos_estacionalidad.xlsx')
+    if (fs.existsSync(filePath)) {
+      const wb = XLSX.readFile(filePath)
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      rows = XLSX.utils.sheet_to_json(sheet)
+    } else {
+      rows = fallbackEstacionalidad as any[]
+    }
+  } catch (err) {
+    rows = fallbackEstacionalidad as any[]
+  }
 
   // Agrupar transacciones diarias a nivel mensual
   const agrupado: Record<string, { clientes: number; productos: number; facturacion: number; count: number }> = {}
@@ -154,12 +163,19 @@ export function cargarDatosEstacionalidadLocal(): RegistroMensualEstacionalidad[
 }
 
 export function cargarDatosInflacionLocal(): RegistroInflacion[] {
-  const filePath = path.join(process.cwd(), 'inflacion.xlsx')
-  if (!fs.existsSync(filePath)) return []
-
-  const wb = XLSX.readFile(filePath)
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows: any[] = XLSX.utils.sheet_to_json(sheet)
+  let rows: any[] = []
+  try {
+    const filePath = path.join(process.cwd(), 'inflacion.xlsx')
+    if (fs.existsSync(filePath)) {
+      const wb = XLSX.readFile(filePath)
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      rows = XLSX.utils.sheet_to_json(sheet)
+    } else {
+      rows = fallbackInflacion as any[]
+    }
+  } catch (err) {
+    rows = fallbackInflacion as any[]
+  }
 
   const resultado: RegistroInflacion[] = []
 
