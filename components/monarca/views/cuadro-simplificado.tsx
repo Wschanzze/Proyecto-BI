@@ -416,7 +416,7 @@ export function CuadroSimplificado({
                 <h2 className="text-sm font-extrabold uppercase tracking-wider text-primary-foreground flex items-center gap-2">
                   KPIs de Gestión y Operaciones
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-accent/20 text-accent-foreground border border-accent/40 lowercase">
-                    {periodoLabel(periodoKey)}
+                    {periodoKey}
                   </span>
                 </h2>
               </div>

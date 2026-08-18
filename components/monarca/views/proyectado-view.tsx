@@ -20,6 +20,29 @@ import {
 } from "recharts"
 import { cn } from "@/lib/utils"
 
+function DarkVariacionBadge({ actual, anterior, className }: { actual: number; anterior?: number | null; className?: string }) {
+  if (anterior === undefined || anterior === null || anterior === 0) {
+    return <span className="text-xs text-primary-foreground/60">—</span>
+  }
+  const val = ((actual - anterior) / anterior) * 100
+  if (Number.isNaN(val)) return <span className="text-xs text-primary-foreground/60">—</span>
+  const positivo = val >= 0
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-bold tabular-nums border shadow-sm",
+        positivo 
+          ? "bg-emerald-500/25 text-emerald-300 border-emerald-400/40" 
+          : "bg-rose-500/25 text-rose-300 border-rose-400/40",
+        className
+      )}
+    >
+      {positivo ? <ArrowUpRight className="h-3.5 w-3.5 shrink-0" /> : <ArrowDownRight className="h-3.5 w-3.5 shrink-0" />}
+      {formatSigned(val)}
+    </span>
+  )
+}
+
 export function ProyectadoView() {
   const [loading, setLoading] = useState(true)
   const [anioSeleccionado, setAnioSeleccionado] = useState<string>(new Date().getFullYear().toString())
@@ -96,41 +119,35 @@ export function ProyectadoView() {
     const rRes: number[] = []
     const pRes: number[] = []
     
-    let factProyTotal = 0
     let factProyYTD = 0
     let factRealYTD = 0
-    
-    let resProyTotal = 0
     let resProyYTD = 0
     let resRealYTD = 0
     
     mesesProyectados.forEach(m => {
-      factProyTotal += m.facturacion
-      resProyTotal += m.resultadoOperativo
-      
       const real = realesPorMes[m.key]
       if (real) {
-        rFact.push(real.facturacion)
-        pFact.push(m.facturacion)
-    const rFact = realesPorMes.map(r => r.facturacion)
-    const rRes = realesPorMes.map(r => r.resultado)
-    const pFact = mesesProyectados.slice(0, rFact.length).map(p => p.facturacion)
-    const pRes = mesesProyectados.slice(0, rRes.length).map(p => p.resultado)
-
-    const sumRFact = rFact.reduce((a, b) => a + b, 0)
-    const sumPFact = pFact.reduce((a, b) => a + b, 0)
-    const sumRRes = rRes.reduce((a, b) => a + b, 0)
-    const sumPRes = pRes.reduce((a, b) => a + b, 0)
-
+        rFact.push(real.facturacion || 0)
+        pFact.push(m.facturacion || 0)
+        rRes.push(real.resultadoTotal || real.resultadoOperativo || 0)
+        pRes.push(m.resultadoTotal || m.resultadoOperativo || 0)
+        
+        factRealYTD += (real.facturacion || 0)
+        factProyYTD += (m.facturacion || 0)
+        resRealYTD += (real.resultadoTotal || real.resultadoOperativo || 0)
+        resProyYTD += (m.resultadoTotal || m.resultadoOperativo || 0)
+      }
+    })
+    
     const mapeFact = calcularMAPE(rFact, pFact)
     const mapeRes = calcularMAPE(rRes, pRes)
     const mapeGlobal = (mapeFact !== null && mapeRes !== null) ? (mapeFact + mapeRes) / 2 : (mapeFact ?? mapeRes)
 
     return {
-      factRealYTD: sumRFact,
-      factProyYTD: sumPFact,
-      resRealYTD: sumRRes,
-      resProyYTD: sumPRes,
+      factRealYTD,
+      factProyYTD,
+      resRealYTD,
+      resProyYTD,
       mapeGlobal,
       mesesCargados: rFact.length
     }
@@ -170,7 +187,7 @@ export function ProyectadoView() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-primary-foreground/80 font-medium">Ejercicio:</span>
-              <Select value={anioSeleccionado} onValueChange={setAnioSeleccionado}>
+              <Select value={anioSeleccionado} onValueChange={(v) => v && setAnioSeleccionado(v)}>
                 <SelectTrigger className="w-[110px] bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground font-bold h-8">
                   <SelectValue placeholder="Año" />
                 </SelectTrigger>
