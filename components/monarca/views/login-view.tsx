@@ -12,8 +12,8 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onLoginSuccess }: LoginViewProps) {
-  const [email, setEmail] = useState("admin@admin.com")
-  const [password, setPassword] = useState("monarcamonarca")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
@@ -145,11 +145,6 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
               </Button>
             </div>
           </form>
-
-          <div className="mt-6 rounded-lg bg-muted/50 p-3 text-center text-[11px] text-muted-foreground border border-border">
-            <p className="font-semibold text-foreground mb-0.5">Credenciales Iniciales de Acceso:</p>
-            <p><code className="text-primary font-bold">admin@admin.com</code> | Pass: <code className="text-primary font-bold">monarcamonarca</code></p>
-          </div>
         </CardContent>
       </Card>
     </div>
