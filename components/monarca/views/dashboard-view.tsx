@@ -20,8 +20,12 @@ import {
   Target,
   Percent,
   DollarSign,
-  Activity
+  Activity,
+  Sparkles,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -57,6 +61,7 @@ import {
   formatCurrencyCompact,
   formatNumber,
   formatPercent,
+  formatSigned,
 } from "@/lib/format"
 
 const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
@@ -64,6 +69,29 @@ const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "
 function kpiVariacion(actual: number, anterior: number | undefined | null): number | null {
   if (anterior === undefined || anterior === null || anterior === 0) return null
   return ((actual - anterior) / anterior) * 100
+}
+
+function DarkVariacionBadge({ actual, anterior, className }: { actual: number; anterior?: number | null; className?: string }) {
+  if (anterior === undefined || anterior === null || anterior === 0) {
+    return <span className="text-xs text-slate-400">—</span>
+  }
+  const val = ((actual - anterior) / anterior) * 100
+  if (Number.isNaN(val)) return <span className="text-xs text-slate-400">—</span>
+  const positivo = val >= 0
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-bold tabular-nums border shadow-sm",
+        positivo 
+          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" 
+          : "bg-rose-500/20 text-rose-400 border-rose-500/30",
+        className
+      )}
+    >
+      {positivo ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400 shrink-0" /> : <ArrowDownRight className="h-3.5 w-3.5 text-rose-400 shrink-0" />}
+      {formatSigned(val)}
+    </span>
+  )
 }
 
 // Componente de KPI mejorado
@@ -474,52 +502,119 @@ export function DashboardView({
         }
       />
 
-      {/* FILA 1: KPIs PRINCIPALES MEJORADOS */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Facturación YTD"
-          value={ytdTotals.factBase}
-          previousValue={ytdTotals.factComp}
-          icon={Banknote}
-          color="primary"
-          subtitle={`vs ${anioComparacion.comparacion}: ${formatCurrencyCompact(ytdTotals.factComp)}`}
-          trend={trayectoriaHistorica.slice(-6)}
-          loading={loading}
+      {/* BANNER EJECUTIVO YTD UNIFICADO */}
+      <div className="relative overflow-hidden rounded-2xl border border-blue-800/40 bg-gradient-to-r from-[#0b192e] via-[#0f2b4c] to-[#0a182b] p-6 sm:p-8 text-white shadow-2xl shadow-blue-950/50 before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-gradient-to-r before:from-orange-500 before:via-amber-400 before:to-orange-600">
+        {/* Marca de Agua con Logo de Monarca */}
+        <img
+          src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
+          alt="Monarca Watermark"
+          className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-10 pointer-events-none select-none filter brightness-150 saturate-50"
         />
 
-        <KPICard
-          title="Contribución Marginal YTD"
-          value={ytdTotals.cmgBase}
-          previousValue={ytdTotals.cmgComp}
-          icon={TrendingUp}
-          color="success"
-          subtitle={`Margen: ${ratiosActuales ? formatPercent(ratiosActuales.margenCMg) : "..."}`}
-          badge={{ 
-            text: ratiosActuales ? `${formatPercent(ratiosActuales.margenCMg)} CMg` : "...",
-            color: "success"
-          }}
-          loading={loading}
-        />
+        {/* Encabezado del Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-blue-500/20 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30">
+              <Sparkles className="h-4 w-4 text-orange-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-white flex items-center gap-2">
+                Resumen Ejecutivo YTD
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 lowercase">
+                  {anioComparacion.base} vs {anioComparacion.comparacion}
+                </span>
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium">Consolidado Acumulado YTD</span>
+          </div>
+        </div>
 
-        <KPICard
-          title="Costo de Mercadería YTD"
-          value={ytdTotals.costoBase}
-          previousValue={ytdTotals.costoComp}
-          icon={Wallet}
-          color="destructive"
-          subtitle={`${ratiosActuales ? formatPercent(ratiosActuales.costoSobreVentas) : "..."} de las ventas`}
-          loading={loading}
-        />
+        {/* Grid de 4 KPIs Unificados */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-blue-500/20">
+          
+          {/* KPI 1: Facturación YTD */}
+          <div className="flex flex-col justify-between space-y-3 lg:pr-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Banknote className="h-4 w-4 text-orange-400" />
+                Facturación YTD
+              </span>
+              <DarkVariacionBadge actual={ytdTotals.factBase} anterior={ytdTotals.factComp} />
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+                {loading ? "..." : formatCurrencyCompact(ytdTotals.factBase)}
+              </div>
+              <p className="mt-1 text-xs text-slate-300">
+                vs {anioComparacion.comparacion}: <span className="font-semibold text-slate-200">{formatCurrencyCompact(ytdTotals.factComp)}</span>
+              </p>
+            </div>
+          </div>
 
-        <KPICard
-          title="Unidades Vendidas YTD"
-          value={ytdTotals.cantBase}
-          previousValue={ytdTotals.cantComp}
-          icon={Package}
-          color="accent"
-          subtitle={`Rotación: ${ratiosActuales ? formatNumber(ratiosActuales.rotacionArticulos) : "..."}/día`}
-          loading={loading}
-        />
+          {/* KPI 2: Contribución Marginal YTD */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-orange-400" />
+                Contribución Marginal YTD
+              </span>
+              <DarkVariacionBadge actual={ytdTotals.cmgBase} anterior={ytdTotals.cmgComp} />
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+                {loading ? "..." : formatCurrencyCompact(ytdTotals.cmgBase)}
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-xs">
+                <span className="text-slate-300">Margen:</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                  {ratiosActuales ? formatPercent(ratiosActuales.margenCMg) : "..."} CMg
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 3: Costo de Mercadería YTD */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Wallet className="h-4 w-4 text-orange-400" />
+                Costo de Mercadería YTD
+              </span>
+              <DarkVariacionBadge actual={ytdTotals.costoBase} anterior={ytdTotals.costoComp} />
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+                {loading ? "..." : formatCurrencyCompact(ytdTotals.costoBase)}
+              </div>
+              <p className="mt-1 text-xs text-slate-300">
+                Incidencia: <span className="font-semibold text-orange-300">{ratiosActuales ? formatPercent(ratiosActuales.costoSobreVentas) : "..."}</span> de ventas
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 4: Unidades Vendidas YTD */}
+          <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:pl-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Package className="h-4 w-4 text-orange-400" />
+                Unidades Vendidas YTD
+              </span>
+              <DarkVariacionBadge actual={ytdTotals.cantBase} anterior={ytdTotals.cantComp} />
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+                {loading ? "..." : formatNumber(ytdTotals.cantBase)}
+              </div>
+              <p className="mt-1 text-xs text-slate-300">
+                Rotación: <span className="font-semibold text-slate-200">{ratiosActuales ? formatNumber(ratiosActuales.rotacionArticulos) : "..."} art/día</span>
+              </p>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* FILA 2: RATIOS Y MÉTRICAS DE GESTIÓN */}
