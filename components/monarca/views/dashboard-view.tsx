@@ -502,54 +502,54 @@ export function DashboardView({
         }
       />
 
-      {/* BANNER EJECUTIVO YTD UNIFICADO */}
-      <div className="relative overflow-hidden rounded-2xl border border-blue-800/40 bg-gradient-to-r from-[#0b192e] via-[#0f2b4c] to-[#0a182b] p-6 sm:p-8 text-white shadow-2xl shadow-blue-950/50 before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-gradient-to-r before:from-orange-500 before:via-amber-400 before:to-orange-600">
+      {/* BANNER EJECUTIVO YTD UNIFICADO - AZUL CORPORATIVO MONARCA */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-accent/40 bg-gradient-to-r from-primary via-primary/95 to-primary p-6 sm:p-8 text-primary-foreground shadow-2xl shadow-primary/30 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-accent">
         {/* Marca de Agua con Logo de Monarca */}
         <img
           src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
           alt="Monarca Watermark"
-          className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-10 pointer-events-none select-none filter brightness-150 saturate-50"
+          className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-15 pointer-events-none select-none filter brightness-200 contrast-125"
         />
 
         {/* Encabezado del Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-blue-500/20 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-primary-foreground/20 relative z-10">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30">
-              <Sparkles className="h-4 w-4 text-orange-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-xs font-bold">
+              <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-extrabold uppercase tracking-wider text-white flex items-center gap-2">
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-primary-foreground flex items-center gap-2">
                 Resumen Ejecutivo YTD
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 lowercase">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-accent/20 text-accent-foreground border border-accent/40 lowercase">
                   {anioComparacion.base} vs {anioComparacion.comparacion}
                 </span>
               </h2>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-2 text-xs text-primary-foreground/80">
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span className="font-medium">Consolidado Acumulado YTD</span>
           </div>
         </div>
 
         {/* Grid de 4 KPIs Unificados */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-blue-500/20">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-primary-foreground/20">
           
           {/* KPI 1: Facturación YTD */}
           <div className="flex flex-col justify-between space-y-3 lg:pr-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Banknote className="h-4 w-4 text-orange-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <Banknote className="h-4 w-4 text-accent" />
                 Facturación YTD
               </span>
               <DarkVariacionBadge actual={ytdTotals.factBase} anterior={ytdTotals.factComp} />
             </div>
             <div>
-              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                 {loading ? "..." : formatCurrencyCompact(ytdTotals.factBase)}
               </div>
-              <p className="mt-1 text-xs text-slate-300">
-                vs {anioComparacion.comparacion}: <span className="font-semibold text-slate-200">{formatCurrencyCompact(ytdTotals.factComp)}</span>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                vs {anioComparacion.comparacion}: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(ytdTotals.factComp)}</span>
               </p>
             </div>
           </div>
@@ -557,19 +557,19 @@ export function DashboardView({
           {/* KPI 2: Contribución Marginal YTD */}
           <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <TrendingUp className="h-4 w-4 text-orange-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-accent" />
                 Contribución Marginal YTD
               </span>
               <DarkVariacionBadge actual={ytdTotals.cmgBase} anterior={ytdTotals.cmgComp} />
             </div>
             <div>
-              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                 {loading ? "..." : formatCurrencyCompact(ytdTotals.cmgBase)}
               </div>
               <div className="mt-1 flex items-center gap-2 text-xs">
-                <span className="text-slate-300">Margen:</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                <span className="text-primary-foreground/80">Margen:</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent-foreground border border-accent/40">
                   {ratiosActuales ? formatPercent(ratiosActuales.margenCMg) : "..."} CMg
                 </span>
               </div>
@@ -579,18 +579,18 @@ export function DashboardView({
           {/* KPI 3: Costo de Mercadería YTD */}
           <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:px-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Wallet className="h-4 w-4 text-orange-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <Wallet className="h-4 w-4 text-accent" />
                 Costo de Mercadería YTD
               </span>
               <DarkVariacionBadge actual={ytdTotals.costoBase} anterior={ytdTotals.costoComp} />
             </div>
             <div>
-              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                 {loading ? "..." : formatCurrencyCompact(ytdTotals.costoBase)}
               </div>
-              <p className="mt-1 text-xs text-slate-300">
-                Incidencia: <span className="font-semibold text-orange-300">{ratiosActuales ? formatPercent(ratiosActuales.costoSobreVentas) : "..."}</span> de ventas
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Incidencia: <span className="font-semibold text-accent-foreground">{ratiosActuales ? formatPercent(ratiosActuales.costoSobreVentas) : "..."}</span> de ventas
               </p>
             </div>
           </div>
@@ -598,18 +598,18 @@ export function DashboardView({
           {/* KPI 4: Unidades Vendidas YTD */}
           <div className="flex flex-col justify-between space-y-3 pt-6 sm:pt-0 lg:pl-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Package className="h-4 w-4 text-orange-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
+                <Package className="h-4 w-4 text-accent" />
                 Unidades Vendidas YTD
               </span>
               <DarkVariacionBadge actual={ytdTotals.cantBase} anterior={ytdTotals.cantComp} />
             </div>
             <div>
-              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white tabular-nums">
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary-foreground tabular-nums">
                 {loading ? "..." : formatNumber(ytdTotals.cantBase)}
               </div>
-              <p className="mt-1 text-xs text-slate-300">
-                Rotación: <span className="font-semibold text-slate-200">{ratiosActuales ? formatNumber(ratiosActuales.rotacionArticulos) : "..."} art/día</span>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                Rotación: <span className="font-semibold text-primary-foreground">{ratiosActuales ? formatNumber(ratiosActuales.rotacionArticulos) : "..."} art/día</span>
               </p>
             </div>
           </div>
