@@ -8,6 +8,7 @@ import { DashboardView } from "./views/dashboard-view"
 import { CuadroDetallado } from "./views/cuadro-detallado"
 import { CuadroSimplificado } from "./views/cuadro-simplificado"
 import { ProyectadoView } from "./views/proyectado-view"
+import { EstacionalidadView } from "./views/estacionalidad-view"
 import { CargarDatos } from "./views/cargar-datos"
 import { LoginView } from "./views/login-view"
 import { PERIODO_ACTUAL, type Periodo } from "@/lib/data"
@@ -131,6 +132,7 @@ export function AppShell() {
               />
             )}
             {tab === "proyectado" && <ProyectadoView />}
+            {tab === "estacionalidad" && <EstacionalidadView />}
             {tab === "cargar" && <CargarDatos />}
           </>
         )}
