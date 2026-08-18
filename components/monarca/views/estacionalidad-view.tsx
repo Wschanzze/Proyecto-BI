@@ -666,12 +666,19 @@ export function EstacionalidadView() {
                         {row.meses.map((val, idx) => {
                           let styleClasses = "bg-muted/20 text-muted-foreground/60"
                           if (val !== null && !isNaN(val)) {
-                            if (val >= 15) styleClasses = "bg-emerald-600 text-white font-extrabold shadow-xs"
-                            else if (val >= 5) styleClasses = "bg-emerald-500/30 text-emerald-200 font-bold dark:text-emerald-100"
-                            else if (val > 0) styleClasses = "bg-emerald-500/15 text-emerald-300 font-bold dark:text-emerald-200"
-                            else if (val <= -15) styleClasses = "bg-rose-600 text-white font-extrabold shadow-xs"
-                            else if (val <= -5) styleClasses = "bg-rose-500/30 text-rose-200 font-bold dark:text-rose-100"
-                            else if (val < 0) styleClasses = "bg-rose-500/15 text-rose-300 font-bold dark:text-rose-200"
+                            if (val >= 15) {
+                              styleClasses = "bg-emerald-700 text-white dark:bg-emerald-600 dark:text-white font-black shadow-xs"
+                            } else if (val >= 5) {
+                              styleClasses = "bg-emerald-200/90 text-emerald-950 dark:bg-emerald-950/75 dark:text-emerald-200 font-extrabold border-emerald-300 dark:border-emerald-800"
+                            } else if (val > 0) {
+                              styleClasses = "bg-emerald-100/80 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold border-emerald-200 dark:border-emerald-900"
+                            } else if (val <= -15) {
+                              styleClasses = "bg-rose-700 text-white dark:bg-rose-600 dark:text-white font-black shadow-xs"
+                            } else if (val <= -5) {
+                              styleClasses = "bg-rose-200/90 text-rose-950 dark:bg-rose-950/75 dark:text-rose-200 font-extrabold border-rose-300 dark:border-rose-800"
+                            } else if (val < 0) {
+                              styleClasses = "bg-rose-100/80 text-rose-900 dark:bg-rose-950/50 dark:text-rose-300 font-bold border-rose-200 dark:border-rose-900"
+                            }
                           }
 
                           return (
