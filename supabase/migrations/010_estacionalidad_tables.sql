@@ -37,16 +37,18 @@ CREATE INDEX IF NOT EXISTS idx_ventas_diarias_sucursal ON public.historico_venta
 ALTER TABLE public.historico_inflacion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.historico_ventas_diario ENABLE ROW LEVEL SECURITY;
 
--- Políticas de acceso de lectura
-CREATE POLICY "Permitir lectura publica historico_inflacion"
-    ON public.historico_inflacion FOR SELECT USING (true);
-
-CREATE POLICY "Permitir lectura publica historico_ventas_diario"
-    ON public.historico_ventas_diario FOR SELECT USING (true);
-
--- Políticas de modificación
-CREATE POLICY "Permitir insercion historico_inflacion"
-    ON public.historico_inflacion FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Permitir insercion historico_ventas_diario"
-    ON public.historico_ventas_diario FOR ALL USING (true) WITH CHECK (true);
+-- Políticas de acceso RLS idóneas y seguras
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='historico_inflacion' AND policyname='Permitir lectura publica historico_inflacion') THEN
+    EXECUTE 'CREATE POLICY "Permitir lectura publica historico_inflacion" ON public.historico_inflacion FOR SELECT USING (true)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='historico_ventas_diario' AND policyname='Permitir lectura publica historico_ventas_diario') THEN
+    EXECUTE 'CREATE POLICY "Permitir lectura publica historico_ventas_diario" ON public.historico_ventas_diario FOR SELECT USING (true)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='historico_inflacion' AND policyname='Permitir insercion historico_inflacion') THEN
+    EXECUTE 'CREATE POLICY "Permitir insercion historico_inflacion" ON public.historico_inflacion FOR ALL USING (true) WITH CHECK (true)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='historico_ventas_diario' AND policyname='Permitir insercion historico_ventas_diario') THEN
+    EXECUTE 'CREATE POLICY "Permitir insercion historico_ventas_diario" ON public.historico_ventas_diario FOR ALL USING (true) WITH CHECK (true)';
+  END IF;
+END $$;
