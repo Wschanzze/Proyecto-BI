@@ -664,18 +664,18 @@ export function EstacionalidadView() {
                       <tr key={row.anio} className="border-b border-border">
                         <td className="p-2.5 font-bold text-foreground bg-muted/30 border border-border">{row.anio}</td>
                         {row.meses.map((val, idx) => {
-                          let bgColor = "bg-muted/10 text-muted-foreground"
+                          let styleClasses = "bg-muted/20 text-muted-foreground/60"
                           if (val !== null && !isNaN(val)) {
-                            if (val >= 15) bgColor = "bg-emerald-600/90 text-white font-bold"
-                            else if (val >= 5) bgColor = "bg-emerald-500/40 text-emerald-300 font-semibold"
-                            else if (val > 0) bgColor = "bg-emerald-500/20 text-emerald-400"
-                            else if (val <= -15) bgColor = "bg-rose-600/90 text-white font-bold"
-                            else if (val <= -5) bgColor = "bg-rose-500/40 text-rose-300 font-semibold"
-                            else if (val < 0) bgColor = "bg-rose-500/20 text-rose-400"
+                            if (val >= 15) styleClasses = "bg-emerald-600 text-white font-extrabold shadow-xs"
+                            else if (val >= 5) styleClasses = "bg-emerald-500/30 text-emerald-200 font-bold dark:text-emerald-100"
+                            else if (val > 0) styleClasses = "bg-emerald-500/15 text-emerald-300 font-bold dark:text-emerald-200"
+                            else if (val <= -15) styleClasses = "bg-rose-600 text-white font-extrabold shadow-xs"
+                            else if (val <= -5) styleClasses = "bg-rose-500/30 text-rose-200 font-bold dark:text-rose-100"
+                            else if (val < 0) styleClasses = "bg-rose-500/15 text-rose-300 font-bold dark:text-rose-200"
                           }
 
                           return (
-                            <td key={idx} className={cn("p-2 text-center tabular-nums border border-border/50", bgColor)}>
+                            <td key={idx} className={cn("p-2.5 text-center font-mono text-xs tabular-nums border border-border/60 transition-colors", styleClasses)}>
                               {val !== null && !isNaN(val) ? `${formatSigned(val)}` : "—"}
                             </td>
                           )
