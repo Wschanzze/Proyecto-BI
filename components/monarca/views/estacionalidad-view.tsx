@@ -101,7 +101,7 @@ export function EstacionalidadView() {
 
   // Filtros
   const [filtroAnios, setFiltroAnios] = useState<string>("todos")
-  const [pronosticoMeses, setPronosticoMeses] = useState<string>("12")
+  const [pronosticoMeses, setPronosticoMeses] = useState<string>("6")
   const [activeTab, setActiveTab] = useState<string>("comercial")
   const [matrizCampo, setMatrizCampo] = useState<'varClientes' | 'varFacturacion'>("varClientes")
 
@@ -368,10 +368,8 @@ export function EstacionalidadView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">Sin pronóstico (0m)</SelectItem>
+                <SelectItem value="3">Pronóstico 3 meses</SelectItem>
                 <SelectItem value="6">Pronóstico 6 meses</SelectItem>
-                <SelectItem value="12">Pronóstico 12 meses</SelectItem>
-                <SelectItem value="18">Pronóstico 18 meses</SelectItem>
-                <SelectItem value="24">Pronóstico 24 meses</SelectItem>
               </SelectContent>
             </Select>
           </div>
