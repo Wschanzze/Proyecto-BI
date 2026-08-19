@@ -121,16 +121,51 @@ export async function upsertCostosFijosSubcuentas(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Obtener periodo_id
-    const { data: periodo } = await supabase
+    const { data: periodo, error: periodoErr } = await supabase
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
       .single()
 
-    if (!periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado en la base de datos` }
+    if (periodoErr || !periodo) {
+      return { success: false, error: `Período '${periodoKey}' no encontrado. Verifica que exista en la tabla periodos.` }
     }
 
+    // --- Intentar via RPC (SECURITY DEFINER, sin problemas de RLS/FK) ---
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc('guardar_costos_fijos_subcuentas', {
+      p_periodo_id: periodo.id,
+      p_sucursal_id: sucursalId,
+      p_alquileres: datos.alquileres ?? 0,
+      p_honorarios: datos.honorarios ?? 0,
+      p_tasas_servicios: datos.tasas_servicios ?? 0,
+      p_mantenimiento: datos.mantenimiento_servicios_tecnicos ?? 0,
+      p_perdida_inventarios: datos.perdida_gestion_inventarios ?? 0,
+      p_seguridad: datos.seguridad_vigilancia ?? 0,
+      p_otros_servicios: datos.otros_servicios ?? 0,
+      p_gastos_personal: datos.gastos_personal ?? 0,
+      p_otros_gastos: datos.otros_gastos ?? 0,
+      p_comisiones: datos.comisiones_gastos_bancarios ?? 0,
+      p_gastos_extraordinarios: datos.gastos_extraordinarios ?? 0,
+      p_gastos_comercializacion: datos.gastos_comercializacion ?? 0,
+      p_gastos_administracion: datos.gastos_administracion ?? 0,
+      p_gastos_financiacion: datos.gastos_financiacion ?? 0,
+      p_diferencias_caja: datos.diferencias_caja_perdida ?? 0,
+    })
+
+    if (!rpcErr && rpcResult) {
+      const result = rpcResult as { success: boolean; error?: string }
+      if (result.success) return { success: true }
+      // La función SQL capturó un error interno
+      console.error('RPC guardar_costos_fijos_subcuentas error interno:', result.error)
+      return { success: false, error: result.error ?? 'Error en función SQL' }
+    }
+
+    // Si RPC no está disponible aún (función no creada), fallback a DELETE+INSERT directo
+    if (rpcErr) {
+      console.warn('RPC no disponible, usando DELETE+INSERT directo. Error RPC:', rpcErr.message)
+    }
+
+    // --- Fallback: DELETE + INSERT ---
     const payload = {
       periodo_id: periodo.id,
       sucursal_id: sucursalId,
@@ -153,31 +188,27 @@ export async function upsertCostosFijosSubcuentas(
       actualizado_en: new Date().toISOString(),
     }
 
-    // Estrategia robusta: DELETE + INSERT para evitar problemas con columnas GENERATED
-    // y constraints sin nombre explícito en Supabase PostgREST
-    const { error: delErr } = await supabase
+    await supabase
       .from('costos_fijos_subcuentas')
       .delete()
       .eq('periodo_id', periodo.id)
       .eq('sucursal_id', sucursalId)
 
-    if (delErr) {
-      console.warn('Warning al eliminar registro previo (puede no existir):', delErr.message)
-    }
-
     const { error: insErr } = await supabase
       .from('costos_fijos_subcuentas')
       .insert(payload)
 
-    if (insErr) throw insErr
+    if (insErr) {
+      const msg = `HTTP ${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | Hint: ${insErr.hint}` : ''}`
+      console.error('Error INSERT costos_fijos_subcuentas:', msg, 'Payload:', JSON.stringify(payload))
+      throw new Error(msg)
+    }
 
     return { success: true }
   } catch (error) {
-    console.error('Error al guardar subcuentas de Costos Fijos:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido' 
-    }
+    const msg = error instanceof Error ? error.message : JSON.stringify(error)
+    console.error('Error al guardar subcuentas de Costos Fijos:', msg)
+    return { success: false, error: msg }
   }
 }
 

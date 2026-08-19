@@ -81,49 +81,63 @@ export async function upsertIngresosFinancierosSubcuentas(
   datos: IngresosFinancierosSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Obtener periodo_id
-    const { data: periodo } = await supabase
+    const { data: periodo, error: periodoErr } = await supabase
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
       .single()
 
-    if (!periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado en la base de datos` }
+    if (periodoErr || !periodo) {
+      return { success: false, error: `Período '${periodoKey}' no encontrado. Verifica que exista en la tabla periodos.` }
     }
 
-    const payload = {
-      periodo_id: periodo.id,
-      sucursal_id: sucursalId,
-      operatoria_financiera: datos.operatoria_financiera ?? 0,
-      rendimientos_financieros: datos.rendimientos_financieros ?? 0,
-      archivo_origen: 'Carga desde interfaz web',
-      actualizado_en: new Date().toISOString(),
+    // --- Intentar via RPC (SECURITY DEFINER) ---
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc('guardar_ingresos_financieros_subcuentas', {
+      p_periodo_id: periodo.id,
+      p_sucursal_id: sucursalId,
+      p_operatoria_financiera: datos.operatoria_financiera ?? 0,
+      p_rendimientos_financieros: datos.rendimientos_financieros ?? 0,
+    })
+
+    if (!rpcErr && rpcResult) {
+      const result = rpcResult as { success: boolean; error?: string }
+      if (result.success) return { success: true }
+      console.error('RPC guardar_ingresos_financieros_subcuentas error interno:', result.error)
+      return { success: false, error: result.error ?? 'Error en función SQL' }
     }
 
-    // Estrategia robusta: DELETE + INSERT para evitar problemas con columnas GENERATED
-    const { error: delErr } = await supabase
+    if (rpcErr) {
+      console.warn('RPC no disponible, usando DELETE+INSERT directo. Error RPC:', rpcErr.message)
+    }
+
+    // --- Fallback: DELETE + INSERT ---
+    await supabase
       .from('ingresos_financieros_subcuentas')
       .delete()
       .eq('periodo_id', periodo.id)
       .eq('sucursal_id', sucursalId)
 
-    if (delErr) {
-      console.warn('Warning al eliminar registro previo:', delErr.message)
-    }
-
     const { error: insErr } = await supabase
       .from('ingresos_financieros_subcuentas')
-      .insert(payload)
+      .insert({
+        periodo_id: periodo.id,
+        sucursal_id: sucursalId,
+        operatoria_financiera: datos.operatoria_financiera ?? 0,
+        rendimientos_financieros: datos.rendimientos_financieros ?? 0,
+        archivo_origen: 'Carga desde interfaz web',
+        actualizado_en: new Date().toISOString(),
+      })
 
-    if (insErr) throw insErr
+    if (insErr) {
+      const msg = `HTTP ${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | Hint: ${insErr.hint}` : ''}`
+      console.error('Error INSERT ingresos_financieros_subcuentas:', msg)
+      throw new Error(msg)
+    }
 
     return { success: true }
   } catch (error) {
-    console.error('Error al guardar subcuentas de Ingresos Financieros:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido' 
-    }
+    const msg = error instanceof Error ? error.message : JSON.stringify(error)
+    console.error('Error al guardar subcuentas de Ingresos Financieros:', msg)
+    return { success: false, error: msg }
   }
 }
