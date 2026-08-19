@@ -101,7 +101,7 @@ export function GestionCargas() {
       return `${ddMmYyyy[3]}-${ddMmYyyy[2].padStart(2, '0')}`
     }
 
-    // 3. Nombres de meses en español
+    // 3. Nombres de meses en español (ej: "ene-26", "01-feb", "01-mar")
     const MESES_MAP: Record<string, string> = {
       enero: '01', ene: '01',
       febrero: '02', feb: '02',
@@ -119,9 +119,13 @@ export function GestionCargas() {
 
     for (const [nombre, num] of Object.entries(MESES_MAP)) {
       if (cleaned.includes(nombre)) {
-        const yearMatch = cleaned.match(/\b(20\d{2}|\d{2})\b/)
-        const year = yearMatch ? (yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]) : '2026'
-        return `${year}-${num}`
+        const year4Match = cleaned.match(/\b(202[4-9])\b/)
+        if (year4Match) return `${year4Match[1]}-${num}`
+
+        const year2Match = cleaned.match(/[-/.](2[4-9])$/)
+        if (year2Match) return `20${year2Match[1]}-${num}`
+
+        return `2026-${num}`
       }
     }
 

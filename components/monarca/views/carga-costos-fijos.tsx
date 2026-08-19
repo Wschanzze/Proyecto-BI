@@ -219,7 +219,7 @@ export function CargaCostosFijos({
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
   }
 
-  // Universal month parser: supports YYYY-MM-DD, DD-MM-YYYY, Spanish month names, Excel dates
+  // Universal month parser: handles 'ene-26', '01-feb', '01-mar', '01-01-2026', Spanish month names & Excel dates
   const parseMesUniversal = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
@@ -247,7 +247,7 @@ export function CargaCostosFijos({
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
-    // 1. Formato ISO / YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02) -> Año de 4 dígitos (2024..2029) al inicio
+    // 1. Formato ISO / YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02) -> Año 2024..2029 al inicio
     const yyyyFirst = cleaned.match(/\b(202[4-9])[-/.](0?[1-9]|1[0-2])(?:[-/.](0?[1-9]|[12]\d|3[01]))?\b/)
     if (yyyyFirst) {
       const anio = yyyyFirst[1]
@@ -255,7 +255,7 @@ export function CargaCostosFijos({
       return `${anio}-${mes}`
     }
 
-    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026) -> Año de 4 dígitos (2024..2029) al final
+    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026) -> Año 2024..2029 al final
     const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
     if (ddMmYyyy) {
       const mes = ddMmYyyy[2].padStart(2, '0')
@@ -263,7 +263,7 @@ export function CargaCostosFijos({
       return `${anio}-${mes}`
     }
 
-    // 3. Nombres de meses en español (ej: "enero 2026", "febrero-2026", "jun 26")
+    // 3. Nombres de meses en español (ej: "ene-26", "01-feb", "01-mar", "enero 2026")
     const MESES_MAP: Record<string, string> = {
       enero: '01', ene: '01',
       febrero: '02', feb: '02',
@@ -281,9 +281,20 @@ export function CargaCostosFijos({
 
     for (const [nombre, num] of Object.entries(MESES_MAP)) {
       if (cleaned.includes(nombre)) {
-        const yearMatch = cleaned.match(/\b(20\d{2}|\d{2})\b/)
-        const year = yearMatch ? (yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]) : '2026'
-        return `${year}-${num}`
+        // Buscar año explícito de 4 dígitos (2024..2029)
+        const year4Match = cleaned.match(/\b(202[4-9])\b/)
+        if (year4Match) {
+          return `${year4Match[1]}-${num}`
+        }
+
+        // Buscar año explícito de 2 dígitos (24..29) AL FINAL del texto (ej: "ene-26", "feb/26")
+        const year2Match = cleaned.match(/[-/.](2[4-9])$/)
+        if (year2Match) {
+          return `20${year2Match[1]}-${num}`
+        }
+
+        // Si es estilo "01-feb", "01-mar" (día-mes sin año), el año por defecto es 2026
+        return `2026-${num}`
       }
     }
 
