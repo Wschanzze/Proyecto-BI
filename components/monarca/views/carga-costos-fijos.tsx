@@ -219,7 +219,7 @@ export function CargaCostosFijos({
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
   }
 
-  // Universal month parser: supports full Spanish names (enero 2026), abbreviations (ene-26), MM/YYYY, YYYY-MM, Excel dates, etc.
+  // Universal month parser: prioritizes Argentine DD-MM-YYYY (01-01-2026 = Ene, 01-02-2026 = Feb) & Spanish names
   const parseMesUniversal = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
@@ -229,18 +229,41 @@ export function CargaCostosFijos({
         return `${s.slice(0, 4)}-${s.slice(4, 6)}`
       }
       if (mesRaw > 30000 && mesRaw < 60000) {
-        const date = new Date((mesRaw - (25567 + 2)) * 86400 * 1000)
+        const date = new Date(Math.round((mesRaw - 25569) * 86400 * 1000))
         if (!isNaN(date.getTime())) {
-          const y = date.getFullYear()
-          const m = String(date.getMonth() + 1).padStart(2, '0')
+          const y = date.getUTCFullYear()
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0')
           return `${y}-${m}`
         }
       }
     }
 
+    if (mesRaw instanceof Date && !isNaN(mesRaw.getTime())) {
+      const y = mesRaw.getUTCFullYear()
+      const m = String(mesRaw.getUTCMonth() + 1).padStart(2, '0')
+      return `${y}-${m}`
+    }
+
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
+    // 1. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-01-2026 = Enero, 01-02-2026 = Febrero, 01-06-2026 = Junio)
+    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    if (ddMmYyyy) {
+      const mes = ddMmYyyy[2].padStart(2, '0')
+      const anio = ddMmYyyy[3]
+      return `${anio}-${mes}`
+    }
+
+    // 2. Formato YYYY-MM-DD o YYYY/MM/DD (ej: 2026-01-01, 2026-06-15)
+    const yyyyMmDd = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/)
+    if (yyyyMmDd) {
+      const anio = yyyyMmDd[1]
+      const mes = yyyyMmDd[2].padStart(2, '0')
+      return `${anio}-${mes}`
+    }
+
+    // 3. Nombres de meses en español (ej: "enero 2026", "febrero-2026", "jun 26")
     const MESES_MAP: Record<string, string> = {
       enero: '01', ene: '01',
       febrero: '02', feb: '02',
@@ -259,32 +282,27 @@ export function CargaCostosFijos({
     for (const [nombre, num] of Object.entries(MESES_MAP)) {
       if (cleaned.includes(nombre)) {
         const yearMatch = cleaned.match(/\b(20\d{2}|\d{2})\b/)
-        let year = '2026'
-        if (yearMatch) {
-          year = yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]
-        }
+        const year = yearMatch ? (yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]) : '2026'
         return `${year}-${num}`
       }
     }
 
-    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
-    if (yyyyMm) {
-      return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
-    }
-
+    // 4. Formato MM-YYYY o MM/YYYY (ej: 06/2026, 01-2026)
     const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
     if (mmYyyy) {
       return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
     }
 
+    // 5. Formato YYYY-MM o YYYY/MM (ej: 2026-06)
+    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
+    if (yyyyMm) {
+      return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
+    }
+
+    // 6. Formato MM/YY o MM-YY (ej: 06/26)
     const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
     if (mmYy) {
       return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
-    }
-
-    const yyyymmExact = cleaned.match(/\b(20\d{2})(0[1-9]|1[0-2])\b/)
-    if (yyyymmExact) {
-      return `${yyyymmExact[1]}-${yyyymmExact[2]}`
     }
 
     return null

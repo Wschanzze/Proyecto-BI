@@ -67,7 +67,7 @@ export function GestionCargas() {
   const [sistemaListo, setSistemaListo] = useState(false)
   const [modoIncremental, setModoIncremental] = useState<boolean>(false)
 
-  // Helper universal: parsear etiqueta de mes a periodo key (soporta 'enero 2026', '01/2026', '2026-01', 'ene-26', fechas Excel, etc.)
+  // Helper universal: parsear etiqueta de mes a periodo key (prioriza formato argentino DD-MM-YYYY: 01-01-2026 = Ene, 01-02-2026 = Feb, etc.)
   const parseMesAKey = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
@@ -75,16 +75,33 @@ export function GestionCargas() {
       const s = String(mesRaw)
       if (s.length === 6 && s.startsWith('20')) return `${s.slice(0, 4)}-${s.slice(4, 6)}`
       if (mesRaw > 30000 && mesRaw < 60000) {
-        const date = new Date((mesRaw - (25567 + 2)) * 86400 * 1000)
+        const date = new Date(Math.round((mesRaw - 25569) * 86400 * 1000))
         if (!isNaN(date.getTime())) {
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+          return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
         }
       }
+    }
+
+    if (mesRaw instanceof Date && !isNaN(mesRaw.getTime())) {
+      return `${mesRaw.getUTCFullYear()}-${String(mesRaw.getUTCMonth() + 1).padStart(2, '0')}`
     }
 
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
+    // 1. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-01-2026 = Enero, 01-02-2026 = Febrero, 01-06-2026 = Junio)
+    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    if (ddMmYyyy) {
+      return `${ddMmYyyy[3]}-${ddMmYyyy[2].padStart(2, '0')}`
+    }
+
+    // 2. Formato YYYY-MM-DD o YYYY/MM/DD (ej: 2026-01-01, 2026-06-15)
+    const yyyyMmDd = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/)
+    if (yyyyMmDd) {
+      return `${yyyyMmDd[1]}-${yyyyMmDd[2].padStart(2, '0')}`
+    }
+
+    // 3. Nombres de meses en español
     const MESES_MAP: Record<string, string> = {
       enero: '01', ene: '01',
       febrero: '02', feb: '02',
@@ -108,17 +125,17 @@ export function GestionCargas() {
       }
     }
 
-    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
-    if (yyyyMm) return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
-
+    // 4. Formato MM-YYYY o MM/YYYY
     const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
     if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
 
+    // 5. Formato YYYY-MM o YYYY/MM
+    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
+    if (yyyyMm) return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
+
+    // 6. Formato MM/YY o MM-YY
     const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
     if (mmYy) return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
-
-    const yyyymmExact = cleaned.match(/\b(20\d{2})(0[1-9]|1[0-2])\b/)
-    if (yyyymmExact) return `${yyyymmExact[1]}-${yyyymmExact[2]}`
 
     return null
   }
