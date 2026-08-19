@@ -67,7 +67,7 @@ export function GestionCargas() {
   const [sistemaListo, setSistemaListo] = useState(false)
   const [modoIncremental, setModoIncremental] = useState<boolean>(false)
 
-  // Helper universal: parsear etiqueta de mes a periodo key (prioriza formato argentino DD-MM-YYYY: 01-01-2026 = Ene, 01-02-2026 = Feb, etc.)
+  // Helper universal: parsear etiqueta de mes a periodo key (soporta YYYY-MM-DD, DD-MM-YYYY, nombres de meses, fechas Excel, etc.)
   const parseMesAKey = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
@@ -89,16 +89,16 @@ export function GestionCargas() {
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
-    // 1. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-01-2026 = Enero, 01-02-2026 = Febrero, 01-06-2026 = Junio)
-    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
-    if (ddMmYyyy) {
-      return `${ddMmYyyy[3]}-${ddMmYyyy[2].padStart(2, '0')}`
+    // 1. Formato ISO YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02) -> Año 2024..2029 al inicio
+    const yyyyFirst = cleaned.match(/\b(202[4-9])[-/.](0?[1-9]|1[0-2])(?:[-/.](0?[1-9]|[12]\d|3[01]))?\b/)
+    if (yyyyFirst) {
+      return `${yyyyFirst[1]}-${yyyyFirst[2].padStart(2, '0')}`
     }
 
-    // 2. Formato YYYY-MM-DD o YYYY/MM/DD (ej: 2026-01-01, 2026-06-15)
-    const yyyyMmDd = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/)
-    if (yyyyMmDd) {
-      return `${yyyyMmDd[1]}-${yyyyMmDd[2].padStart(2, '0')}`
+    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026) -> Año 2024..2029 al final
+    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
+    if (ddMmYyyy) {
+      return `${ddMmYyyy[3]}-${ddMmYyyy[2].padStart(2, '0')}`
     }
 
     // 3. Nombres de meses en español
@@ -126,14 +126,10 @@ export function GestionCargas() {
     }
 
     // 4. Formato MM-YYYY o MM/YYYY
-    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
     if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
 
-    // 5. Formato YYYY-MM o YYYY/MM
-    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
-    if (yyyyMm) return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
-
-    // 6. Formato MM/YY o MM-YY
+    // 5. Formato MM/YY o MM-YY
     const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
     if (mmYy) return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
 
@@ -890,7 +886,7 @@ export function GestionCargas() {
               <div className="relative">
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   onChange={handleArchivoRRHH}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   disabled={loading}
@@ -986,7 +982,7 @@ export function GestionCargas() {
               <div className="relative">
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   onChange={handleArchivoCostos}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   disabled={loading}

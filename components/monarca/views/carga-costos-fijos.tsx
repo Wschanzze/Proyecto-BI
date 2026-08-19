@@ -219,7 +219,7 @@ export function CargaCostosFijos({
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
   }
 
-  // Universal month parser: prioritizes Argentine DD-MM-YYYY (01-01-2026 = Ene, 01-02-2026 = Feb) & Spanish names
+  // Universal month parser: supports YYYY-MM-DD, DD-MM-YYYY, Spanish month names, Excel dates
   const parseMesUniversal = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
@@ -247,19 +247,19 @@ export function CargaCostosFijos({
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
-    // 1. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-01-2026 = Enero, 01-02-2026 = Febrero, 01-06-2026 = Junio)
-    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
-    if (ddMmYyyy) {
-      const mes = ddMmYyyy[2].padStart(2, '0')
-      const anio = ddMmYyyy[3]
+    // 1. Formato ISO / YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02) -> Año de 4 dígitos (2024..2029) al inicio
+    const yyyyFirst = cleaned.match(/\b(202[4-9])[-/.](0?[1-9]|1[0-2])(?:[-/.](0?[1-9]|[12]\d|3[01]))?\b/)
+    if (yyyyFirst) {
+      const anio = yyyyFirst[1]
+      const mes = yyyyFirst[2].padStart(2, '0')
       return `${anio}-${mes}`
     }
 
-    // 2. Formato YYYY-MM-DD o YYYY/MM/DD (ej: 2026-01-01, 2026-06-15)
-    const yyyyMmDd = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/)
-    if (yyyyMmDd) {
-      const anio = yyyyMmDd[1]
-      const mes = yyyyMmDd[2].padStart(2, '0')
+    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026) -> Año de 4 dígitos (2024..2029) al final
+    const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
+    if (ddMmYyyy) {
+      const mes = ddMmYyyy[2].padStart(2, '0')
+      const anio = ddMmYyyy[3]
       return `${anio}-${mes}`
     }
 
@@ -288,18 +288,12 @@ export function CargaCostosFijos({
     }
 
     // 4. Formato MM-YYYY o MM/YYYY (ej: 06/2026, 01-2026)
-    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
     if (mmYyyy) {
       return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
     }
 
-    // 5. Formato YYYY-MM o YYYY/MM (ej: 2026-06)
-    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
-    if (yyyyMm) {
-      return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
-    }
-
-    // 6. Formato MM/YY o MM-YY (ej: 06/26)
+    // 5. Formato MM/YY o MM-YY (ej: 06/26)
     const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
     if (mmYy) {
       return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
@@ -805,7 +799,7 @@ Rendimientos Financieros,0,${periodoKey}`
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -817,7 +811,7 @@ Rendimientos Financieros,0,${periodoKey}`
                 className="w-full"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Seleccionar Archivo CSV
+                Seleccionar Archivo Excel / CSV
               </Button>
 
               {/* Mensaje informativo */}
