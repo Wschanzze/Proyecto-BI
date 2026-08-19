@@ -326,7 +326,7 @@ export function CargaCostosFijos({
     return { tipo: 'costo', campo: 'otros_gastos' }
   }
 
-  // Procesar archivo Excel/CSV con lectura universal XLSX y detección dinámica de columnas
+  // Procesar archivo Excel/CSV con lectura universal XLSX y soporte dual (matriz horizontal vs tabla vertical)
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -348,67 +348,127 @@ export function CargaCostosFijos({
         return
       }
 
-      // Buscar encabezado y columnas
-      let headerIdx = -1
-      let colMes = -1
-      let colDenominacion = -1
-      let colMonto = -1
+      const parseMonto = (val: any): number => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val
+        if (typeof val === 'string') {
+          const clean = val.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')
+          return parseFloat(clean) || 0
+        }
+        return 0
+      }
 
-      for (let i = 0; i < Math.min(10, rows.length); i++) {
-        const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
-        const idxMes = r.findIndex(c => c.includes('mes') || c.includes('periodo') || c.includes('period') || c.includes('fecha'))
-        const idxDen = r.findIndex(c => c.includes('denominaci') || c.includes('concepto') || c.includes('descripcion') || c.includes('cuenta') || c.includes('nombre') || c.includes('rubro') || c.includes('gasto'))
-        const idxMon = r.findIndex(c => c.includes('total') || c.includes('monto') || c.includes('importe') || c.includes('valor') || c.includes('costo') || c.includes('precio'))
+      // 1. DETECTAR SI ES MATRIZ HORIZONTAL (Meses en las cabeceras de columnas)
+      let horizontalHeaderIdx = -1
+      const colToPeriodMap: Record<number, string> = {}
+      let colDenominacionHoriz = 0
 
-        if (idxDen >= 0 || idxMon >= 0 || idxMes >= 0) {
-          headerIdx = i
-          colMes = idxMes
-          colDenominacion = idxDen >= 0 ? idxDen : 0
-          colMonto = idxMon >= 0 ? idxMon : (idxDen === 0 ? 1 : 0)
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        const row = rows[i] || []
+        let monthColsFound = 0
+        const tempMap: Record<number, string> = {}
+
+        row.forEach((cell: any, colIdx: number) => {
+          const cellStr = String(cell || '').trim().toLowerCase()
+          if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('consolidado') || cellStr.includes('suma')) {
+            return
+          }
+          const pk = parseMesUniversal(cell)
+          if (pk) {
+            tempMap[colIdx] = pk
+            monthColsFound++
+          }
+        })
+
+        if (monthColsFound >= 2) {
+          horizontalHeaderIdx = i
+          Object.assign(colToPeriodMap, tempMap)
+          const denIdx = row.findIndex((cell: any, idx: number) => !tempMap[idx] && String(cell || '').trim().length > 0)
+          colDenominacionHoriz = denIdx >= 0 ? denIdx : 0
           break
         }
       }
 
-      if (headerIdx === -1) headerIdx = 0
-      if (colDenominacion === -1) colDenominacion = 0
-      if (colMonto === -1) colMonto = 1
-      if (colMes === -1 && (rows[0] || []).length >= 3) colMes = 2
-
       const costosPorPeriodo: Record<string, Record<string, number>> = {}
       const ingresosPorPeriodo: Record<string, Record<string, number>> = {}
 
-      for (let i = headerIdx + 1; i < rows.length; i++) {
-        const row = rows[i]
-        if (!row || row.length === 0) continue
+      if (horizontalHeaderIdx >= 0) {
+        // --- MODO A: MATRIZ HORIZONTAL (Múltiples columnas de meses) ---
+        for (let i = horizontalHeaderIdx + 1; i < rows.length; i++) {
+          const row = rows[i]
+          if (!row || row.length === 0) continue
 
-        const denRaw = String(row[colDenominacion] ?? '').trim()
-        if (!denRaw || denRaw.toLowerCase().startsWith('instruccion')) continue
+          const denRaw = String(row[colDenominacionHoriz] ?? '').trim()
+          if (!denRaw || denRaw.toLowerCase().startsWith('instruccion') || denRaw.toLowerCase().startsWith('total')) continue
 
-        const montoCell = row[colMonto]
-        let monto = 0
-        if (typeof montoCell === 'number') {
-          monto = montoCell
-        } else if (typeof montoCell === 'string') {
-          const clean = montoCell.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')
-          monto = parseFloat(clean) || 0
+          const mapeo = mapDenominacion(denRaw)
+
+          Object.entries(colToPeriodMap).forEach(([colStr, pk]) => {
+            const colIdx = Number(colStr)
+            const monto = parseMonto(row[colIdx])
+            if (monto === 0) return
+
+            if (mapeo.tipo === 'costo') {
+              if (!costosPorPeriodo[pk]) costosPorPeriodo[pk] = {}
+              costosPorPeriodo[pk][mapeo.campo] = (costosPorPeriodo[pk][mapeo.campo] || 0) + monto
+            } else {
+              if (!ingresosPorPeriodo[pk]) ingresosPorPeriodo[pk] = {}
+              ingresosPorPeriodo[pk][mapeo.campo] = (ingresosPorPeriodo[pk][mapeo.campo] || 0) + monto
+            }
+          })
         }
-        if (monto === 0) continue
+      } else {
+        // --- MODO B: TABLA VERTICAL (Columna Mes por fila) ---
+        let headerIdx = -1
+        let colMes = -1
+        let colDenominacion = -1
+        let colMonto = -1
 
-        let periodoTarget = periodoKey
-        if (colMes >= 0 && row[colMes] !== undefined && row[colMes] !== null && String(row[colMes]).trim()) {
-          const parsed = parseMesUniversal(row[colMes])
-          if (parsed) {
-            periodoTarget = parsed
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+          const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
+          const idxMes = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'period' || c === 'fecha' || c === 'date')
+          const idxDen = r.findIndex(c => c === 'denominacion' || c === 'concepto' || c === 'descripcion' || c === 'subcuenta' || c === 'cuenta' || c === 'nombre' || c === 'rubro')
+          const idxMon = r.findIndex(c => c === 'total' || c === 'monto' || c === 'importe' || c === 'valor' || c === 'precio')
+
+          if (idxDen >= 0 || idxMon >= 0 || idxMes >= 0) {
+            headerIdx = i
+            colMes = idxMes
+            colDenominacion = idxDen >= 0 ? idxDen : 0
+            colMonto = idxMon >= 0 ? idxMon : (idxDen === 0 ? 1 : 0)
+            break
           }
         }
 
-        const mapeo = mapDenominacion(denRaw)
-        if (mapeo.tipo === 'costo') {
-          if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
-          costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
-        } else {
-          if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
-          ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+        if (headerIdx === -1) headerIdx = 0
+        if (colDenominacion === -1) colDenominacion = 0
+        if (colMonto === -1) colMonto = 1
+        if (colMes === -1 && (rows[0] || []).length >= 3) colMes = 2
+
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+          const row = rows[i]
+          if (!row || row.length === 0) continue
+
+          const denRaw = String(row[colDenominacion] ?? '').trim()
+          if (!denRaw || denRaw.toLowerCase().startsWith('instruccion') || denRaw.toLowerCase().startsWith('total')) continue
+
+          const monto = parseMonto(row[colMonto])
+          if (monto === 0) continue
+
+          let periodoTarget = periodoKey
+          if (colMes >= 0 && row[colMes] !== undefined && row[colMes] !== null && String(row[colMes]).trim()) {
+            const cellStr = String(row[colMes]).trim().toLowerCase()
+            if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('consolidado') || cellStr.includes('suma')) continue
+            const parsed = parseMesUniversal(row[colMes])
+            if (parsed) periodoTarget = parsed
+          }
+
+          const mapeo = mapDenominacion(denRaw)
+          if (mapeo.tipo === 'costo') {
+            if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
+            costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+          } else {
+            if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
+            ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+          }
         }
       }
 
