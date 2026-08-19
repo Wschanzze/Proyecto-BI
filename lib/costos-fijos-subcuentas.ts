@@ -128,37 +128,48 @@ export async function upsertCostosFijosSubcuentas(
       .single()
 
     if (!periodo) {
-      return { success: false, error: 'Período no encontrado' }
+      return { success: false, error: `Período '${periodoKey}' no encontrado en la base de datos` }
     }
 
-    // Upsert en costos_fijos_subcuentas
-    const { error } = await supabase
-      .from('costos_fijos_subcuentas')
-      .upsert({
-        periodo_id: periodo.id,
-        sucursal_id: sucursalId,
-        alquileres: datos.alquileres || 0,
-        honorarios: datos.honorarios || 0,
-        tasas_servicios: datos.tasas_servicios || 0,
-        mantenimiento_servicios_tecnicos: datos.mantenimiento_servicios_tecnicos || 0,
-        perdida_gestion_inventarios: datos.perdida_gestion_inventarios || 0,
-        seguridad_vigilancia: datos.seguridad_vigilancia || 0,
-        otros_servicios: datos.otros_servicios || 0,
-        gastos_personal: datos.gastos_personal || 0,
-        otros_gastos: datos.otros_gastos || 0,
-        comisiones_gastos_bancarios: datos.comisiones_gastos_bancarios || 0,
-        gastos_extraordinarios: datos.gastos_extraordinarios || 0,
-        gastos_comercializacion: datos.gastos_comercializacion || 0,
-        gastos_administracion: datos.gastos_administracion || 0,
-        gastos_financiacion: datos.gastos_financiacion || 0,
-        diferencias_caja_perdida: datos.diferencias_caja_perdida || 0,
-        archivo_origen: 'Carga manual desde interfaz',
-        actualizado_en: new Date().toISOString(),
-      }, {
-        onConflict: 'periodo_id,sucursal_id'
-      })
+    const payload = {
+      periodo_id: periodo.id,
+      sucursal_id: sucursalId,
+      alquileres: datos.alquileres ?? 0,
+      honorarios: datos.honorarios ?? 0,
+      tasas_servicios: datos.tasas_servicios ?? 0,
+      mantenimiento_servicios_tecnicos: datos.mantenimiento_servicios_tecnicos ?? 0,
+      perdida_gestion_inventarios: datos.perdida_gestion_inventarios ?? 0,
+      seguridad_vigilancia: datos.seguridad_vigilancia ?? 0,
+      otros_servicios: datos.otros_servicios ?? 0,
+      gastos_personal: datos.gastos_personal ?? 0,
+      otros_gastos: datos.otros_gastos ?? 0,
+      comisiones_gastos_bancarios: datos.comisiones_gastos_bancarios ?? 0,
+      gastos_extraordinarios: datos.gastos_extraordinarios ?? 0,
+      gastos_comercializacion: datos.gastos_comercializacion ?? 0,
+      gastos_administracion: datos.gastos_administracion ?? 0,
+      gastos_financiacion: datos.gastos_financiacion ?? 0,
+      diferencias_caja_perdida: datos.diferencias_caja_perdida ?? 0,
+      archivo_origen: 'Carga desde interfaz web',
+      actualizado_en: new Date().toISOString(),
+    }
 
-    if (error) throw error
+    // Estrategia robusta: DELETE + INSERT para evitar problemas con columnas GENERATED
+    // y constraints sin nombre explícito en Supabase PostgREST
+    const { error: delErr } = await supabase
+      .from('costos_fijos_subcuentas')
+      .delete()
+      .eq('periodo_id', periodo.id)
+      .eq('sucursal_id', sucursalId)
+
+    if (delErr) {
+      console.warn('Warning al eliminar registro previo (puede no existir):', delErr.message)
+    }
+
+    const { error: insErr } = await supabase
+      .from('costos_fijos_subcuentas')
+      .insert(payload)
+
+    if (insErr) throw insErr
 
     return { success: true }
   } catch (error) {

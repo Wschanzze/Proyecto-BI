@@ -89,24 +89,34 @@ export async function upsertIngresosFinancierosSubcuentas(
       .single()
 
     if (!periodo) {
-      return { success: false, error: 'Período no encontrado' }
+      return { success: false, error: `Período '${periodoKey}' no encontrado en la base de datos` }
     }
 
-    // Upsert en ingresos_financieros_subcuentas
-    const { error } = await supabase
-      .from('ingresos_financieros_subcuentas')
-      .upsert({
-        periodo_id: periodo.id,
-        sucursal_id: sucursalId,
-        operatoria_financiera: datos.operatoria_financiera || 0,
-        rendimientos_financieros: datos.rendimientos_financieros || 0,
-        archivo_origen: 'Carga manual desde interfaz',
-        actualizado_en: new Date().toISOString(),
-      }, {
-        onConflict: 'periodo_id,sucursal_id'
-      })
+    const payload = {
+      periodo_id: periodo.id,
+      sucursal_id: sucursalId,
+      operatoria_financiera: datos.operatoria_financiera ?? 0,
+      rendimientos_financieros: datos.rendimientos_financieros ?? 0,
+      archivo_origen: 'Carga desde interfaz web',
+      actualizado_en: new Date().toISOString(),
+    }
 
-    if (error) throw error
+    // Estrategia robusta: DELETE + INSERT para evitar problemas con columnas GENERATED
+    const { error: delErr } = await supabase
+      .from('ingresos_financieros_subcuentas')
+      .delete()
+      .eq('periodo_id', periodo.id)
+      .eq('sucursal_id', sucursalId)
+
+    if (delErr) {
+      console.warn('Warning al eliminar registro previo:', delErr.message)
+    }
+
+    const { error: insErr } = await supabase
+      .from('ingresos_financieros_subcuentas')
+      .insert(payload)
+
+    if (insErr) throw insErr
 
     return { success: true }
   } catch (error) {
