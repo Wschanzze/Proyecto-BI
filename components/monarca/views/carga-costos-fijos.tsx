@@ -193,66 +193,169 @@ export function CargaCostosFijos({
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
   }
 
-  // Procesar archivo CSV
+  // Convierte 'ene-26' → '2026-01', 'feb-26' → '2026-02', etc.
+  const parseMesLabel = (mesRaw: string): string | null => {
+    const MESES: Record<string, string> = {
+      ene: '01', feb: '02', mar: '03', abr: '04',
+      may: '05', jun: '06', jul: '07', ago: '08',
+      sep: '09', oct: '10', nov: '11', dic: '12'
+    }
+    const cleaned = mesRaw.toLowerCase().trim()
+    // Formatos: 'ene-26', 'ene-2026', '01-26', '01-2026'
+    const match = cleaned.match(/^([a-z]{3}|\d{2})[-/](\d{2,4})$/)
+    if (!match) return null
+    const mesStr = match[1]
+    const anioStr = match[2]
+    const mesNum = MESES[mesStr] || (mesStr.length === 2 ? mesStr : null)
+    if (!mesNum) return null
+    const anio = anioStr.length === 2 ? `20${anioStr}` : anioStr
+    return `${anio}-${mesNum}`
+  }
+
+  // Mapea la denominación al campo de costo fijo correspondiente
+  const mapDenominacion = (denominacion: string): { tipo: 'costo' | 'ingreso'; campo: string } | null => {
+    const d = denominacion.toLowerCase()
+    if (d.includes('alquiler')) return { tipo: 'costo', campo: 'alquileres' }
+    if (d.includes('honorario')) return { tipo: 'costo', campo: 'honorarios' }
+    if (d.includes('tasas') || (d.includes('servicio') && !d.includes('otros'))) return { tipo: 'costo', campo: 'tasas_servicios' }
+    if (d.includes('mantenimiento') || d.includes('tecnico')) return { tipo: 'costo', campo: 'mantenimiento_servicios_tecnicos' }
+    if (d.includes('perdida') || d.includes('inventario')) return { tipo: 'costo', campo: 'perdida_gestion_inventarios' }
+    if (d.includes('seguridad') || d.includes('vigilancia')) return { tipo: 'costo', campo: 'seguridad_vigilancia' }
+    if (d.includes('otros servicios')) return { tipo: 'costo', campo: 'otros_servicios' }
+    if (d.includes('gastos en personal') || d.includes('gastos personal')) return { tipo: 'costo', campo: 'gastos_personal' }
+    if (d.includes('otros gastos')) return { tipo: 'costo', campo: 'otros_gastos' }
+    if (d.includes('comision') || d.includes('bancario')) return { tipo: 'costo', campo: 'comisiones_gastos_bancarios' }
+    if (d.includes('extraordinario')) return { tipo: 'costo', campo: 'gastos_extraordinarios' }
+    if (d.includes('comercializ')) return { tipo: 'costo', campo: 'gastos_comercializacion' }
+    if (d.includes('administra')) return { tipo: 'costo', campo: 'gastos_administracion' }
+    if (d.includes('gastos de financiacion') || d.includes('gastos financiacion')) return { tipo: 'costo', campo: 'gastos_financiacion' }
+    if (d.includes('diferencia') || d.includes('caja')) return { tipo: 'costo', campo: 'diferencias_caja_perdida' }
+    if (d.includes('operatoria financiera')) return { tipo: 'ingreso', campo: 'operatoria_financiera' }
+    if (d.includes('rendimiento')) return { tipo: 'ingreso', campo: 'rendimientos_financieros' }
+    return null
+  }
+
+  // Procesar archivo CSV con soporte multi-período (lee columna Mes)
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    // Reset el input para permitir re-subir el mismo archivo
+    event.target.value = ''
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target?.result as string
         const lines = text.split('\n').map(line => line.trim()).filter(line => line)
-        
+
         if (lines.length < 2) {
-          setResultado({
-            success: false,
-            message: 'El archivo CSV está vacío o no tiene el formato correcto'
-          })
+          setResultado({ success: false, message: 'El archivo CSV está vacío o no tiene datos.' })
           return
         }
 
-        // Procesar líneas (ignorar header)
-        const newCostos: Partial<CostosFijosForm> = {}
-        const newIngresos: Partial<IngresosFinancierosForm> = {}
-        
+        // Detectar separador (coma o punto y coma)
+        const header = lines[0]
+        const sep = header.includes(';') ? ';' : ','
+
+        // Agrupar filas por período (periodoKey)
+        const costosPorPeriodo: Record<string, Record<string, number>> = {}
+        const ingresosPorPeriodo: Record<string, Record<string, number>> = {}
+        let filasSinMes = 0
+        let filasIgnoradas = 0
+
         for (let i = 1; i < lines.length; i++) {
-          const line = lines[i]
-          const parts = line.split(',').map(p => p.trim().replace(/"/g, ''))
-          
+          const parts = lines[i].split(sep).map(p => p.trim().replace(/"/g, ''))
           if (parts.length < 2) continue
-          
-          const denominacion = parts[0].toLowerCase()
-          const monto = parts[1].replace(/[^0-9.]/g, '')
-          
-          // Mapear denominaciones a campos
-          if (denominacion.includes('alquiler')) newCostos.alquileres = monto
-          else if (denominacion.includes('honorario')) newCostos.honorarios = monto
-          else if (denominacion.includes('tasas') || denominacion.includes('servicio')) newCostos.tasas_servicios = monto
-          else if (denominacion.includes('mantenimiento') || denominacion.includes('tecnico')) newCostos.mantenimiento_servicios_tecnicos = monto
-          else if (denominacion.includes('perdida') || denominacion.includes('inventario')) newCostos.perdida_gestion_inventarios = monto
-          else if (denominacion.includes('seguridad') || denominacion.includes('vigilancia')) newCostos.seguridad_vigilancia = monto
-          else if (denominacion.includes('otros servicios')) newCostos.otros_servicios = monto
-          else if (denominacion.includes('gastos en personal') || denominacion.includes('gasto personal')) newCostos.gastos_personal = monto
-          else if (denominacion.includes('otros gastos')) newCostos.otros_gastos = monto
-          else if (denominacion.includes('comision') || denominacion.includes('bancario')) newCostos.comisiones_gastos_bancarios = monto
-          else if (denominacion.includes('extraordinario')) newCostos.gastos_extraordinarios = monto
-          else if (denominacion.includes('comercializ')) newCostos.gastos_comercializacion = monto
-          else if (denominacion.includes('administra')) newCostos.gastos_administracion = monto
-          else if (denominacion.includes('financia')) newCostos.gastos_financiacion = monto
-          else if (denominacion.includes('diferencia') || denominacion.includes('caja')) newCostos.diferencias_caja_perdida = monto
-          else if (denominacion.includes('operatoria financiera')) newIngresos.operatoria_financiera = monto
-          else if (denominacion.includes('rendimiento')) newIngresos.rendimientos_financieros = monto
+
+          const denominacion = parts[0]
+          // El monto puede tener separadores de miles (puntos) → limpiar correctamente
+          const montoRaw = parts[1].replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '')
+          const monto = parseFloat(montoRaw) || 0
+          if (monto === 0) continue
+
+          // Columna Mes (índice 2) — si no existe, usar periodoKey activo
+          let periodoTarget = periodoKey
+          if (parts.length >= 3 && parts[2].trim()) {
+            const parsed = parseMesLabel(parts[2].trim())
+            if (parsed) {
+              periodoTarget = parsed
+            } else {
+              filasSinMes++
+            }
+          } else {
+            filasSinMes++
+          }
+
+          const mapeo = mapDenominacion(denominacion)
+          if (!mapeo) { filasIgnoradas++; continue }
+
+          if (mapeo.tipo === 'costo') {
+            if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
+            costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+          } else {
+            if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
+            ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+          }
         }
-        
-        setCostosFijos(prev => ({ ...prev, ...newCostos }))
-        setIngresosFinancieros(prev => ({ ...prev, ...newIngresos }))
-        
-        setResultado({
-          success: true,
-          message: `Archivo cargado exitosamente. Se importaron ${Object.keys(newCostos).length} costos fijos y ${Object.keys(newIngresos).length} ingresos financieros.`
-        })
+
+        const periodosDetectados = [...new Set([...Object.keys(costosPorPeriodo), ...Object.keys(ingresosPorPeriodo)])]
+
+        if (periodosDetectados.length === 0) {
+          setResultado({ success: false, message: 'No se encontraron datos válidos en el archivo.' })
+          return
+        }
+
+        // Si solo hay un período (o filas sin mes), mostrar en formulario para revisión manual
+        if (periodosDetectados.length === 1 && filasSinMes === Object.keys(costosPorPeriodo[periodosDetectados[0]] || {}).length) {
+          const p = periodosDetectados[0]
+          const costos = costosPorPeriodo[p] || {}
+          const ingresos = ingresosPorPeriodo[p] || {}
+          setCostosFijos(prev => ({ ...prev, ...Object.fromEntries(Object.entries(costos).map(([k, v]) => [k, String(v)])) }))
+          setIngresosFinancieros(prev => ({ ...prev, ...Object.fromEntries(Object.entries(ingresos).map(([k, v]) => [k, String(v)])) }))
+          setResultado({ success: true, message: `Archivo cargado para ${p}. Revisá los valores y hacé clic en "Distribuir".` })
+          return
+        }
+
+        // MODO MULTI-PERÍODO: distribuir directamente cada período
+        setLoading(true)
+        setResultado(null)
+        const erroresPeriodos: string[] = []
+        let periodosExitosos = 0
+
+        for (const pk of periodosDetectados) {
+          const costos = costosPorPeriodo[pk]
+          const ingresos = ingresosPorPeriodo[pk]
+
+          if (costos && Object.keys(costos).length > 0) {
+            const res = await distribuirCostosFijos(pk, costos)
+            if (!res.success) erroresPeriodos.push(`Costos ${pk}: ${res.error}`)
+            else periodosExitosos++
+          }
+          if (ingresos && Object.keys(ingresos).length > 0) {
+            const res = await distribuirIngresosFinancieros(pk, ingresos)
+            if (!res.success) erroresPeriodos.push(`Ingresos ${pk}: ${res.error}`)
+          }
+        }
+
+        setLoading(false)
+        if (erroresPeriodos.length > 0) {
+          setResultado({
+            success: false,
+            message: `Se procesaron ${periodosExitosos} períodos con errores: ${erroresPeriodos.join(' | ')}`
+          })
+        } else {
+          setResultado({
+            success: true,
+            message: `✅ ${periodosDetectados.length} períodos procesados y distribuidos correctamente: ${periodosDetectados.join(', ')}${filasIgnoradas > 0 ? ` (${filasIgnoradas} filas no reconocidas ignoradas)` : ''}`,
+            detalles: periodosDetectados.map(pk => ({
+              sucursalId: pk,
+              porcentaje: 100 / periodosDetectados.length,
+              total: Object.values(costosPorPeriodo[pk] || {}).reduce((s, v) => s + v, 0)
+            }))
+          })
+        }
       } catch (error) {
+        setLoading(false)
         setResultado({
           success: false,
           message: `Error al procesar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`
@@ -538,17 +641,23 @@ Rendimientos Financieros,0,${periodoKey}`
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Información sobre el formato */}
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
-                <h4 className="text-sm font-semibold mb-2">Formato del Archivo CSV</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  El archivo CSV debe tener 3 columnas: <strong>Denominación</strong>, <strong>Total</strong>, <strong>Mes</strong>
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                <h4 className="text-sm font-semibold">Formato del Archivo CSV</h4>
+                <p className="text-sm text-muted-foreground">
+                  El archivo debe tener 3 columnas: <strong>Denominación</strong>, <strong>Total</strong>, <strong>Mes</strong>.
+                  Podés incluir <strong>múltiples meses en un solo archivo</strong> — el sistema detecta la columna Mes y distribuye cada fila al período correcto automáticamente.
                 </p>
                 <div className="text-xs font-mono bg-background p-3 rounded border border-border overflow-x-auto">
-                  <div>Denominación,Total,Mes</div>
-                  <div className="text-muted-foreground">Alquileres,22022608.27,jun-26</div>
-                  <div className="text-muted-foreground">Honorarios,589438.00,jun-26</div>
+                  <div className="font-bold">Denominación,Total,Mes</div>
+                  <div className="text-muted-foreground">Alquileres,19082,ene-26</div>
+                  <div className="text-muted-foreground">Honorarios,110500,ene-26</div>
+                  <div className="text-muted-foreground">Alquileres,19082,feb-26</div>
+                  <div className="text-muted-foreground">Honorarios,110500,feb-26</div>
                   <div className="text-muted-foreground">...</div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Meses aceptados:</strong> ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov, dic (con formato <code>mmm-AA</code> o <code>mmm-AAAA</code>)
+                </p>
               </div>
 
               {/* Botón para descargar plantilla */}
@@ -582,8 +691,8 @@ Rendimientos Financieros,0,${periodoKey}`
 
               {/* Mensaje informativo */}
               <p className="text-xs text-muted-foreground text-center">
-                Una vez cargado el archivo, los valores se completarán automáticamente en los formularios.
-                Cambiá a la pestaña "Carga Manual" para revisar y distribuir.
+                Si el CSV contiene múltiples meses, se distribuyen <strong>automáticamente por período</strong> sin necesidad de pasos adicionales.
+                Si contiene un solo mes o filas sin columna Mes, se precargan en el formulario para revisión.
               </p>
             </CardContent>
           </Card>
