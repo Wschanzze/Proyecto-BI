@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -218,176 +219,237 @@ export function CargaCostosFijos({
     return Object.values(ingresosFinancieros).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)
   }
 
-  // Convierte 'ene-26' → '2026-01', 'feb-26' → '2026-02', etc.
-  const parseMesLabel = (mesRaw: string): string | null => {
-    const MESES: Record<string, string> = {
-      ene: '01', feb: '02', mar: '03', abr: '04',
-      may: '05', jun: '06', jul: '07', ago: '08',
-      sep: '09', oct: '10', nov: '11', dic: '12'
-    }
-    const cleaned = mesRaw.toLowerCase().trim()
-    // Formatos: 'ene-26', 'ene-2026', '01-26', '01-2026'
-    const match = cleaned.match(/^([a-z]{3}|\d{2})[-/](\d{2,4})$/)
-    if (!match) return null
-    const mesStr = match[1]
-    const anioStr = match[2]
-    const mesNum = MESES[mesStr] || (mesStr.length === 2 ? mesStr : null)
-    if (!mesNum) return null
-    const anio = anioStr.length === 2 ? `20${anioStr}` : anioStr
-    return `${anio}-${mesNum}`
-  }
+  // Universal month parser: supports full Spanish names (enero 2026), abbreviations (ene-26), MM/YYYY, YYYY-MM, Excel dates, etc.
+  const parseMesUniversal = (mesRaw: any): string | null => {
+    if (mesRaw === null || mesRaw === undefined) return null
 
-  // Mapea la denominación al campo de costo fijo correspondiente
-  const mapDenominacion = (denominacion: string): { tipo: 'costo' | 'ingreso'; campo: string } | null => {
-    const d = denominacion.toLowerCase()
-    if (d.includes('alquiler')) return { tipo: 'costo', campo: 'alquileres' }
-    if (d.includes('honorario')) return { tipo: 'costo', campo: 'honorarios' }
-    if (d.includes('tasas') || (d.includes('servicio') && !d.includes('otros'))) return { tipo: 'costo', campo: 'tasas_servicios' }
-    if (d.includes('mantenimiento') || d.includes('tecnico')) return { tipo: 'costo', campo: 'mantenimiento_servicios_tecnicos' }
-    if (d.includes('perdida') || d.includes('inventario')) return { tipo: 'costo', campo: 'perdida_gestion_inventarios' }
-    if (d.includes('seguridad') || d.includes('vigilancia')) return { tipo: 'costo', campo: 'seguridad_vigilancia' }
-    if (d.includes('otros servicios')) return { tipo: 'costo', campo: 'otros_servicios' }
-    if (d.includes('gastos en personal') || d.includes('gastos personal')) return { tipo: 'costo', campo: 'gastos_personal' }
-    if (d.includes('otros gastos')) return { tipo: 'costo', campo: 'otros_gastos' }
-    if (d.includes('comision') || d.includes('bancario')) return { tipo: 'costo', campo: 'comisiones_gastos_bancarios' }
-    if (d.includes('extraordinario')) return { tipo: 'costo', campo: 'gastos_extraordinarios' }
-    if (d.includes('comercializ')) return { tipo: 'costo', campo: 'gastos_comercializacion' }
-    if (d.includes('administra')) return { tipo: 'costo', campo: 'gastos_administracion' }
-    if (d.includes('gastos de financiacion') || d.includes('gastos financiacion')) return { tipo: 'costo', campo: 'gastos_financiacion' }
-    if (d.includes('diferencia') || d.includes('caja')) return { tipo: 'costo', campo: 'diferencias_caja_perdida' }
-    if (d.includes('operatoria financiera')) return { tipo: 'ingreso', campo: 'operatoria_financiera' }
-    if (d.includes('rendimiento')) return { tipo: 'ingreso', campo: 'rendimientos_financieros' }
+    if (typeof mesRaw === 'number') {
+      const s = String(mesRaw)
+      if (s.length === 6 && s.startsWith('20')) {
+        return `${s.slice(0, 4)}-${s.slice(4, 6)}`
+      }
+      if (mesRaw > 30000 && mesRaw < 60000) {
+        const date = new Date((mesRaw - (25567 + 2)) * 86400 * 1000)
+        if (!isNaN(date.getTime())) {
+          const y = date.getFullYear()
+          const m = String(date.getMonth() + 1).padStart(2, '0')
+          return `${y}-${m}`
+        }
+      }
+    }
+
+    const cleaned = String(mesRaw).toLowerCase().trim()
+    if (!cleaned) return null
+
+    const MESES_MAP: Record<string, string> = {
+      enero: '01', ene: '01',
+      febrero: '02', feb: '02',
+      marzo: '03', mar: '03',
+      abril: '04', abr: '04',
+      mayo: '05', may: '05',
+      junio: '06', jun: '06',
+      julio: '07', jul: '07',
+      agosto: '08', ago: '08',
+      septiembre: '09', setiembre: '09', sep: '09',
+      octubre: '10', oct: '10',
+      noviembre: '11', nov: '11',
+      diciembre: '12', dic: '12'
+    }
+
+    for (const [nombre, num] of Object.entries(MESES_MAP)) {
+      if (cleaned.includes(nombre)) {
+        const yearMatch = cleaned.match(/\b(20\d{2}|\d{2})\b/)
+        let year = '2026'
+        if (yearMatch) {
+          year = yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]
+        }
+        return `${year}-${num}`
+      }
+    }
+
+    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
+    if (yyyyMm) {
+      return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
+    }
+
+    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    if (mmYyyy) {
+      return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
+    }
+
+    const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
+    if (mmYy) {
+      return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
+    }
+
+    const yyyymmExact = cleaned.match(/\b(20\d{2})(0[1-9]|1[0-2])\b/)
+    if (yyyymmExact) {
+      return `${yyyymmExact[1]}-${yyyymmExact[2]}`
+    }
+
     return null
   }
 
-  // Procesar archivo CSV con soporte multi-período (lee columna Mes)
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Mapea la denominación al campo de costo fijo correspondiente (sin ignorar filas)
+  const mapDenominacion = (denominacion: string): { tipo: 'costo' | 'ingreso'; campo: string } => {
+    const d = denominacion.toLowerCase().trim()
+    if (d.includes('alquiler')) return { tipo: 'costo', campo: 'alquileres' }
+    if (d.includes('honorario') || d.includes('asesor') || d.includes('contador') || d.includes('abogado') || d.includes('profesional')) return { tipo: 'costo', campo: 'honorarios' }
+    if (d.includes('tasa') || d.includes('impuesto') || d.includes('municipal') || d.includes('luz') || d.includes('gas') || d.includes('agua') || d.includes('edesur') || d.includes('edenor') || d.includes('metrogas') || d.includes('internet') || (d.includes('servicio') && !d.includes('otros'))) return { tipo: 'costo', campo: 'tasas_servicios' }
+    if (d.includes('mantenimiento') || d.includes('tecnico') || d.includes('reparaci') || d.includes('frio') || d.includes('service')) return { tipo: 'costo', campo: 'mantenimiento_servicios_tecnicos' }
+    if (d.includes('perdida') || d.includes('inventario') || d.includes('merma') || d.includes('rotura') || d.includes('vencimien')) return { tipo: 'costo', campo: 'perdida_gestion_inventarios' }
+    if (d.includes('seguridad') || d.includes('vigilancia') || d.includes('seguro') || d.includes('alarma')) return { tipo: 'costo', campo: 'seguridad_vigilancia' }
+    if (d.includes('otros servicios') || d.includes('limpieza') || d.includes('flete')) return { tipo: 'costo', campo: 'otros_servicios' }
+    if (d.includes('personal') || d.includes('sueldo') || d.includes('cargas social') || d.includes('capacitac') || d.includes('uniforme')) return { tipo: 'costo', campo: 'gastos_personal' }
+    if (d.includes('comision') || d.includes('bancari') || d.includes('posnet') || d.includes('postnet') || d.includes('mp') || d.includes('mercado pago') || d.includes('tarjeta')) return { tipo: 'costo', campo: 'comisiones_gastos_bancarios' }
+    if (d.includes('extraordinario') || d.includes('eventual')) return { tipo: 'costo', campo: 'gastos_extraordinarios' }
+    if (d.includes('comercializ') || d.includes('marketing') || d.includes('publicidad') || d.includes('propaganda') || d.includes('folleto')) return { tipo: 'costo', campo: 'gastos_comercializacion' }
+    if (d.includes('administra') || d.includes('libreria') || d.includes('papeleria') || d.includes('oficina')) return { tipo: 'costo', campo: 'gastos_administracion' }
+    if (d.includes('financi') || d.includes('interes') || d.includes('prestamo')) return { tipo: 'costo', campo: 'gastos_financiacion' }
+    if (d.includes('diferencia') || d.includes('caja') || d.includes('faltante')) return { tipo: 'costo', campo: 'diferencias_caja_perdida' }
+    if (d.includes('operatoria financiera') || d.includes('intereses ganados')) return { tipo: 'ingreso', campo: 'operatoria_financiera' }
+    if (d.includes('rendimiento') || d.includes('inversion') || d.includes('fci') || d.includes('plazo fijo')) return { tipo: 'ingreso', campo: 'rendimientos_financieros' }
+
+    // Fallback seguro: asigna a otros_gastos en lugar de descartan filas
+    return { tipo: 'costo', campo: 'otros_gastos' }
+  }
+
+  // Procesar archivo Excel/CSV con lectura universal XLSX y detección dinámica de columnas
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    // Reset el input para permitir re-subir el mismo archivo
     event.target.value = ''
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const text = e.target?.result as string
-        const lines = text.split('\n').map(line => line.trim()).filter(line => line)
+    setLoading(true)
+    setResultado(null)
 
-        if (lines.length < 2) {
-          setResultado({ success: false, message: 'El archivo CSV está vacío o no tiene datos.' })
-          return
-        }
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheet = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheet]
+      const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 })
 
-        // Detectar separador (coma o punto y coma)
-        const header = lines[0]
-        const sep = header.includes(';') ? ';' : ','
-
-        // Agrupar filas por período (periodoKey)
-        const costosPorPeriodo: Record<string, Record<string, number>> = {}
-        const ingresosPorPeriodo: Record<string, Record<string, number>> = {}
-        let filasSinMes = 0
-        let filasIgnoradas = 0
-
-        for (let i = 1; i < lines.length; i++) {
-          const parts = lines[i].split(sep).map(p => p.trim().replace(/"/g, ''))
-          if (parts.length < 2) continue
-
-          const denominacion = parts[0]
-          // El monto puede tener separadores de miles (puntos) → limpiar correctamente
-          const montoRaw = parts[1].replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '')
-          const monto = parseFloat(montoRaw) || 0
-          if (monto === 0) continue
-
-          // Columna Mes (índice 2) — si no existe, usar periodoKey activo
-          let periodoTarget = periodoKey
-          if (parts.length >= 3 && parts[2].trim()) {
-            const parsed = parseMesLabel(parts[2].trim())
-            if (parsed) {
-              periodoTarget = parsed
-            } else {
-              filasSinMes++
-            }
-          } else {
-            filasSinMes++
-          }
-
-          const mapeo = mapDenominacion(denominacion)
-          if (!mapeo) { filasIgnoradas++; continue }
-
-          if (mapeo.tipo === 'costo') {
-            if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
-            costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
-          } else {
-            if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
-            ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
-          }
-        }
-
-        const periodosDetectados = [...new Set([...Object.keys(costosPorPeriodo), ...Object.keys(ingresosPorPeriodo)])]
-
-        if (periodosDetectados.length === 0) {
-          setResultado({ success: false, message: 'No se encontraron datos válidos en el archivo.' })
-          return
-        }
-
-        // Si solo hay un período (o filas sin mes), mostrar en formulario para revisión manual
-        if (periodosDetectados.length === 1 && filasSinMes === Object.keys(costosPorPeriodo[periodosDetectados[0]] || {}).length) {
-          const p = periodosDetectados[0]
-          const costos = costosPorPeriodo[p] || {}
-          const ingresos = ingresosPorPeriodo[p] || {}
-          setCostosFijos(prev => ({ ...prev, ...Object.fromEntries(Object.entries(costos).map(([k, v]) => [k, String(v)])) }))
-          setIngresosFinancieros(prev => ({ ...prev, ...Object.fromEntries(Object.entries(ingresos).map(([k, v]) => [k, String(v)])) }))
-          setResultado({ success: true, message: `Archivo cargado para ${p}. Revisá los valores y hacé clic en "Distribuir".` })
-          return
-        }
-
-        // MODO MULTI-PERÍODO: distribuir directamente cada período
-        setLoading(true)
-        setResultado(null)
-        const erroresPeriodos: string[] = []
-        let periodosExitosos = 0
-
-        for (const pk of periodosDetectados) {
-          const costos = costosPorPeriodo[pk]
-          const ingresos = ingresosPorPeriodo[pk]
-
-          if (costos && Object.keys(costos).length > 0) {
-            const res = await distribuirCostosFijos(pk, costos)
-            if (!res.success) erroresPeriodos.push(`Costos ${pk}: ${res.error}`)
-            else periodosExitosos++
-          }
-          if (ingresos && Object.keys(ingresos).length > 0) {
-            const res = await distribuirIngresosFinancieros(pk, ingresos)
-            if (!res.success) erroresPeriodos.push(`Ingresos ${pk}: ${res.error}`)
-          }
-        }
-
+      if (!rows || rows.length < 2) {
+        setResultado({ success: false, message: 'El archivo está vacío o no contiene datos.' })
         setLoading(false)
-        if (erroresPeriodos.length > 0) {
-          setResultado({
-            success: false,
-            message: `Se procesaron ${periodosExitosos} períodos con errores: ${erroresPeriodos.join(' | ')}`
-          })
+        return
+      }
+
+      // Buscar encabezado y columnas
+      let headerIdx = -1
+      let colMes = -1
+      let colDenominacion = -1
+      let colMonto = -1
+
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
+        const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
+        const idxMes = r.findIndex(c => c.includes('mes') || c.includes('periodo') || c.includes('period') || c.includes('fecha'))
+        const idxDen = r.findIndex(c => c.includes('denominaci') || c.includes('concepto') || c.includes('descripcion') || c.includes('cuenta') || c.includes('nombre') || c.includes('rubro') || c.includes('gasto'))
+        const idxMon = r.findIndex(c => c.includes('total') || c.includes('monto') || c.includes('importe') || c.includes('valor') || c.includes('costo') || c.includes('precio'))
+
+        if (idxDen >= 0 || idxMon >= 0 || idxMes >= 0) {
+          headerIdx = i
+          colMes = idxMes
+          colDenominacion = idxDen >= 0 ? idxDen : 0
+          colMonto = idxMon >= 0 ? idxMon : (idxDen === 0 ? 1 : 0)
+          break
+        }
+      }
+
+      if (headerIdx === -1) headerIdx = 0
+      if (colDenominacion === -1) colDenominacion = 0
+      if (colMonto === -1) colMonto = 1
+      if (colMes === -1 && (rows[0] || []).length >= 3) colMes = 2
+
+      const costosPorPeriodo: Record<string, Record<string, number>> = {}
+      const ingresosPorPeriodo: Record<string, Record<string, number>> = {}
+
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i]
+        if (!row || row.length === 0) continue
+
+        const denRaw = String(row[colDenominacion] ?? '').trim()
+        if (!denRaw || denRaw.toLowerCase().startsWith('instruccion')) continue
+
+        const montoCell = row[colMonto]
+        let monto = 0
+        if (typeof montoCell === 'number') {
+          monto = montoCell
+        } else if (typeof montoCell === 'string') {
+          const clean = montoCell.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')
+          monto = parseFloat(clean) || 0
+        }
+        if (monto === 0) continue
+
+        let periodoTarget = periodoKey
+        if (colMes >= 0 && row[colMes] !== undefined && row[colMes] !== null && String(row[colMes]).trim()) {
+          const parsed = parseMesUniversal(row[colMes])
+          if (parsed) {
+            periodoTarget = parsed
+          }
+        }
+
+        const mapeo = mapDenominacion(denRaw)
+        if (mapeo.tipo === 'costo') {
+          if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
+          costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
         } else {
-          setResultado({
-            success: true,
-            message: `✅ ${periodosDetectados.length} períodos procesados y distribuidos correctamente: ${periodosDetectados.join(', ')}${filasIgnoradas > 0 ? ` (${filasIgnoradas} filas no reconocidas ignoradas)` : ''}`,
-            detalles: periodosDetectados.map(pk => ({
-              sucursalId: pk,
-              porcentaje: 100 / periodosDetectados.length,
-              total: Object.values(costosPorPeriodo[pk] || {}).reduce((s, v) => s + v, 0)
-            }))
-          })
+          if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
+          ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
         }
-      } catch (error) {
+      }
+
+      const periodosDetectados = [...new Set([...Object.keys(costosPorPeriodo), ...Object.keys(ingresosPorPeriodo)])].sort()
+
+      if (periodosDetectados.length === 0) {
+        setResultado({ success: false, message: 'No se encontraron datos numéricos válidos en el archivo.' })
         setLoading(false)
+        return
+      }
+
+      const erroresPeriodos: string[] = []
+      let periodosExitosos = 0
+
+      for (const pk of periodosDetectados) {
+        const costos = costosPorPeriodo[pk]
+        const ingresos = ingresosPorPeriodo[pk]
+
+        if (costos && Object.keys(costos).length > 0) {
+          const res = await distribuirCostosFijos(pk, costos)
+          if (!res.success) erroresPeriodos.push(`Costos ${pk}: ${res.error}`)
+          else periodosExitosos++
+        }
+        if (ingresos && Object.keys(ingresos).length > 0) {
+          const res = await distribuirIngresosFinancieros(pk, ingresos)
+          if (!res.success) erroresPeriodos.push(`Ingresos ${pk}: ${res.error}`)
+        }
+      }
+
+      setLoading(false)
+      if (erroresPeriodos.length > 0) {
         setResultado({
           success: false,
-          message: `Error al procesar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`
+          message: `Se procesaron ${periodosExitosos} períodos con advertencias: ${erroresPeriodos.join(' | ')}`
+        })
+      } else {
+        setResultado({
+          success: true,
+          message: `✅ ${periodosDetectados.length} períodos procesados correctamente: ${periodosDetectados.join(', ')}`,
+          detalles: periodosDetectados.map(pk => ({
+            sucursalId: pk,
+            porcentaje: 100 / periodosDetectados.length,
+            total: Object.values(costosPorPeriodo[pk] || {}).reduce((s, v) => s + v, 0)
+          }))
         })
       }
+    } catch (error) {
+      setLoading(false)
+      setResultado({
+        success: false,
+        message: `Error al procesar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      })
     }
-    reader.readAsText(file)
   }
 
   // Descargar plantilla CSV

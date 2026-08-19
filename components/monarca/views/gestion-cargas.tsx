@@ -67,25 +67,59 @@ export function GestionCargas() {
   const [sistemaListo, setSistemaListo] = useState(false)
   const [modoIncremental, setModoIncremental] = useState<boolean>(false)
 
-  // Helper: parsear etiqueta de mes a periodo key
-  const parseMesAKey = (mesRaw: string): string | null => {
-    const MESES: Record<string, string> = {
-      ene: '01', feb: '02', mar: '03', abr: '04',
-      may: '05', jun: '06', jul: '07', ago: '08',
-      sep: '09', oct: '10', nov: '11', dic: '12'
+  // Helper universal: parsear etiqueta de mes a periodo key (soporta 'enero 2026', '01/2026', '2026-01', 'ene-26', fechas Excel, etc.)
+  const parseMesAKey = (mesRaw: any): string | null => {
+    if (mesRaw === null || mesRaw === undefined) return null
+
+    if (typeof mesRaw === 'number') {
+      const s = String(mesRaw)
+      if (s.length === 6 && s.startsWith('20')) return `${s.slice(0, 4)}-${s.slice(4, 6)}`
+      if (mesRaw > 30000 && mesRaw < 60000) {
+        const date = new Date((mesRaw - (25567 + 2)) * 86400 * 1000)
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        }
+      }
     }
+
     const cleaned = String(mesRaw).toLowerCase().trim()
-    // Formato 'ene-26', 'ene-2026', '01/2026', '2026-01'
-    const m1 = cleaned.match(/^([a-z]{3})[-/](\d{2,4})$/)
-    if (m1) {
-      const mes = MESES[m1[1]]
-      if (!mes) return null
-      const anio = m1[2].length === 2 ? `20${m1[2]}` : m1[2]
-      return `${anio}-${mes}`
+    if (!cleaned) return null
+
+    const MESES_MAP: Record<string, string> = {
+      enero: '01', ene: '01',
+      febrero: '02', feb: '02',
+      marzo: '03', mar: '03',
+      abril: '04', abr: '04',
+      mayo: '05', may: '05',
+      junio: '06', jun: '06',
+      julio: '07', jul: '07',
+      agosto: '08', ago: '08',
+      septiembre: '09', setiembre: '09', sep: '09',
+      octubre: '10', oct: '10',
+      noviembre: '11', nov: '11',
+      diciembre: '12', dic: '12'
     }
-    // Formato '2026-01'
-    const m2 = cleaned.match(/^(\d{4})-(\d{2})$/)
-    if (m2) return cleaned
+
+    for (const [nombre, num] of Object.entries(MESES_MAP)) {
+      if (cleaned.includes(nombre)) {
+        const yearMatch = cleaned.match(/\b(20\d{2}|\d{2})\b/)
+        const year = yearMatch ? (yearMatch[1].length === 2 ? `20${yearMatch[1]}` : yearMatch[1]) : '2026'
+        return `${year}-${num}`
+      }
+    }
+
+    const yyyyMm = cleaned.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])\b/)
+    if (yyyyMm) return `${yyyyMm[1]}-${yyyyMm[2].padStart(2, '0')}`
+
+    const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](20\d{2})\b/)
+    if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
+
+    const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
+    if (mmYy) return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
+
+    const yyyymmExact = cleaned.match(/\b(20\d{2})(0[1-9]|1[0-2])\b/)
+    if (yyyymmExact) return `${yyyymmExact[1]}-${yyyymmExact[2]}`
+
     return null
   }
 
