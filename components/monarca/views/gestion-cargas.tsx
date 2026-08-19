@@ -67,12 +67,39 @@ export function GestionCargas() {
   const [sistemaListo, setSistemaListo] = useState(false)
   const [modoIncremental, setModoIncremental] = useState<boolean>(false)
 
-  // Datos simulados de períodos y sucursales (en producción vendrían de props o context)
-  const periodos: Periodo[] = [
-    { key: '2026-08', anio: 2026, mes: 8, index: 19 },
-    { key: '2026-07', anio: 2026, mes: 7, index: 18 },
-    { key: '2026-06', anio: 2026, mes: 6, index: 17 },
-  ]
+  // Helper: parsear etiqueta de mes a periodo key
+  const parseMesAKey = (mesRaw: string): string | null => {
+    const MESES: Record<string, string> = {
+      ene: '01', feb: '02', mar: '03', abr: '04',
+      may: '05', jun: '06', jul: '07', ago: '08',
+      sep: '09', oct: '10', nov: '11', dic: '12'
+    }
+    const cleaned = String(mesRaw).toLowerCase().trim()
+    // Formato 'ene-26', 'ene-2026', '01/2026', '2026-01'
+    const m1 = cleaned.match(/^([a-z]{3})[-/](\d{2,4})$/)
+    if (m1) {
+      const mes = MESES[m1[1]]
+      if (!mes) return null
+      const anio = m1[2].length === 2 ? `20${m1[2]}` : m1[2]
+      return `${anio}-${mes}`
+    }
+    // Formato '2026-01'
+    const m2 = cleaned.match(/^(\d{4})-(\d{2})$/)
+    if (m2) return cleaned
+    return null
+  }
+
+  // Períodos disponibles: 2024-01 a 2026-12
+  const generarPeriodos = (): Periodo[] => {
+    const result: Periodo[] = []
+    for (let anio = 2024; anio <= 2026; anio++) {
+      for (let mes = 1; mes <= 12; mes++) {
+        const key = `${anio}-${String(mes).padStart(2, '0')}`
+        result.push({ key, anio, mes, index: (anio - 2024) * 12 + mes })
+      }
+    }
+    return result
+  }
 
   const sucursales: DBSucursal[] = [
     { id: 'colon', nombre: 'Colón', orden: 1 },
@@ -81,6 +108,7 @@ export function GestionCargas() {
     { id: 'peron', nombre: 'Perón', orden: 4 },
     { id: 'virtual', nombre: 'Virtual', orden: 5 },
   ]
+  const periodos = generarPeriodos()
 
   // Plantilla de fallback para cuando no hay datos en la DB
   const plantillaFallback: PlantillaEmpleado[] = [
@@ -400,6 +428,7 @@ export function GestionCargas() {
   const handleArchivoRRHH = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    event.target.value = ''
 
     setLoading(true)
     setMensaje(null)
@@ -411,72 +440,103 @@ export function GestionCargas() {
       const worksheet = workbook.Sheets[sheetName]
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
-      // Convertir a formato TemplateRRHH
-      const headers = jsonData[0] as string[]
+      const headers = (jsonData[0] as string[]).map(h => String(h || '').toLowerCase().trim())
       const filas = jsonData.slice(1) as any[][]
 
       // Filtrar fila de instrucciones
-      const filasDatos = filas.filter(fila => 
+      const filasDatos = filas.filter(fila =>
         fila[0] && fila[0] !== 'INSTRUCCIONES:' && typeof fila[0] === 'string'
       )
 
-      const datosRRHH: TemplateRRHH[] = filasDatos.map(fila => ({
-        legajo: String(fila[0] || ''),
-        apellido: String(fila[1] || ''),
-        nombre: String(fila[2] || ''),
-        sueldo_basico: Number(fila[4]) || 0,
-        horas_extras: Number(fila[5]) || 0,
-        premios: Number(fila[6]) || 0,
-        bonificaciones: Number(fila[7]) || 0,
-        viaticos: Number(fila[8]) || 0,
-        dias_trabajados: Number(fila[9]) || 30,
-        ausentismos: Number(fila[10]) || 0,
-        observaciones: String(fila[11] || '')
-      }))
+      // Buscar columna de mes (puede llamarse 'mes', 'periodo', 'period', 'month')
+      const mesColuIdx = headers.findIndex(h => h === 'mes' || h === 'periodo' || h === 'period' || h === 'month')
+      const modoMulti = periodoSeleccionado === 'multi' || mesColuIdx >= 0
 
-      // Cargar datos
-      const resultado = await cargarNominaMensual(
-        parseInt(periodoSeleccionado.split('-')[0]) * 100 + parseInt(periodoSeleccionado.split('-')[1]), // período ID simplificado
-        sucursalSeleccionada,
-        datosRRHH,
-        file.name,
-        modoIncremental
-      )
+      if (modoMulti && mesColuIdx >= 0) {
+        // MODO MULTI-PERÍODO: agrupar filas por período
+        const filasPorPeriodo: Record<string, TemplateRRHH[]> = {}
+        for (const fila of filasDatos) {
+          const mesRaw = fila[mesColuIdx]
+          const pk = parseMesAKey(String(mesRaw || '')) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
+          if (!pk) continue
+          const empleado: TemplateRRHH = {
+            legajo: String(fila[headers.indexOf('legajo')] || fila[0] || ''),
+            apellido: String(fila[headers.indexOf('apellido')] || fila[1] || ''),
+            nombre: String(fila[headers.indexOf('nombre')] || fila[2] || ''),
+            sueldo_basico: Number(fila[headers.indexOf('sueldo_basico')] ?? fila[4]) || 0,
+            horas_extras: Number(fila[headers.indexOf('horas_extras')] ?? fila[5]) || 0,
+            premios: Number(fila[headers.indexOf('premios')] ?? fila[6]) || 0,
+            bonificaciones: Number(fila[headers.indexOf('bonificaciones')] ?? fila[7]) || 0,
+            viaticos: Number(fila[headers.indexOf('viaticos')] ?? fila[8]) || 0,
+            dias_trabajados: Number(fila[headers.indexOf('dias_trabajados')] ?? fila[9]) || 30,
+            ausentismos: Number(fila[headers.indexOf('ausentismos')] ?? fila[10]) || 0,
+            observaciones: String(fila[headers.indexOf('observaciones')] ?? fila[11] ?? '')
+          }
+          if (!filasPorPeriodo[pk]) filasPorPeriodo[pk] = []
+          filasPorPeriodo[pk].push(empleado)
+        }
 
-      setUltimaCarga({
-        tipo: 'rrhh',
-        success: resultado.success,
-        insertados: resultado.insertados,
-        errores: resultado.errores,
-        archivo: file.name
-      })
+        const periodosDetectados = Object.keys(filasPorPeriodo)
+        let totalInsertados = 0
+        const erroresAcumulados: string[] = []
 
-      if (resultado.success) {
+        for (const pk of periodosDetectados) {
+          const [anio, mes] = pk.split('-').map(Number)
+          const resultado = await cargarNominaMensual(
+            anio * 100 + mes,
+            sucursalSeleccionada,
+            filasPorPeriodo[pk],
+            file.name,
+            modoIncremental
+          )
+          totalInsertados += resultado.insertados
+          if (!resultado.success) erroresAcumulados.push(...resultado.errores.map(e => `[${pk}] ${e}`))
+        }
+
+        setUltimaCarga({ tipo: 'rrhh', success: erroresAcumulados.length === 0, insertados: totalInsertados, errores: erroresAcumulados, archivo: file.name })
         setMensaje({
-          tipo: 'success',
-          texto: `RRHH cargado exitosamente: ${resultado.insertados} empleados procesados`
+          tipo: erroresAcumulados.length === 0 ? 'success' : 'error',
+          texto: `✅ RRHH Multi-Período: ${periodosDetectados.length} meses procesados (${totalInsertados} registros). Períodos: ${periodosDetectados.join(', ')}`
         })
       } else {
+        // MODO PERÍODO ÚNICO
+        if (periodoSeleccionado === 'multi') {
+          setMensaje({ tipo: 'error', texto: 'El archivo no tiene columna "Mes". Seleccioná un período específico o agregá la columna Mes al archivo.' })
+          setLoading(false)
+          return
+        }
+        const datosRRHH: TemplateRRHH[] = filasDatos.map(fila => ({
+          legajo: String(fila[0] || ''),
+          apellido: String(fila[1] || ''),
+          nombre: String(fila[2] || ''),
+          sueldo_basico: Number(fila[4]) || 0,
+          horas_extras: Number(fila[5]) || 0,
+          premios: Number(fila[6]) || 0,
+          bonificaciones: Number(fila[7]) || 0,
+          viaticos: Number(fila[8]) || 0,
+          dias_trabajados: Number(fila[9]) || 30,
+          ausentismos: Number(fila[10]) || 0,
+          observaciones: String(fila[11] || '')
+        }))
+        const [anio, mes] = periodoSeleccionado.split('-').map(Number)
+        const resultado = await cargarNominaMensual(anio * 100 + mes, sucursalSeleccionada, datosRRHH, file.name, modoIncremental)
+        setUltimaCarga({ tipo: 'rrhh', success: resultado.success, insertados: resultado.insertados, errores: resultado.errores, archivo: file.name })
         setMensaje({
-          tipo: 'error',
-          texto: `Error en carga RRHH: ${resultado.errores.join(', ')}`
+          tipo: resultado.success ? 'success' : 'error',
+          texto: resultado.success ? `RRHH cargado: ${resultado.insertados} empleados procesados` : `Error RRHH: ${resultado.errores.join(', ')}`
         })
       }
     } catch (err) {
-      setMensaje({
-        tipo: 'error',
-        texto: `Error al procesar archivo RRHH: ${err instanceof Error ? err.message : 'Error desconocido'}`
-      })
+      setMensaje({ tipo: 'error', texto: `Error al procesar archivo RRHH: ${err instanceof Error ? err.message : 'Error desconocido'}` })
     } finally {
       setLoading(false)
-      // Limpiar input file
-      event.target.value = ''
     }
   }
 
   const handleArchivoCostos = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    event.target.value = ''
 
     setLoading(true)
     setMensaje(null)
@@ -488,65 +548,77 @@ export function GestionCargas() {
       const worksheet = workbook.Sheets[sheetName]
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
-      // Convertir a formato TemplateCosto
-      const headers = jsonData[0] as string[]
+      const headers = (jsonData[0] as string[]).map(h => String(h || '').toLowerCase().trim())
       const filas = jsonData.slice(1) as any[][]
 
-      // Filtrar fila de instrucciones
-      const filasDatos = filas.filter(fila => 
+      const filasDatos = filas.filter(fila =>
         fila[0] && fila[0] !== 'INSTRUCCIONES' && fila[0] !== 'categoria_costo'
       )
 
-      const datosCostos: TemplateCosto[] = filasDatos.map(fila => ({
-        categoria_costo: String(fila[0] || ''),
-        subcategoria: String(fila[1] || ''),
-        descripcion: String(fila[2] || ''),
-        importe: Number(fila[3]) || 0,
-        importe_variable: Number(fila[4]) || 0,
-        importe_fijo: Number(fila[5]) || 0,
-        tipo_gasto: String(fila[6] || 'operativo'),
-        proveedor: String(fila[7] || ''),
-        numero_factura: String(fila[8] || ''),
-        fecha_vencimiento: fila[9] ? String(fila[9]) : undefined,
-        observaciones: String(fila[10] || '')
-      }))
+      // Buscar columna de mes
+      const mesColuIdx = headers.findIndex(h => h === 'mes' || h === 'periodo' || h === 'period' || h === 'month')
+      const modoMulti = periodoSeleccionado === 'multi' || mesColuIdx >= 0
 
-      // Cargar datos
-      const resultado = await cargarCostosEstructurales(
-        parseInt(periodoSeleccionado.split('-')[0]) * 100 + parseInt(periodoSeleccionado.split('-')[1]),
-        sucursalSeleccionada,
-        datosCostos,
-        file.name,
-        modoIncremental
-      )
-
-      setUltimaCarga({
-        tipo: 'costos',
-        success: resultado.success,
-        insertados: resultado.insertados,
-        errores: resultado.errores,
-        archivo: file.name
+      const parseFila = (fila: any[]): TemplateCosto => ({
+        categoria_costo: String(fila[headers.indexOf('categoria_costo')] ?? fila[0] ?? ''),
+        subcategoria: String(fila[headers.indexOf('subcategoria')] ?? fila[1] ?? ''),
+        descripcion: String(fila[headers.indexOf('descripcion')] ?? fila[2] ?? ''),
+        importe: Number(fila[headers.indexOf('importe')] ?? fila[3]) || 0,
+        importe_variable: Number(fila[headers.indexOf('importe_variable')] ?? fila[4]) || 0,
+        importe_fijo: Number(fila[headers.indexOf('importe_fijo')] ?? fila[5]) || 0,
+        tipo_gasto: String(fila[headers.indexOf('tipo_gasto')] ?? fila[6] ?? 'operativo'),
+        proveedor: String(fila[headers.indexOf('proveedor')] ?? fila[7] ?? ''),
+        numero_factura: String(fila[headers.indexOf('numero_factura')] ?? fila[8] ?? ''),
+        fecha_vencimiento: fila[headers.indexOf('fecha_vencimiento')] ? String(fila[headers.indexOf('fecha_vencimiento')]) : undefined,
+        observaciones: String(fila[headers.indexOf('observaciones')] ?? fila[10] ?? '')
       })
 
-      if (resultado.success) {
+      if (modoMulti && mesColuIdx >= 0) {
+        // MODO MULTI-PERÍODO
+        const filasPorPeriodo: Record<string, TemplateCosto[]> = {}
+        for (const fila of filasDatos) {
+          const mesRaw = fila[mesColuIdx]
+          const pk = parseMesAKey(String(mesRaw || '')) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
+          if (!pk) continue
+          if (!filasPorPeriodo[pk]) filasPorPeriodo[pk] = []
+          filasPorPeriodo[pk].push(parseFila(fila))
+        }
+
+        const periodosDetectados = Object.keys(filasPorPeriodo)
+        let totalInsertados = 0
+        const erroresAcumulados: string[] = []
+
+        for (const pk of periodosDetectados) {
+          const [anio, mes] = pk.split('-').map(Number)
+          const resultado = await cargarCostosEstructurales(anio * 100 + mes, sucursalSeleccionada, filasPorPeriodo[pk], file.name, modoIncremental)
+          totalInsertados += resultado.insertados
+          if (!resultado.success) erroresAcumulados.push(...resultado.errores.map(e => `[${pk}] ${e}`))
+        }
+
+        setUltimaCarga({ tipo: 'costos', success: erroresAcumulados.length === 0, insertados: totalInsertados, errores: erroresAcumulados, archivo: file.name })
         setMensaje({
-          tipo: 'success',
-          texto: `Costos cargados exitosamente: ${resultado.insertados} conceptos procesados`
+          tipo: erroresAcumulados.length === 0 ? 'success' : 'error',
+          texto: `✅ Costos Multi-Período: ${periodosDetectados.length} meses procesados (${totalInsertados} conceptos). Períodos: ${periodosDetectados.join(', ')}`
         })
       } else {
+        if (periodoSeleccionado === 'multi') {
+          setMensaje({ tipo: 'error', texto: 'El archivo no tiene columna "Mes". Seleccioná un período específico o agregá la columna Mes al archivo.' })
+          setLoading(false)
+          return
+        }
+        const datosCostos = filasDatos.map(parseFila)
+        const [anio, mes] = periodoSeleccionado.split('-').map(Number)
+        const resultado = await cargarCostosEstructurales(anio * 100 + mes, sucursalSeleccionada, datosCostos, file.name, modoIncremental)
+        setUltimaCarga({ tipo: 'costos', success: resultado.success, insertados: resultado.insertados, errores: resultado.errores, archivo: file.name })
         setMensaje({
-          tipo: 'error',
-          texto: `Error en carga Costos: ${resultado.errores.join(', ')}`
+          tipo: resultado.success ? 'success' : 'error',
+          texto: resultado.success ? `Costos cargados: ${resultado.insertados} conceptos procesados` : `Error Costos: ${resultado.errores.join(', ')}`
         })
       }
     } catch (err) {
-      setMensaje({
-        tipo: 'error',
-        texto: `Error al procesar archivo Costos: ${err instanceof Error ? err.message : 'Error desconocido'}`
-      })
+      setMensaje({ tipo: 'error', texto: `Error al procesar archivo Costos: ${err instanceof Error ? err.message : 'Error desconocido'}` })
     } finally {
       setLoading(false)
-      event.target.value = ''
     }
   }
 
@@ -631,24 +703,33 @@ export function GestionCargas() {
           </CardContent>
         </Card>
 
-        <Card className="border-success/20 bg-success/5">
+        <Card className={`border-success/20 ${periodoSeleccionado === 'multi' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-success/5'}`}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="h-5 w-5 text-success" />
               <span className="font-semibold text-sm">Período</span>
+              {periodoSeleccionado === 'multi' && (
+                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 border border-amber-400/40">MULTI-PERÍODO</span>
+              )}
             </div>
             <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado}>
               <SelectTrigger className="bg-card">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {periodos.map(p => (
+                <SelectItem value="multi">📅 Multi-período (lee columna Mes del archivo)</SelectItem>
+                {periodos.slice().reverse().map(p => (
                   <SelectItem key={p.key} value={p.key}>
                     {periodoLabel(p.anio, p.mes)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {periodoSeleccionado === 'multi' && (
+              <p className="text-[10px] text-amber-600 mt-1.5">
+                El archivo debe tener una columna <strong>Mes</strong> (ej: ene-26) por fila.
+              </p>
+            )}
           </CardContent>
         </Card>
 
