@@ -6,6 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { 
   Calculator, 
   TrendingUp, 
@@ -103,15 +110,33 @@ export function CargaCostosFijos({
     rendimientos_financieros: '',
   })
 
+  // Estado de modo multi-período (independiente del filtro externo)
+  const [periodoInterno, setPeriodoInterno] = useState<string>('multi')
+
+  // Período efectivo: si multi, se usa el del CSV. Para carga manual usa periodoKey externo.
+  const periodoEfectivo = periodoInterno === 'multi' ? periodoKey : periodoInterno
+
+  // Generar lista de períodos 2024–2026
+  const periodosDisponibles: Periodo[] = []
+  for (let anio = 2024; anio <= 2026; anio++) {
+    for (let mes = 1; mes <= 12; mes++) {
+      const key = `${anio}-${String(mes).padStart(2, '0')}`
+      periodosDisponibles.push({ key, anio, mes, index: (anio - 2024) * 12 + mes })
+    }
+  }
+
   // Cargar datos existentes desde la base de datos al cambiar de período
   useEffect(() => {
     async function cargarDatosExistentes() {
-      if (!periodoKey) return
+      // En modo multi no precargamos (no hay un período único definido)
+      if (periodoInterno === 'multi') return
+      const pk = periodoInterno
+      if (!pk) return
       setLoading(true)
       try {
         const [cfData, ifData] = await Promise.all([
-          getCostosFijosSubcuentas(periodoKey, '__consolidado__'),
-          getIngresosFinancierosSubcuentas(periodoKey, '__consolidado__')
+          getCostosFijosSubcuentas(pk, '__consolidado__'),
+          getIngresosFinancierosSubcuentas(pk, '__consolidado__')
         ])
 
         if (cfData) {
@@ -172,7 +197,7 @@ export function CargaCostosFijos({
     }
 
     cargarDatosExistentes()
-  }, [periodoKey])
+  }, [periodoInterno])
 
   const handleCostoChange = (key: keyof CostosFijosForm, value: string) => {
     // Permitir solo números y punto decimal
@@ -398,12 +423,17 @@ Rendimientos Financieros,0,${periodoKey}`
     setResultado(null)
 
     try {
+      if (periodoInterno === 'multi') {
+        setResultado({ success: false, message: 'Para carga manual seleccioná un período específico en el selector.' })
+        setLoading(false)
+        return
+      }
       const costosData: any = {}
       Object.entries(costosFijos).forEach(([key, value]) => {
         costosData[key] = parseFloat(value) || 0
       })
 
-      const result = await distribuirCostosFijos(periodoKey, costosData)
+      const result = await distribuirCostosFijos(periodoInterno, costosData)
 
       if (result.success) {
         setResultado({
@@ -432,12 +462,17 @@ Rendimientos Financieros,0,${periodoKey}`
     setResultado(null)
 
     try {
+      if (periodoInterno === 'multi') {
+        setResultado({ success: false, message: 'Para carga manual seleccioná un período específico en el selector.' })
+        setLoading(false)
+        return
+      }
       const ingresosData = {
         operatoria_financiera: parseFloat(ingresosFinancieros.operatoria_financiera) || 0,
         rendimientos_financieros: parseFloat(ingresosFinancieros.rendimientos_financieros) || 0,
       }
 
-      const result = await distribuirIngresosFinancieros(periodoKey, ingresosData)
+      const result = await distribuirIngresosFinancieros(periodoInterno, ingresosData)
 
       if (result.success) {
         setResultado({
@@ -472,25 +507,40 @@ Rendimientos Financieros,0,${periodoKey}`
       />
 
       {/* Selector de Período */}
-      <Card>
+      <Card className={periodoInterno === 'multi' ? 'border-amber-500/30 bg-amber-500/5' : ''}>
         <CardHeader>
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Info className="h-4 w-4" />
             Período de Carga
+            {periodoInterno === 'multi' && (
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 border border-amber-400/40">MULTI-PERÍODO</span>
+            )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <select
-            value={periodoKey}
-            onChange={(e) => onPeriodoChange(e.target.value)}
-            className="w-full px-3 py-2 border rounded-md"
-          >
-            {periodos.map(p => (
-              <option key={p.key} value={p.key}>
-                {p.label || `${p.anio} - ${String(p.mes).padStart(2, '0')}`}
-              </option>
-            ))}
-          </select>
+        <CardContent className="space-y-2">
+          <Select value={periodoInterno} onValueChange={setPeriodoInterno}>
+            <SelectTrigger className="bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="multi">📅 Multi-período (lee columna Mes del archivo CSV)</SelectItem>
+              {periodosDisponibles.slice().reverse().map(p => (
+                <SelectItem key={p.key} value={p.key}>
+                  {p.anio} — {String(p.mes).padStart(2, '0')} ({new Date(p.anio, p.mes - 1).toLocaleString('es-AR', { month: 'long' })})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {periodoInterno === 'multi' && (
+            <p className="text-[10px] text-amber-600">
+              El CSV debe tener una columna <strong>Mes</strong> por fila (ej: ene-26). El sistema asignará cada fila al período correcto automáticamente.
+            </p>
+          )}
+          {periodoInterno !== 'multi' && (
+            <p className="text-[10px] text-muted-foreground">
+              Período seleccionado: <strong>{periodoInterno}</strong>. Se aplicará a la carga manual y a las filas sin columna Mes.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -502,10 +552,11 @@ Rendimientos Financieros,0,${periodoKey}`
             <div className="text-sm space-y-2">
               <p className="font-medium text-primary">Distribución Automática por Participación en Ventas</p>
               <p className="text-muted-foreground">
-                Los costos fijos e ingresos financieros se cargan como <strong>totales consolidados</strong> y luego se distribuyen automáticamente entre todas las sucursales según su participación porcentual en las ventas del período seleccionado.
+                Los costos e ingresos se distribuyen entre sucursales según su participación en ventas del período.
+                Podés cargar <strong>múltiples meses en un solo CSV</strong> seleccionando el modo Multi-período.
               </p>
               <p className="text-muted-foreground text-xs">
-                <strong>Requisito:</strong> Debe haber datos de facturación cargados para el período antes de distribuir costos.
+                <strong>Requisito:</strong> Debe haber datos de facturación cargados para cada período.
               </p>
             </div>
           </div>
