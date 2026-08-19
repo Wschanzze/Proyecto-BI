@@ -10,44 +10,67 @@ import { upsertIngresosFinancierosSubcuentas, type IngresosFinancierosSubcuentas
  */
 async function calcularParticipacionVentas(periodoKey: string): Promise<{ [sucursalId: string]: number }> {
   try {
-    // Obtener periodo_id
+    // 1. Obtener periodo_id
     const { data: periodo } = await supabase
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
       .single()
 
-    if (!periodo) return {}
+    // Cargar sucursales de la DB para fallback equitativo
+    const { data: sucursalesDB } = await supabase
+      .from('sucursales')
+      .select('id')
 
-    // Obtener ventas por sucursal
-    const { data: registros, error } = await supabase
-      .from('registros')
+    const sucursalIds = (sucursalesDB && sucursalesDB.length > 0)
+      ? sucursalesDB.map(s => s.id)
+      : ['sucursal_1', 'sucursal_2', 'sucursal_3', 'sucursal_4', 'sucursal_5']
+
+    const fallbackEq: { [key: string]: number } = {}
+    const eqPct = 1 / sucursalIds.length
+    sucursalIds.forEach(id => { fallbackEq[id] = eqPct })
+
+    if (!periodo) return fallbackEq
+
+    // 2. Obtener ventas por sucursal desde la tabla correcta 'resultados'
+    const { data: resultados, error } = await supabase
+      .from('resultados')
       .select('sucursal_id, facturacion')
       .eq('periodo_id', periodo.id)
 
-    if (error) throw error
-    if (!registros || registros.length === 0) return {}
+    if (error || !resultados || resultados.length === 0) {
+      return fallbackEq
+    }
 
-    // Calcular totales por sucursal
+    // 3. Calcular totales por sucursal
     const ventasPorSucursal: { [key: string]: number } = {}
     let totalVentas = 0
 
-    registros.forEach(r => {
+    resultados.forEach(r => {
+      if (!r.sucursal_id) return
       const facturacion = Number(r.facturacion || 0)
       ventasPorSucursal[r.sucursal_id] = (ventasPorSucursal[r.sucursal_id] || 0) + facturacion
       totalVentas += facturacion
     })
 
-    // Calcular porcentajes
+    if (totalVentas === 0) return fallbackEq
+
+    // 4. Calcular porcentajes por sucursal
     const participacion: { [key: string]: number } = {}
     Object.keys(ventasPorSucursal).forEach(sucursalId => {
-      participacion[sucursalId] = totalVentas > 0 ? ventasPorSucursal[sucursalId] / totalVentas : 0
+      participacion[sucursalId] = ventasPorSucursal[sucursalId] / totalVentas
     })
 
     return participacion
   } catch (error) {
     console.error('Error al calcular participación en ventas:', error)
-    return {}
+    return {
+      'sucursal_1': 0.20,
+      'sucursal_2': 0.20,
+      'sucursal_3': 0.20,
+      'sucursal_4': 0.20,
+      'sucursal_5': 0.20
+    }
   }
 }
 
