@@ -4,6 +4,10 @@
 -- ============================================================
 
 -- PASO 1: Ampliar columnas numeric(12,2) -> numeric(18,2) para soportar valores grandes en ARS
+-- Primero hay que eliminar la columna GENERATED que depende de las otras
+ALTER TABLE costos_fijos_subcuentas DROP COLUMN IF EXISTS total_costos_fijos;
+
+-- Ahora sí se pueden cambiar los tipos
 ALTER TABLE costos_fijos_subcuentas
   ALTER COLUMN alquileres TYPE numeric(18,2),
   ALTER COLUMN honorarios TYPE numeric(18,2),
@@ -20,6 +24,18 @@ ALTER TABLE costos_fijos_subcuentas
   ALTER COLUMN gastos_administracion TYPE numeric(18,2),
   ALTER COLUMN gastos_financiacion TYPE numeric(18,2),
   ALTER COLUMN diferencias_caja_perdida TYPE numeric(18,2);
+
+-- Recrear columna generada con el nuevo tipo numeric(18,2)
+ALTER TABLE costos_fijos_subcuentas
+  ADD COLUMN IF NOT EXISTS total_costos_fijos numeric(18,2) GENERATED ALWAYS AS (
+    COALESCE(alquileres,0) + COALESCE(honorarios,0) + COALESCE(tasas_servicios,0) +
+    COALESCE(mantenimiento_servicios_tecnicos,0) + COALESCE(perdida_gestion_inventarios,0) +
+    COALESCE(seguridad_vigilancia,0) + COALESCE(otros_servicios,0) +
+    COALESCE(gastos_personal,0) + COALESCE(otros_gastos,0) +
+    COALESCE(comisiones_gastos_bancarios,0) + COALESCE(gastos_extraordinarios,0) +
+    COALESCE(gastos_comercializacion,0) + COALESCE(gastos_administracion,0) +
+    COALESCE(gastos_financiacion,0) + COALESCE(diferencias_caja_perdida,0)
+  ) STORED;
 
 -- PASO 2: Fix RLS costos_fijos_subcuentas
 ALTER TABLE costos_fijos_subcuentas DISABLE ROW LEVEL SECURITY;
