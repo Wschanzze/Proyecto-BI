@@ -4,7 +4,8 @@
 -- ============================================================
 
 -- PASO 1: Ampliar columnas numeric(12,2) -> numeric(18,2) para soportar valores grandes en ARS
--- Primero hay que eliminar la columna GENERATED que depende de las otras
+-- La vista y la columna GENERATED deben eliminarse primero
+DROP VIEW IF EXISTS vista_costos_fijos_consolidado;
 ALTER TABLE costos_fijos_subcuentas DROP COLUMN IF EXISTS total_costos_fijos;
 
 -- Ahora sí se pueden cambiar los tipos
