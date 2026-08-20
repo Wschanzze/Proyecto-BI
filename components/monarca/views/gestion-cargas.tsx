@@ -261,7 +261,7 @@ export function GestionCargas() {
     setMensaje({ tipo: 'info', texto: 'Template de RRHH descargado. Podés completarlo y subirlo en la sección de carga.' })
   }
 
-  // Cargar archivo Excel/CSV multi-período
+  // Cargar archivo Excel/CSV multi-período (Soporta Tablas Verticales y Matrices Horizontales)
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -291,71 +291,136 @@ export function GestionCargas() {
         return 0
       }
 
-      // 1. Identificar encabezados de columna
-      let headerIdx = -1
-      let colMes = -1
-      let colSueldo = -1
-      let colCCSS = -1
-      let colIndem = -1
-      let colMerito = -1
+      const rrhhPorPeriodo: Record<string, RRHHSubcuentasCarga> = {}
 
-      for (let i = 0; i < Math.min(10, rows.length); i++) {
-        const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
-        
-        const idxM = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'fecha' || c === 'date')
-        const idxS = r.findIndex(c => c.includes('sueldo') || c.includes('remunerativo') || c.includes('basico'))
-        const idxC = r.findIndex(c => c.includes('ccss') || c.includes('cargas') || c.includes('aporte') || c.includes('contribucion'))
-        const idxI = r.findIndex(c => c.includes('indemn') || c.includes('despido'))
-        const idxMer = r.findIndex(c => c.includes('merito') || c.includes('desempeño') || c.includes('bono'))
+      // 1. DETECTAR SI ES MATRIZ HORIZONTAL (Meses en las cabeceras de columnas)
+      let horizontalHeaderIdx = -1
+      const colToPeriodMap: Record<number, string> = {}
+      let colDenominacionHoriz = 0
 
-        if (idxS >= 0 || idxC >= 0 || idxM >= 0) {
-          headerIdx = i
-          colMes = idxM >= 0 ? idxM : 0
-          colSueldo = idxS
-          colCCSS = idxC
-          colIndem = idxI
-          colMerito = idxMer
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        const row = rows[i] || []
+        let monthColsFound = 0
+        const tempMap: Record<number, string> = {}
+
+        row.forEach((cell: any, colIdx: number) => {
+          const cellStr = String(cell || '').trim().toLowerCase()
+          if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('consolidado') || cellStr.includes('suma')) {
+            return
+          }
+          const pk = parseMesUniversal(cell)
+          if (pk) {
+            tempMap[colIdx] = pk
+            monthColsFound++
+          }
+        })
+
+        if (monthColsFound >= 2) {
+          horizontalHeaderIdx = i
+          Object.assign(colToPeriodMap, tempMap)
+          const denIdx = row.findIndex((cell: any, idx: number) => !tempMap[idx] && String(cell || '').trim().length > 0)
+          colDenominacionHoriz = denIdx >= 0 ? denIdx : 0
           break
         }
       }
 
-      if (headerIdx === -1) {
-        // Fallback por posición predeterminada: Col 0: Mes, Col 1: Sueldo, Col 2: CCSS, Col 3: Indemnizatorios, Col 4: Merito
-        headerIdx = 0
-        colMes = 0
-        colSueldo = 1
-        colCCSS = 2
-        colIndem = 3
-        colMerito = 4
-      }
+      if (horizontalHeaderIdx >= 0) {
+        // --- MODO A: MATRIZ HORIZONTAL ---
+        for (let i = horizontalHeaderIdx + 1; i < rows.length; i++) {
+          const row = rows[i]
+          if (!row || row.length === 0) continue
 
-      const rrhhPorPeriodo: Record<string, RRHHSubcuentasCarga> = {}
+          const denRaw = String(row[colDenominacionHoriz] ?? '').trim().toLowerCase()
+          if (!denRaw || denRaw.startsWith('instruccion') || denRaw.startsWith('total')) continue
 
-      for (let i = headerIdx + 1; i < rows.length; i++) {
-        const row = rows[i]
-        if (!row || row.length === 0) continue
+          let campo: keyof RRHHSubcuentasCarga | null = null
+          if (denRaw.includes('sueldo') || denRaw.includes('remunerativo') || denRaw.includes('basico') || denRaw.includes('personal')) {
+            campo = 'sueldos'
+          } else if (denRaw.includes('ccss') || denRaw.includes('cargas') || denRaw.includes('aporte') || denRaw.includes('contribucion')) {
+            campo = 'cargas_sociales'
+          } else if (denRaw.includes('indemn') || denRaw.includes('despido') || denRaw.includes('baja')) {
+            campo = 'indemnizaciones'
+          } else if (denRaw.includes('merito') || denRaw.includes('desempeño') || denRaw.includes('bono')) {
+            campo = 'tabla_merito'
+          }
 
-        const mesCell = row[colMes]
-        if (mesCell === undefined || mesCell === null || String(mesCell).trim() === '') continue
-        const cellStr = String(mesCell).toLowerCase().trim()
-        if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('suma')) continue
+          if (!campo) continue
 
-        const pk = parseMesUniversal(mesCell) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
-        if (!pk) continue
+          Object.entries(colToPeriodMap).forEach(([colStr, pk]) => {
+            const colIdx = Number(colStr)
+            const monto = parseMonto(row[colIdx])
+            if (monto === 0) return
 
-        const sueldos = colSueldo >= 0 ? parseMonto(row[colSueldo]) : 0
-        const cargas_sociales = colCCSS >= 0 ? parseMonto(row[colCCSS]) : 0
-        const indemnizaciones = colIndem >= 0 ? parseMonto(row[colIndem]) : 0
-        const tabla_merito = colMerito >= 0 ? parseMonto(row[colMerito]) : 0
+            if (!rrhhPorPeriodo[pk]) {
+              rrhhPorPeriodo[pk] = { sueldos: 0, cargas_sociales: 0, indemnizaciones: 0, tabla_merito: 0 }
+            }
+            rrhhPorPeriodo[pk][campo!] = (rrhhPorPeriodo[pk][campo!] || 0) + monto
+          })
+        }
+      } else {
+        // --- MODO B: TABLA VERTICAL (Columna Mes + columnas de conceptos por fila) ---
+        let headerIdx = -1
+        let colMes = -1
+        let colSueldo = -1
+        let colCCSS = -1
+        let colIndem = -1
+        let colMerito = -1
 
-        if (!rrhhPorPeriodo[pk]) {
-          rrhhPorPeriodo[pk] = { sueldos: 0, cargas_sociales: 0, indemnizaciones: 0, tabla_merito: 0 }
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+          const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
+          
+          const idxM = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'fecha' || c === 'date')
+          const idxS = r.findIndex(c => c.includes('sueldo') || c.includes('remunerativo') || c.includes('basico'))
+          const idxC = r.findIndex(c => c.includes('ccss') || c.includes('cargas') || c.includes('aporte') || c.includes('contribucion'))
+          const idxI = r.findIndex(c => c.includes('indemn') || c.includes('despido'))
+          const idxMer = r.findIndex(c => c.includes('merito') || c.includes('desempeño') || c.includes('bono'))
+
+          if (idxS >= 0 || idxC >= 0 || idxM >= 0) {
+            headerIdx = i
+            colMes = idxM >= 0 ? idxM : 0
+            colSueldo = idxS
+            colCCSS = idxC
+            colIndem = idxI
+            colMerito = idxMer
+            break
+          }
         }
 
-        rrhhPorPeriodo[pk].sueldos = (rrhhPorPeriodo[pk].sueldos || 0) + sueldos
-        rrhhPorPeriodo[pk].cargas_sociales = (rrhhPorPeriodo[pk].cargas_sociales || 0) + cargas_sociales
-        rrhhPorPeriodo[pk].indemnizaciones = (rrhhPorPeriodo[pk].indemnizaciones || 0) + indemnizaciones
-        rrhhPorPeriodo[pk].tabla_merito = (rrhhPorPeriodo[pk].tabla_merito || 0) + tabla_merito
+        if (headerIdx === -1) {
+          headerIdx = 0
+          colMes = 0
+          colSueldo = 1
+          colCCSS = 2
+          colIndem = 3
+          colMerito = 4
+        }
+
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+          const row = rows[i]
+          if (!row || row.length === 0) continue
+
+          const mesCell = row[colMes]
+          if (mesCell === undefined || mesCell === null || String(mesCell).trim() === '') continue
+          const cellStr = String(mesCell).toLowerCase().trim()
+          if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('suma')) continue
+
+          const pk = parseMesUniversal(mesCell) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
+          if (!pk) continue
+
+          const sueldos = colSueldo >= 0 ? parseMonto(row[colSueldo]) : 0
+          const cargas_sociales = colCCSS >= 0 ? parseMonto(row[colCCSS]) : 0
+          const indemnizaciones = colIndem >= 0 ? parseMonto(row[colIndem]) : 0
+          const tabla_merito = colMerito >= 0 ? parseMonto(row[colMerito]) : 0
+
+          if (!rrhhPorPeriodo[pk]) {
+            rrhhPorPeriodo[pk] = { sueldos: 0, cargas_sociales: 0, indemnizaciones: 0, tabla_merito: 0 }
+          }
+
+          rrhhPorPeriodo[pk].sueldos = (rrhhPorPeriodo[pk].sueldos || 0) + sueldos
+          rrhhPorPeriodo[pk].cargas_sociales = (rrhhPorPeriodo[pk].cargas_sociales || 0) + cargas_sociales
+          rrhhPorPeriodo[pk].indemnizaciones = (rrhhPorPeriodo[pk].indemnizaciones || 0) + indemnizaciones
+          rrhhPorPeriodo[pk].tabla_merito = (rrhhPorPeriodo[pk].tabla_merito || 0) + tabla_merito
+        }
       }
 
       const periodosDetectados = Object.keys(rrhhPorPeriodo).sort()
