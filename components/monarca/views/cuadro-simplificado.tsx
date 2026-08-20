@@ -239,6 +239,40 @@ export const LINEAS_PL: readonly { key: string; label: string; tipo: string; sec
   // RESULTADO TOTAL (ELIMINADO "Resultado Final")
   { key: 'resultadoTotal', label: 'Resultado Total (NETO)', tipo: 'resultado-total', seccion: 'Resultado Total', tooltip: 'Resultado supermercado + Ingresos financieros' },
 ] as const
+
+function getRatioPercentage(key: string, config: ConfiguracionPL | null): string | null {
+  if (!config?.ratios) return null
+
+  let ratioVal: number | undefined
+
+  switch (key) {
+    case 'iva':
+      ratioVal = config.ratios.iva
+      break
+    case 'rrhh':
+      ratioVal = config.ratios.rrhh
+      break
+    case 'costosFijos':
+      ratioVal = config.ratios.gastosComerciales
+      break
+    case 'impuestos':
+      ratioVal = config.ratios.impuestosOperativos
+      break
+    case 'merma':
+      ratioVal = config.ratios.merma
+      break
+    case 'ingresosFinancieros':
+      ratioVal = config.ratios.ingresosFinancieros
+      break
+  }
+
+  if (ratioVal !== undefined && ratioVal !== null && ratioVal > 0) {
+    return formatPercent(ratioVal * 100)
+  }
+
+  return null
+}
+
 export function CuadroSimplificado({
   periodoKey,
   onPeriodoChange,
@@ -581,6 +615,7 @@ export function CuadroSimplificado({
                     
                     const mostraSeparador = seccion !== seccionAnterior
                     seccionAnterior = seccion
+                    const ratioPct = getRatioPercentage(key, configuracionPL)
 
                     return (
                       <Fragment key={key}>
@@ -641,11 +676,19 @@ export function CuadroSimplificado({
                                   : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                               )}
                               <span className={cn(
-                                "font-medium text-sm",
+                                "font-medium text-sm flex items-center gap-1.5 flex-wrap",
                                 (tipo === 'resultado-principal' || tipo === 'resultado-final' || tipo === 'resultado-total') ? "" : "text-muted-foreground",
                                 tipo === 'resultado-total' && "text-primary-foreground"
                               )}>
-                                {label}
+                                <span>{label}</span>
+                                {ratioPct && (
+                                  <span className={cn(
+                                    "font-mono text-xs opacity-80 px-1.5 py-0.5 rounded bg-muted/60 font-normal border border-border/40",
+                                    tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                                  )}>
+                                    ({ratioPct})
+                                  </span>
+                                )}
                               </span>
                               {tooltip && (
                                 <span title={tooltip} className="inline-flex">
