@@ -385,7 +385,7 @@ export function CargaCostosFijos({
     }
 
     // 14. Ingresos Financieros
-    if (d.includes('operatoria financiera') || d.includes('intereses ganados')) {
+    if (d.includes('operatoria') || d.includes('intereses ganados')) {
       return { tipo: 'ingreso', campo: 'operatoria_financiera' }
     }
     if (d.includes('rendimiento') || d.includes('inversion') || d.includes('fci') || d.includes('plazo fijo')) {
@@ -414,7 +414,7 @@ export function CargaCostosFijos({
     return { tipo: 'costo', campo: 'otros_gastos' }
   }
 
-  // Procesar archivo Excel/CSV con lectura universal XLSX y soporte dual (matriz horizontal vs tabla vertical)
+  // Procesar archivo Excel/CSV con lectura universal XLSX y soporte tri-modal (Matriz horizontal vs Tabla vertical vs Multi-columna de conceptos)
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -440,30 +440,27 @@ export function CargaCostosFijos({
         if (typeof val === 'number') return isNaN(val) ? 0 : val
         if (typeof val === 'string') {
           let clean = val.trim()
-          // Remover símbolo de moneda y caracteres no numéricos excepto ., - y dígitos
           clean = clean.replace(/[^0-9.,-]/g, '')
           
-          // Contar ocurrencias de puntos y comas
           const dots = (clean.match(/\./g) || []).length
           const commas = (clean.match(/,/g) || []).length
           
           if (dots === 1 && commas === 0) {
-            // Caso: "123456.78" -> Formato US/Estándar con punto decimal
-            // No hacemos nada, ya está en formato estándar para parseFloat
+            // "123456.78"
           } else if (commas === 1 && dots === 0) {
-            // Caso: "123456,78" -> Formato ES con coma decimal
+            // "123456,78"
             clean = clean.replace(',', '.')
           } else if (dots > 0 && commas === 1) {
-            // Caso: "123.456,78" -> Puntos son miles, coma es decimal
+            // "123.456,78"
             clean = clean.replace(/\./g, '').replace(',', '.')
           } else if (commas > 0 && dots === 1) {
-            // Caso: "123,456.78" -> Comas son miles, punto es decimal
+            // "123,456.78"
             clean = clean.replace(/,/g, '')
           } else if (dots > 1 && commas === 0) {
-            // Caso: "1.234.567" -> Puntos son miles, sin decimales
+            // "1.234.567"
             clean = clean.replace(/\./g, '')
           } else if (commas > 1 && dots === 0) {
-            // Caso: "1,234,567" -> Comas son miles, sin decimales
+            // "1,234,567"
             clean = clean.replace(/,/g, '')
           }
           
@@ -471,7 +468,6 @@ export function CargaCostosFijos({
         }
         return 0
       }
-
 
       // 1. DETECTAR SI ES MATRIZ HORIZONTAL (Meses en las cabeceras de columnas)
       let horizontalHeaderIdx = -1
@@ -533,57 +529,134 @@ export function CargaCostosFijos({
           })
         }
       } else {
-        // --- MODO B: TABLA VERTICAL (Columna Mes por fila) ---
-        let headerIdx = -1
-        let colMes = -1
-        let colDenominacion = -1
-        let colMonto = -1
+        // 2. DETECTAR SI ES TABLA MULTI-COLUMNA POR CONCEPTO (Columna A es Mes, columnas B/C son nombres de subcuentas)
+        // Ejemplo: Mes | Rendimientos Financieros | Operatoria Financiera
+        let multiConceptHeaderIdx = -1
+        let colMesMulti = -1
+        const conceptColsMap: Record<number, { tipo: 'costo' | 'ingreso'; campo: string }> = {}
 
-        for (let i = 0; i < Math.min(10, rows.length); i++) {
-          const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
-          const idxMes = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'period' || c === 'fecha' || c === 'date')
-          const idxDen = r.findIndex(c => c === 'denominacion' || c === 'concepto' || c === 'descripcion' || c === 'subcuenta' || c === 'cuenta' || c === 'nombre' || c === 'rubro')
-          const idxMon = r.findIndex(c => c === 'total' || c === 'monto' || c === 'importe' || c === 'valor' || c === 'precio')
+        for (let i = 0; i < Math.min(5, rows.length); i++) {
+          const r = rows[i] || []
+          const rLower = r.map((c: any) => String(c || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
+          const idxMes = rLower.findIndex(c => c === 'mes' || c === 'periodo' || c === 'period' || c === 'fecha' || c === 'date')
 
-          if (idxDen >= 0 || idxMon >= 0 || idxMes >= 0) {
-            headerIdx = i
-            colMes = idxMes
-            colDenominacion = idxDen >= 0 ? idxDen : 0
-            colMonto = idxMon >= 0 ? idxMon : (idxDen === 0 ? 1 : 0)
-            break
+          if (idxMes >= 0) {
+            let matchedConcepts = 0
+            const tempMap: Record<number, { tipo: 'costo' | 'ingreso'; campo: string }> = {}
+
+            r.forEach((cell: any, colIdx: number) => {
+              if (colIdx === idxMes) return
+              const cellStr = String(cell || '').trim()
+              if (!cellStr || cellStr.toLowerCase().includes('total')) return
+
+              const mapeo = mapDenominacion(cellStr)
+              if (
+                cellStr.toLowerCase().includes('rendimiento') ||
+                cellStr.toLowerCase().includes('operatoria') ||
+                cellStr.toLowerCase().includes('alquiler') ||
+                cellStr.toLowerCase().includes('honorario') ||
+                cellStr.toLowerCase().includes('tasa') ||
+                cellStr.toLowerCase().includes('sueldo') ||
+                cellStr.toLowerCase().includes('mantenimiento') ||
+                cellStr.toLowerCase().includes('servicio') ||
+                cellStr.toLowerCase().includes('bancario') ||
+                cellStr.toLowerCase().includes('seguridad') ||
+                cellStr.toLowerCase().includes('interes') ||
+                cellStr.toLowerCase().includes('gastos')
+              ) {
+                tempMap[colIdx] = mapeo
+                matchedConcepts++
+              }
+            })
+
+            if (matchedConcepts >= 1) {
+              multiConceptHeaderIdx = i
+              colMesMulti = idxMes
+              Object.assign(conceptColsMap, tempMap)
+              break
+            }
           }
         }
 
-        if (headerIdx === -1) headerIdx = 0
-        if (colDenominacion === -1) colDenominacion = 0
-        if (colMonto === -1) colMonto = 1
-        if (colMes === -1 && (rows[0] || []).length >= 3) colMes = 2
+        if (multiConceptHeaderIdx >= 0) {
+          // --- MODO C: TABLA MULTI-COLUMNA DE CONCEPTOS (Fila por Mes, Columna por Subcuenta) ---
+          for (let i = multiConceptHeaderIdx + 1; i < rows.length; i++) {
+            const row = rows[i]
+            if (!row || row.length === 0) continue
 
-        for (let i = headerIdx + 1; i < rows.length; i++) {
-          const row = rows[i]
-          if (!row || row.length === 0) continue
+            const rawMes = row[colMesMulti]
+            if (rawMes === undefined || rawMes === null) continue
 
-          const denRaw = String(row[colDenominacion] ?? '').trim()
-          if (!denRaw || denRaw.toLowerCase().startsWith('instruccion') || denRaw.toLowerCase().startsWith('total')) continue
+            const pk = parseMesUniversal(rawMes)
+            if (!pk) continue
 
-          const monto = parseMonto(row[colMonto])
-          if (monto === 0) continue
+            Object.entries(conceptColsMap).forEach(([colStr, mapeo]) => {
+              const colIdx = Number(colStr)
+              const monto = parseMonto(row[colIdx])
+              if (monto === 0) return
 
-          let periodoTarget = periodoKey
-          if (colMes >= 0 && row[colMes] !== undefined && row[colMes] !== null && String(row[colMes]).trim()) {
-            const cellStr = String(row[colMes]).trim().toLowerCase()
-            if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('consolidado') || cellStr.includes('suma')) continue
-            const parsed = parseMesUniversal(row[colMes])
-            if (parsed) periodoTarget = parsed
+              if (mapeo.tipo === 'costo') {
+                if (!costosPorPeriodo[pk]) costosPorPeriodo[pk] = {}
+                costosPorPeriodo[pk][mapeo.campo] = (costosPorPeriodo[pk][mapeo.campo] || 0) + monto
+              } else {
+                if (!ingresosPorPeriodo[pk]) ingresosPorPeriodo[pk] = {}
+                ingresosPorPeriodo[pk][mapeo.campo] = (ingresosPorPeriodo[pk][mapeo.campo] || 0) + monto
+              }
+            })
+          }
+        } else {
+          // --- MODO B: TABLA VERTICAL ESTÁNDAR (Fila por Concepto/Monto) ---
+          let headerIdx = -1
+          let colMes = -1
+          let colDenominacion = -1
+          let colMonto = -1
+
+          for (let i = 0; i < Math.min(10, rows.length); i++) {
+            const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
+            const idxMes = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'period' || c === 'fecha' || c === 'date')
+            const idxDen = r.findIndex(c => c === 'denominacion' || c === 'concepto' || c === 'descripcion' || c === 'subcuenta' || c === 'cuenta' || c === 'nombre' || c === 'rubro')
+            const idxMon = r.findIndex(c => c === 'total' || c === 'monto' || c === 'importe' || c === 'valor' || c === 'precio')
+
+            if (idxDen >= 0 || idxMon >= 0 || idxMes >= 0) {
+              headerIdx = i
+              colMes = idxMes
+              colDenominacion = idxDen >= 0 ? idxDen : 0
+              colMonto = idxMon >= 0 ? idxMon : (idxDen === 0 ? 1 : 0)
+              break
+            }
           }
 
-          const mapeo = mapDenominacion(denRaw)
-          if (mapeo.tipo === 'costo') {
-            if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
-            costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
-          } else {
-            if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
-            ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+          if (headerIdx === -1) headerIdx = 0
+          if (colDenominacion === -1) colDenominacion = 0
+          if (colMonto === -1) colMonto = 1
+          if (colMes === -1 && (rows[0] || []).length >= 3) colMes = 2
+
+          for (let i = headerIdx + 1; i < rows.length; i++) {
+            const row = rows[i]
+            if (!row || row.length === 0) continue
+
+            const denRaw = String(row[colDenominacion] ?? '').trim()
+            if (!denRaw || denRaw.toLowerCase().startsWith('instruccion') || denRaw.toLowerCase().startsWith('total')) continue
+
+            const monto = parseMonto(row[colMonto])
+            if (monto === 0) continue
+
+            let periodoTarget = periodoKey
+            if (colMes >= 0 && row[colMes] !== undefined && row[colMes] !== null && String(row[colMes]).trim()) {
+              const cellStr = String(row[colMes]).trim().toLowerCase()
+              if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('consolidado') || cellStr.includes('suma')) continue
+              const parsed = parseMesUniversal(row[colMes])
+              if (parsed) periodoTarget = parsed
+            }
+
+            const mapeo = mapDenominacion(denRaw)
+            if (mapeo.tipo === 'costo') {
+              if (!costosPorPeriodo[periodoTarget]) costosPorPeriodo[periodoTarget] = {}
+              costosPorPeriodo[periodoTarget][mapeo.campo] = (costosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+            } else {
+              if (!ingresosPorPeriodo[periodoTarget]) ingresosPorPeriodo[periodoTarget] = {}
+              ingresosPorPeriodo[periodoTarget][mapeo.campo] = (ingresosPorPeriodo[periodoTarget][mapeo.campo] || 0) + monto
+            }
           }
         }
       }
