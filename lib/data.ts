@@ -38,6 +38,9 @@ export interface CuadroResultadoLinea {
   ingresosFinancieros: number // Ingresos financieros (TOTAL)
   ingresosFinancierosSubcuentas: IngresosFinancierosSubcuentasDetalle // Detalle de subcuentas Ingresos Financieros
   resultadoTotal: number // = Resultado supermercado + Ingresos financieros (RESULTADO FINAL)
+  esRRHHEstimado?: boolean
+  esCostosFijosEstimado?: boolean
+  esIngresosFinancierosEstimado?: boolean
 }
 
 // Subcuentas detalladas de RRHH

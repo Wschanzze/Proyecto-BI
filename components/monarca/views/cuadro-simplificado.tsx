@@ -62,11 +62,13 @@ export function calcularCuadroResultado(
   // RRHH: usar datos reales si existen, sino usar ratio
   let rrhh: number
   let subcuentasRRHH: RRHHSubcuentasDetalle
+  let esRRHHEstimado = false
   
-  if (rrhhSubcuentas && rrhhSubcuentas.sueldos > 0) {
+  if (rrhhSubcuentas && (rrhhSubcuentas.sueldos > 0 || rrhhSubcuentas.cargas_sociales > 0)) {
     rrhh = rrhhSubcuentas.sueldos + rrhhSubcuentas.cargas_sociales + 
            rrhhSubcuentas.indemnizaciones + rrhhSubcuentas.tabla_merito
     subcuentasRRHH = rrhhSubcuentas
+    esRRHHEstimado = false
   } else {
     rrhh = ventasSinIva * config.ratios.rrhh
     subcuentasRRHH = {
@@ -75,13 +77,28 @@ export function calcularCuadroResultado(
       indemnizaciones: 0,
       tabla_merito: 0,
     }
+    esRRHHEstimado = true
   }
   
   // COSTOS FIJOS: usar datos reales si existen, sino usar ratio
   let costosFijos: number
   let subcuentasCostosFijos: CostosFijosSubcuentasDetalle
+  let esCostosFijosEstimado = false
   
-  if (costosFijosSubcuentas && costosFijosSubcuentas.alquileres > 0) {
+  if (costosFijosSubcuentas && (
+    costosFijosSubcuentas.alquileres > 0 ||
+    costosFijosSubcuentas.honorarios > 0 ||
+    costosFijosSubcuentas.tasas_servicios > 0 ||
+    costosFijosSubcuentas.mantenimiento_servicios_tecnicos > 0 ||
+    costosFijosSubcuentas.seguridad_vigilancia > 0 ||
+    costosFijosSubcuentas.otros_servicios > 0 ||
+    costosFijosSubcuentas.gastos_personal > 0 ||
+    costosFijosSubcuentas.otros_gastos > 0 ||
+    costosFijosSubcuentas.comisiones_gastos_bancarios > 0 ||
+    costosFijosSubcuentas.gastos_comercializacion > 0 ||
+    costosFijosSubcuentas.gastos_administracion > 0 ||
+    costosFijosSubcuentas.gastos_financiacion > 0
+  )) {
     costosFijos = costosFijosSubcuentas.alquileres + costosFijosSubcuentas.honorarios +
                   costosFijosSubcuentas.tasas_servicios + costosFijosSubcuentas.mantenimiento_servicios_tecnicos +
                   costosFijosSubcuentas.perdida_gestion_inventarios + costosFijosSubcuentas.seguridad_vigilancia +
@@ -91,6 +108,7 @@ export function calcularCuadroResultado(
                   costosFijosSubcuentas.gastos_administracion + costosFijosSubcuentas.gastos_financiacion +
                   costosFijosSubcuentas.diferencias_caja_perdida
     subcuentasCostosFijos = costosFijosSubcuentas
+    esCostosFijosEstimado = false
   } else {
     costosFijos = ventasSinIva * config.ratios.gastosComerciales
     subcuentasCostosFijos = {
@@ -110,6 +128,7 @@ export function calcularCuadroResultado(
       gastos_financiacion: costosFijos * 0.02,
       diferencias_caja_perdida: costosFijos * 0.01,
     }
+    esCostosFijosEstimado = true
   }
   
   const resultadoOperativo = contribucionMarginal - rrhh - costosFijos
@@ -120,16 +139,19 @@ export function calcularCuadroResultado(
   // INGRESOS FINANCIEROS: usar datos reales si existen, sino usar ratio
   let ingresosFinancieros: number
   let subcuentasIngresosFinancieros: IngresosFinancierosSubcuentasDetalle
+  let esIngresosFinancierosEstimado = false
   
   if (ingresosFinancierosSubcuentas && (ingresosFinancierosSubcuentas.operatoria_financiera > 0 || ingresosFinancierosSubcuentas.rendimientos_financieros > 0)) {
     ingresosFinancieros = ingresosFinancierosSubcuentas.operatoria_financiera + ingresosFinancierosSubcuentas.rendimientos_financieros
     subcuentasIngresosFinancieros = ingresosFinancierosSubcuentas
+    esIngresosFinancierosEstimado = false
   } else {
     ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
     subcuentasIngresosFinancieros = {
       operatoria_financiera: ingresosFinancieros * 0.70, // 70% operatoria
       rendimientos_financieros: ingresosFinancieros * 0.30, // 30% rendimientos
     }
+    esIngresosFinancierosEstimado = true
   }
   
   // RESULTADO TOTAL = Resultado Supermercado + Ingresos Financieros (ELIMINADO Resultado Final)
@@ -152,6 +174,9 @@ export function calcularCuadroResultado(
     ingresosFinancieros,
     ingresosFinancierosSubcuentas: subcuentasIngresosFinancieros,
     resultadoTotal,
+    esRRHHEstimado,
+    esCostosFijosEstimado,
+    esIngresosFinancierosEstimado,
   }
 }
 // Generar KPIs complementarios usando configuración dinámica
@@ -282,11 +307,11 @@ function isCellEstimada(key: string, pl: CuadroResultadoLinea | null): boolean {
     case 'merma':
       return true
     case 'rrhh':
-      return !pl.rrhhSubcuentas || (pl.rrhhSubcuentas.sueldos === 0 && pl.rrhhSubcuentas.cargas_sociales === 0)
+      return pl.esRRHHEstimado ?? true
     case 'costosFijos':
-      return !pl.costosFijosSubcuentas || (pl.costosFijosSubcuentas.alquileres === 0 && pl.costosFijosSubcuentas.tasas_servicios === 0 && pl.costosFijosSubcuentas.otros_servicios === 0 && pl.costosFijosSubcuentas.gastos_personal === 0)
+      return pl.esCostosFijosEstimado ?? true
     case 'ingresosFinancieros':
-      return !pl.ingresosFinancierosSubcuentas || (pl.ingresosFinancierosSubcuentas.operatoria_financiera === 0 && pl.ingresosFinancierosSubcuentas.rendimientos_financieros === 0)
+      return pl.esIngresosFinancierosEstimado ?? true
     default:
       return false
   }
@@ -660,6 +685,12 @@ export function CuadroSimplificado({
                     const ratioPct = getRatioPercentage(key, configuracionPL)
                     const estInfo = getEstimacionInfo(key, periodosVisibles)
 
+                    const tooltipEstimacion = estInfo.mesesEstimados === 0
+                      ? `Ratio de supuesto (${ratioPct}). Todos los ${estInfo.totalMeses} meses visibles tienen datos reales cargados.`
+                      : estInfo.mesesEstimados < estInfo.totalMeses
+                        ? `Ratio de supuesto (${ratioPct}). Se aplica únicamente en los meses sin carga real (${estInfo.mesesEstimadosNombres.join(', ')}). Los otros ${estInfo.mesesReales} meses son datos reales.`
+                        : `Ratio de supuesto (${ratioPct}). Se aplica en todos los ${estInfo.totalMeses} meses visibles.`
+
                     return (
                       <Fragment key={key}>
                         {/* Encabezado de sección */}
@@ -725,32 +756,17 @@ export function CuadroSimplificado({
                               )}>
                                 <span>{label}</span>
                                 {ratioPct && (
-                                  <span className={cn(
-                                    "font-mono text-xs opacity-80 px-1.5 py-0.5 rounded bg-muted/60 font-normal border border-border/40",
-                                    tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
-                                  )}>
-                                    ({ratioPct})
-                                  </span>
-                                )}
-                                {ratioPct && (
                                   <span
-                                    title={
-                                      estInfo.mesesEstimados === 0
-                                        ? `Todos los ${estInfo.totalMeses} meses visibles tienen datos reales cargados`
-                                        : `Meses estimados (${estInfo.mesesEstimados}/${estInfo.totalMeses}): ${estInfo.mesesEstimadosNombres.join(', ')}`
-                                    }
+                                    title={tooltipEstimacion}
                                     className={cn(
-                                      "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help",
-                                      estInfo.mesesEstimados === 0 && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 font-semibold",
-                                      estInfo.mesesEstimados > 0 && estInfo.mesesEstimados < estInfo.totalMeses && "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 font-semibold",
-                                      estInfo.mesesEstimados === estInfo.totalMeses && "bg-muted/60 text-muted-foreground border-border/40"
+                                      "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help transition-colors",
+                                      estInfo.mesesEstimados > 0 && estInfo.mesesEstimados < estInfo.totalMeses
+                                        ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 font-medium"
+                                        : "bg-muted/60 text-muted-foreground border-border/40",
+                                      tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
                                     )}
                                   >
-                                    {estInfo.mesesEstimados === 0
-                                      ? `(0 de ${estInfo.totalMeses} mes est. — Real)`
-                                      : estInfo.mesesEstimados < estInfo.totalMeses
-                                        ? `(${estInfo.mesesEstimados} de ${estInfo.totalMeses} mes est.: ${estInfo.mesesEstimadosNombres.join(', ')})`
-                                        : `(${estInfo.totalMeses} de ${estInfo.totalMeses} mes est.)`}
+                                    ({ratioPct})
                                   </span>
                                 )}
                               </span>
@@ -792,7 +808,10 @@ export function CuadroSimplificado({
                                 tipo === 'resultado-total' && "bg-primary text-primary-foreground font-bold",
                                 tipo === 'ingreso-base' && "bg-success/3",
                               )}>
-                                <div className="flex flex-col items-end gap-0.5">
+                                <div 
+                                  title={ratioPct ? (esEstimadoCell ? `Monto estimado según supuesto (${ratioPct})` : `Dato real cargado`) : undefined}
+                                  className="flex flex-col items-end gap-0.5"
+                                >
                                   <span className={cn(
                                     tipo === 'resultado-total' && "text-primary-foreground font-bold",
                                     (tipo === 'gasto-op' || tipo === 'costo') && valor > 0 && "text-destructive/80",
@@ -804,23 +823,6 @@ export function CuadroSimplificado({
                                   )}>
                                     {formatCurrency(valor)}
                                   </span>
-                                  {ratioPct && (
-                                    <span
-                                      title={
-                                        esEstimadoCell
-                                          ? `Estimado según supuesto (${ratioPct}) — No se cargaron datos reales para este período`
-                                          : `Dato real cargado en el sistema para este período`
-                                      }
-                                      className={cn(
-                                        "text-[10px] font-mono font-medium px-1.5 py-0.2 rounded mt-0.5 inline-block cursor-help",
-                                        esEstimadoCell
-                                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                                      )}
-                                    >
-                                      {esEstimadoCell ? `(est. ${ratioPct})` : `(real)`}
-                                    </span>
-                                  )}
                                   {porcentajeResultadoTotal !== null && (
                                     <span className="text-[10px] text-primary-foreground/70 font-medium">
                                       {formatPercent(porcentajeResultadoTotal)} s/Ventas
