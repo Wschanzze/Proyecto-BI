@@ -185,7 +185,7 @@ export function MetricasAdmin() {
         subtitle="Administrá los ratios, impuestos y estimaciones que se usan en el Cuadro de Resultado Mensual."
         actions={
           <div className="flex items-center gap-2">
-            <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+            <Select value={categoriaFiltro} onValueChange={(val) => { if (val) setCategoriaFiltro(val) }}>
               <SelectTrigger className="w-[180px] bg-card">
                 <SelectValue placeholder="Filtrar por categoría" />
               </SelectTrigger>

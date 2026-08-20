@@ -213,7 +213,7 @@ function VariacionCell({ actual, anterior, esTotalNeto }: { actual: number; ante
 }
 
 // Definición de líneas del P&L con categorías de agrupación
-export const LINEAS_PL = [
+export const LINEAS_PL: readonly { key: string; label: string; tipo: string; seccion: string; tooltip: string }[] = [
   // INGRESOS
   { key: 'facturacion', label: 'Facturación', tipo: 'ingreso', seccion: 'Ingresos', tooltip: 'Facturación total incluyendo IVA' },
   { key: 'iva', label: 'IVA', tipo: 'separado', seccion: 'Ingresos', tooltip: 'Impuesto al Valor Agregado' },
@@ -372,8 +372,11 @@ export function CuadroSimplificado({
     )
   }
 
-  // Tomar los últimos 6 períodos para visualización
-  const periodosVisibles = cuadrosResultado.slice(-6)
+  // Intentar mostrar los 6 períodos que terminen en el período seleccionado, o por defecto los últimos 6
+  const selectedIdx = cuadrosResultado.findIndex(c => c.periodo.key === periodoKey)
+  const periodosVisibles = selectedIdx >= 0
+    ? cuadrosResultado.slice(Math.max(0, selectedIdx - 5), selectedIdx + 1)
+    : cuadrosResultado.slice(-6)
   return (
     <div className="space-y-6">
       <PageHeader

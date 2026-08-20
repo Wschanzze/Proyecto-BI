@@ -453,7 +453,7 @@ export function DashboardView({
               <span className="text-xs font-medium text-muted-foreground">Comparar:</span>
               <Select 
                 value={anioComparacion.base} 
-                onValueChange={(value) => setAnioComparacion(prev => ({ ...prev, base: value }))}
+                onValueChange={(value) => { if (value) setAnioComparacion(prev => ({ ...prev, base: value })) }}
               >
                 <SelectTrigger className="w-[80px] bg-card h-8">
                   <SelectValue />
@@ -467,7 +467,7 @@ export function DashboardView({
               <span className="text-xs text-muted-foreground">vs</span>
               <Select 
                 value={anioComparacion.comparacion} 
-                onValueChange={(value) => setAnioComparacion(prev => ({ ...prev, comparacion: value }))}
+                onValueChange={(value) => { if (value) setAnioComparacion(prev => ({ ...prev, comparacion: value })) }}
               >
                 <SelectTrigger className="w-[80px] bg-card h-8">
                   <SelectValue />
@@ -481,7 +481,7 @@ export function DashboardView({
             </div>
 
             {/* Filtro de Sucursal */}
-            <Select value={sucursalId} onValueChange={onSucursalChange}>
+            <Select value={sucursalId} onValueChange={(value) => { if (value) onSucursalChange(value) }}>
               <SelectTrigger className="w-[160px] bg-card h-8">
                 <SelectValue placeholder="Sucursal" />
               </SelectTrigger>

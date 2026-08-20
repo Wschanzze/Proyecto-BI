@@ -48,7 +48,7 @@ export function PeriodoSelector({
   const finalOpciones = opciones.length > 0 ? opciones : PERIODOS_SELECCIONABLES
   const reverseOps = [...finalOpciones].reverse()
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={(val) => { if (val) onChange(val) }}>
       <SelectTrigger className="w-[180px] bg-card">
         <SelectValue />
       </SelectTrigger>
@@ -81,7 +81,7 @@ export function FiltrosSelector({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Selector de Sucursal */}
-      <Select value={sucursalId} onValueChange={onSucursalChange}>
+      <Select value={sucursalId} onValueChange={(val) => { if (val) onSucursalChange(val) }}>
         <SelectTrigger className="w-[180px] bg-card">
           <SelectValue placeholder="Sucursal" />
         </SelectTrigger>
@@ -96,7 +96,7 @@ export function FiltrosSelector({
       </Select>
 
       {/* Selector de Período */}
-      <Select value={periodoKey} onValueChange={onPeriodoChange}>
+      <Select value={periodoKey} onValueChange={(val) => { if (val) onPeriodoChange(val) }}>
         <SelectTrigger className="w-[160px] bg-card">
           <SelectValue placeholder="Período" />
         </SelectTrigger>

@@ -127,6 +127,7 @@ export async function POST(req: Request) {
     if (!file) {
       return NextResponse.json({ error: 'No se subió ningún archivo' }, { status: 400 })
     }
+    const fileName = file.name
 
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true })
@@ -199,7 +200,7 @@ export async function POST(req: Request) {
             anio: pInfo.anio,
             mes: pInfo.mes,
             label: pInfo.label,
-            archivo_nombre: file.name
+            archivo_nombre: fileName
           }, { onConflict: 'key' })
           .select('id, label')
           .single()

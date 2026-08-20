@@ -3,7 +3,7 @@
 import { LayoutDashboard, Table2, LineChart, TrendingUp, Calendar, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type TabId = "dashboard" | "detallado" | "simplificado" | "proyectado" | "estacionalidad"
+export type TabId = "dashboard" | "detallado" | "simplificado" | "proyectado" | "estacionalidad" | "cargar"
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },

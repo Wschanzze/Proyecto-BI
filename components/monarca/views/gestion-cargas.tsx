@@ -739,7 +739,7 @@ export function GestionCargas() {
               <Building2 className="h-5 w-5 text-primary" />
               <span className="font-semibold text-sm">Sucursal</span>
             </div>
-            <Select value={sucursalSeleccionada} onValueChange={setSucursalSeleccionada}>
+            <Select value={sucursalSeleccionada} onValueChange={(val) => { if (val) setSucursalSeleccionada(val) }}>
               <SelectTrigger className="bg-card">
                 <SelectValue />
               </SelectTrigger>
@@ -763,7 +763,7 @@ export function GestionCargas() {
                 <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 border border-amber-400/40">MULTI-PERÍODO</span>
               )}
             </div>
-            <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado}>
+            <Select value={periodoSeleccionado} onValueChange={(val) => { if (val) setPeriodoSeleccionado(val) }}>
               <SelectTrigger className="bg-card">
                 <SelectValue />
               </SelectTrigger>

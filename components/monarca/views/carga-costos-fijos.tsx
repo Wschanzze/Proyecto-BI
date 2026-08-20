@@ -85,7 +85,7 @@ export function CargaCostosFijos({
   sucursales: DBSucursal[]
 }) {
   const [loading, setLoading] = useState(false)
-  const [resultado, setResultado] = useState<{ success: boolean; message: string; detalles?: any[] } | null>(null)
+  const [resultado, setResultado] = useState<{ success: boolean; message: string; tipoDetalle?: 'sucursales' | 'periodos'; detalles?: any[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [costosFijos, setCostosFijos] = useState<CostosFijosForm>({
@@ -362,11 +362,39 @@ export function CargaCostosFijos({
       const parseMonto = (val: any): number => {
         if (typeof val === 'number') return isNaN(val) ? 0 : val
         if (typeof val === 'string') {
-          const clean = val.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')
+          let clean = val.trim()
+          // Remover símbolo de moneda y caracteres no numéricos excepto ., - y dígitos
+          clean = clean.replace(/[^0-9.,-]/g, '')
+          
+          // Contar ocurrencias de puntos y comas
+          const dots = (clean.match(/\./g) || []).length
+          const commas = (clean.match(/,/g) || []).length
+          
+          if (dots === 1 && commas === 0) {
+            // Caso: "123456.78" -> Formato US/Estándar con punto decimal
+            // No hacemos nada, ya está en formato estándar para parseFloat
+          } else if (commas === 1 && dots === 0) {
+            // Caso: "123456,78" -> Formato ES con coma decimal
+            clean = clean.replace(',', '.')
+          } else if (dots > 0 && commas === 1) {
+            // Caso: "123.456,78" -> Puntos son miles, coma es decimal
+            clean = clean.replace(/\./g, '').replace(',', '.')
+          } else if (commas > 0 && dots === 1) {
+            // Caso: "123,456.78" -> Comas son miles, punto es decimal
+            clean = clean.replace(/,/g, '')
+          } else if (dots > 1 && commas === 0) {
+            // Caso: "1.234.567" -> Puntos son miles, sin decimales
+            clean = clean.replace(/\./g, '')
+          } else if (commas > 1 && dots === 0) {
+            // Caso: "1,234,567" -> Comas son miles, sin decimales
+            clean = clean.replace(/,/g, '')
+          }
+          
           return parseFloat(clean) || 0
         }
         return 0
       }
+
 
       // 1. DETECTAR SI ES MATRIZ HORIZONTAL (Meses en las cabeceras de columnas)
       let horizontalHeaderIdx = -1
@@ -519,6 +547,7 @@ export function CargaCostosFijos({
         setResultado({
           success: true,
           message: `✅ ${periodosDetectados.length} períodos procesados correctamente: ${periodosDetectados.join(', ')}`,
+          tipoDetalle: 'periodos',
           detalles: periodosDetectados.map(pk => ({
             sucursalId: pk,
             porcentaje: 100 / periodosDetectados.length,
@@ -663,7 +692,7 @@ Rendimientos Financieros,0,${periodoKey}`
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Select value={periodoInterno} onValueChange={setPeriodoInterno}>
+          <Select value={periodoInterno} onValueChange={(val) => { if (val) setPeriodoInterno(val) }}>
             <SelectTrigger className="bg-card">
               <SelectValue />
             </SelectTrigger>
@@ -952,11 +981,25 @@ Rendimientos Financieros,0,${periodoKey}`
                 </p>
                 {resultado.detalles && (
                   <div className="mt-3 space-y-1 text-sm">
-                    <p className="font-medium">Distribución por sucursal:</p>
+                    <p className="font-medium">
+                      {resultado.tipoDetalle === 'periodos' ? 'Resumen por período:' : 'Distribución por sucursal:'}
+                    </p>
                     {resultado.detalles.map((detalle, idx) => (
                       <div key={idx} className="flex justify-between text-muted-foreground">
-                        <span>{detalle.sucursalId}</span>
-                        <span>{detalle.porcentaje.toFixed(2)}% → {formatCurrency(detalle.total)}</span>
+                        <span>
+                          {resultado.tipoDetalle === 'periodos' 
+                            ? `Período ${detalle.sucursalId}` 
+                            : (detalle.sucursalId === 'colon' ? 'Colón' : 
+                               detalle.sucursalId === 'san-martin' ? 'San Martín' : 
+                               detalle.sucursalId === 'falucho' ? 'Falucho' : 
+                               detalle.sucursalId === 'peron' ? 'Perón' : 
+                               detalle.sucursalId === 'virtual' ? 'Virtual' : detalle.sucursalId)}
+                        </span>
+                        <span>
+                          {resultado.tipoDetalle === 'periodos' 
+                            ? formatCurrency(detalle.total)
+                            : `${detalle.porcentaje.toFixed(2)}% → ${formatCurrency(detalle.total)}`}
+                        </span>
                       </div>
                     ))}
                   </div>
