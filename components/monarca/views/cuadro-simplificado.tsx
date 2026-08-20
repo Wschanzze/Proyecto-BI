@@ -763,35 +763,25 @@ export function CuadroSimplificado({
                                 <span>{label}</span>
                                 {ratioPct && (() => {
                                    if (estInfo.mesesEstimados === 0) {
-                                     return (
-                                       <span
-                                         title={`Datos 100% Reales. Todos los ${estInfo.totalMeses} meses visibles contienen información real cargada en la base de datos.`}
-                                         className="font-sans text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-700/50 flex items-center gap-1 cursor-help"
-                                       >
-                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                         Real
-                                       </span>
-                                     )
+                                     // Si todos los meses son reales, NO mostrar ninguna insignia ni porcentaje (se entiende que es real)
+                                     return null
                                    }
                                    if (estInfo.mesesEstimados < estInfo.totalMeses) {
                                      return (
                                        <span
-                                         title={`Mezcla de datos: ${estInfo.mesesReales} meses reales y ${estInfo.mesesEstimados} proyectados con ratio de supuesto del ${ratioPct}.`}
+                                         title={`Mezcla de datos: ${estInfo.mesesReales} meses reales y ${estInfo.mesesEstimados} estimados con ratio de supuesto del ${ratioPct}.`}
                                          className="font-sans text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-700 border border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700/50 flex items-center gap-1 cursor-help"
                                        >
-                                         Mix ({estInfo.mesesReales}R / {estInfo.mesesEstimados}P)
+                                         ({ratioPct} Est. en {estInfo.mesesEstimados}/{estInfo.totalMeses}m)
                                        </span>
                                      )
                                    }
                                    return (
                                      <span
-                                       title={`Proyectado: Se aplica el ratio de supuesto del ${ratioPct} en todos los ${estInfo.totalMeses} meses.`}
-                                       className={cn(
-                                         "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help transition-colors bg-muted/60 text-muted-foreground border-border/40",
-                                         tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
-                                       )}
+                                       title={`Proyectado: Se aplica el ratio de supuesto del ${ratioPct} en todos los ${estInfo.totalMeses} meses por no contar con carga real.`}
+                                       className="font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help transition-colors bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"
                                      >
-                                       ({ratioPct} Proyectado)
+                                       ({ratioPct} Est.)
                                      </span>
                                    )
                                  })()}
@@ -856,14 +846,6 @@ export function CuadroSimplificado({
                                       {formatPercent(porcentajeContribucion)} s/Ventas
                                     </span>
                                   )}
-                                  {ratioPct && ventasSinIva > 0 && key !== 'resultadoTotal' && key !== 'contribucionMarginal' && (
-                                     <span className={cn(
-                                       "text-[10px] font-mono font-medium",
-                                       esEstimadoCell ? "text-amber-600/80 dark:text-amber-400/80" : "text-emerald-600/80 dark:text-emerald-400/80"
-                                     )}>
-                                       {formatPercent((valor / ventasSinIva) * 100)} {esEstimadoCell ? '(Est.)' : '(Real)'}
-                                     </span>
-                                   )}
                                 </div>
                               </td>
                             )
