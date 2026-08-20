@@ -664,9 +664,6 @@ export function CuadroSimplificado({
                       <div className="font-bold text-base text-foreground">{periodoLabelCorto(periodo.anio, periodo.mes)}</div>
                     </th>
                   ))}
-                  <th rowSpan={2} className="px-4 py-4 text-center font-bold min-w-[110px] bg-muted/10 align-bottom border-l-2 border-border/50">
-                    <span className="text-base text-muted-foreground">Variación</span>
-                  </th>
                 </tr>
                 <tr className="border-b-2 border-primary/20 bg-muted/30">
                   {periodosVisibles.map(({ periodo }) => (
@@ -702,12 +699,12 @@ export function CuadroSimplificado({
                         {/* Encabezado de sección */}
                         {mostraSeparador && (
                           <tr className="h-2 border-t-2 border-border/50">
-                            <td colSpan={periodosVisibles.length + 3} className="bg-muted/30 h-2" />
+                            <td colSpan={periodosVisibles.length + 1} className="bg-muted/30 h-2" />
                           </tr>
                         )}
                         {mostraSeparador && (
                           <tr className="bg-muted/20 border-b border-border/40">
-                            <td colSpan={periodosVisibles.length + 3} className="px-4 py-2">
+                            <td colSpan={periodosVisibles.length + 1} className="px-4 py-2">
                               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                 {seccion}
                               </span>
@@ -850,17 +847,6 @@ export function CuadroSimplificado({
                               </td>
                             )
                           })}
-                          
-                          {/* Columna de variación */}
-                          <td className={cn(
-                            "px-4 py-3.5 text-center",
-                            tipo === 'resultado-principal' && "bg-gradient-to-r from-primary/5 to-primary/3",
-                            tipo === 'resultado-final' && "bg-gradient-to-r from-success/5 to-success/3",
-                            tipo === 'resultado-total' && "bg-primary",
-                            tipo === 'ingreso-base' && "bg-success/3",
-                          )}>
-                            <VariacionCell actual={ultimoValor} anterior={penultimoValor} esTotalNeto={tipo === 'resultado-total'} />
-                          </td>
                         </tr>
                         
                         {/* Subcuentas RRHH (acordeón expandible) */}
@@ -876,7 +862,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.rrhhSubcuentas.sueldos) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             
                             {/* Cargas Sociales */}
@@ -889,7 +874,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.rrhhSubcuentas.cargas_sociales) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             
                             {/* Indemnizaciones */}
@@ -902,7 +886,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.rrhhSubcuentas.indemnizaciones) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             
                             {/* Tabla Mérito */}
@@ -915,7 +898,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.rrhhSubcuentas.tabla_merito) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                           </>
                         )}
@@ -932,7 +914,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.alquileres) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -943,7 +924,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.honorarios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -954,7 +934,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.tasas_servicios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -965,7 +944,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.mantenimiento_servicios_tecnicos) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -976,7 +954,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.perdida_gestion_inventarios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -987,7 +964,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.seguridad_vigilancia) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -998,7 +974,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.otros_servicios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1009,7 +984,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_personal) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1020,7 +994,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.otros_gastos) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1031,7 +1004,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.comisiones_gastos_bancarios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1042,7 +1014,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_extraordinarios) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1053,7 +1024,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_comercializacion) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1064,7 +1034,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_administracion) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border/30 text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1075,7 +1044,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.gastos_financiacion) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1086,7 +1054,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.costosFijosSubcuentas.diferencias_caja_perdida) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                           </>
                         )}
@@ -1103,7 +1070,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.ingresosFinancierosSubcuentas.operatoria_financiera) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                             <tr className="bg-muted/10 border-b border-border text-xs">
                               <td className="sticky left-0 z-10 bg-muted/10 px-4 py-2.5 pl-12 text-muted-foreground border-r border-border/40">
@@ -1114,7 +1080,6 @@ export function CuadroSimplificado({
                                   {pl ? formatCurrency(pl.ingresosFinancierosSubcuentas.rendimientos_financieros) : '—'}
                                 </td>
                               ))}
-                              <td className="px-4 py-2.5 bg-muted/10"></td>
                             </tr>
                           </>
                         )}
