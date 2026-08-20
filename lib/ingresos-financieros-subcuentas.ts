@@ -1,7 +1,7 @@
 // lib/ingresos-financieros-subcuentas.ts
 // Gestión de subcuentas de Ingresos Financieros
 
-import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase'
 
 export interface IngresosFinancierosSubcuentas {
   periodo_id: number
@@ -24,18 +24,17 @@ export async function getIngresosFinancierosSubcuentas(
   sucursalId: string = '__consolidado__'
 ): Promise<IngresosFinancierosSubcuentas | null> {
   try {
-    // Obtener periodo_id (la columna se llama 'key')
-    const { data: periodo } = await supabase
+    const { data: periodo } = await supabaseAdmin
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
     if (!periodo) return null
 
     if (sucursalId === '__consolidado__') {
       // Consolidado: sumar todas las sucursales
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('ingresos_financieros_subcuentas')
         .select('*')
         .eq('periodo_id', periodo.id)
@@ -52,15 +51,15 @@ export async function getIngresosFinancierosSubcuentas(
       }
     } else {
       // Por sucursal específica
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('ingresos_financieros_subcuentas')
         .select('*')
         .eq('periodo_id', periodo.id)
         .eq('sucursal_id', sucursalId)
-        .single()
+        .maybeSingle()
 
       if (error) {
-        if (error.code === 'PGRST116') return null // No encontrado
+        if (error.code === 'PGRST116') return null
         throw error
       }
 
@@ -81,43 +80,28 @@ export async function upsertIngresosFinancierosSubcuentas(
   datos: IngresosFinancierosSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: periodo, error: periodoErr } = await supabase
+    const { data: periodo, error: periodoErr } = await supabaseAdmin
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
-    if (periodoErr || !periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado. Verifica que exista en la tabla periodos.` }
+    if (periodoErr) {
+      return { success: false, error: `Error buscando período '${periodoKey}': ${periodoErr.message}` }
     }
 
-    // --- Intentar via RPC (SECURITY DEFINER) ---
-    const { data: rpcResult, error: rpcErr } = await supabase.rpc('guardar_ingresos_financieros_subcuentas', {
-      p_periodo_id: periodo.id,
-      p_sucursal_id: sucursalId,
-      p_operatoria_financiera: datos.operatoria_financiera ?? 0,
-      p_rendimientos_financieros: datos.rendimientos_financieros ?? 0,
-    })
-
-    if (!rpcErr && rpcResult) {
-      const result = rpcResult as { success: boolean; error?: string }
-      if (result.success) return { success: true }
-      console.error('RPC guardar_ingresos_financieros_subcuentas error interno:', result.error)
-      return { success: false, error: result.error ?? 'Error en función SQL' }
+    if (!periodo) {
+      return { success: false, error: `Período '${periodoKey}' no encontrado en la tabla periodos.` }
     }
 
-    if (rpcErr) {
-      console.warn('RPC no disponible, usando DELETE+INSERT directo. Error RPC:', rpcErr.message)
-    }
-
-    // --- Fallback: DELETE + INSERT ---
-    await supabase
+    // DELETE + INSERT directo usando supabaseAdmin (service_role)
+    await supabaseAdmin
       .from('ingresos_financieros_subcuentas')
       .delete()
       .eq('periodo_id', periodo.id)
       .eq('sucursal_id', sucursalId)
 
-    const { error: insErr } = await supabase
+    const { error: insErr } = await supabaseAdmin
       .from('ingresos_financieros_subcuentas')
       .insert({
         periodo_id: periodo.id,
@@ -129,7 +113,7 @@ export async function upsertIngresosFinancierosSubcuentas(
       })
 
     if (insErr) {
-      const msg = `HTTP ${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | Hint: ${insErr.hint}` : ''}`
+      const msg = `${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}`
       console.error('Error INSERT ingresos_financieros_subcuentas:', msg)
       throw new Error(msg)
     }

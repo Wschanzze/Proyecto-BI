@@ -55,7 +55,7 @@ export async function getCostosFijosSubcuentas(
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
     if (!periodo) return null
 
@@ -96,7 +96,7 @@ export async function getCostosFijosSubcuentas(
         .select('*')
         .eq('periodo_id', periodo.id)
         .eq('sucursal_id', sucursalId)
-        .single()
+        .maybeSingle()
 
       if (error) {
         if (error.code === 'PGRST116') return null // No encontrado
@@ -125,7 +125,7 @@ export async function upsertCostosFijosSubcuentas(
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
     if (periodoErr || !periodo) {
       return { success: false, error: `Período '${periodoKey}' no encontrado. Verifica que exista en la tabla periodos.` }
