@@ -166,16 +166,56 @@ export function GestionCargas() {
     }
   }
 
-  // Cargar lista de todos los períodos con datos de RRHH en Supabase
+  // Cargar lista de todos los períodos con datos de RRHH (una sola query, sin 406)
   const loadSubcuentasExistentes = async () => {
     try {
-      const list: { periodoKey: string; data: RRHHSubcuentas }[] = []
-      for (const p of periodosDisponibles) {
-        const data = await getRRHHSubcuentas(p.key, '__consolidado__')
-        if (data && data.total_rrhh > 0) {
-          list.push({ periodoKey: p.key, data })
+      const { data: periodos } = await import('@/lib/supabase').then(m => 
+        m.supabaseAdmin
+          .from('periodos')
+          .select('id, key')
+          .order('key')
+      )
+      if (!periodos || periodos.length === 0) return
+
+      // Obtener todos los rrhh_subcuentas en una sola query
+      const periodoIds = periodos.map(p => p.id)
+      const { data: subcuentas } = await import('@/lib/supabase').then(m =>
+        m.supabaseAdmin
+          .from('rrhh_subcuentas')
+          .select('periodo_id, sueldos, cargas_sociales, indemnizaciones, tabla_merito, total_rrhh')
+          .in('periodo_id', periodoIds)
+      )
+
+      if (!subcuentas || subcuentas.length === 0) return
+
+      // Agrupar por periodo_id y sumar (consolidado de sucursales)
+      const periodoMap = new Map(periodos.map(p => [p.id, p.key]))
+      const consolidado = new Map<string, RRHHSubcuentas>()
+
+      for (const row of subcuentas) {
+        const pk = periodoMap.get(row.periodo_id)
+        if (!pk) continue
+
+        if (!consolidado.has(pk)) {
+          consolidado.set(pk, {
+            periodo_id: row.periodo_id,
+            sucursal_id: '__consolidado__',
+            sueldos: 0, cargas_sociales: 0, indemnizaciones: 0, tabla_merito: 0, total_rrhh: 0
+          })
         }
+        const agg = consolidado.get(pk)!
+        agg.sueldos += Number(row.sueldos || 0)
+        agg.cargas_sociales += Number(row.cargas_sociales || 0)
+        agg.indemnizaciones += Number(row.indemnizaciones || 0)
+        agg.tabla_merito += Number(row.tabla_merito || 0)
+        agg.total_rrhh += Number(row.total_rrhh || 0)
       }
+
+      const list = Array.from(consolidado.entries())
+        .filter(([, d]) => d.total_rrhh > 0)
+        .map(([periodoKey, data]) => ({ periodoKey, data }))
+        .sort((a, b) => a.periodoKey.localeCompare(b.periodoKey))
+
       setSubcuentasExistentes(list)
     } catch (err) {
       console.error('Error al cargar historial RRHH:', err)

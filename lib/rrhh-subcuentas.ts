@@ -32,7 +32,7 @@ export async function getRRHHSubcuentas(
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
     if (!periodo) return null
 
@@ -60,7 +60,7 @@ export async function getRRHHSubcuentas(
         .select('*')
         .eq('periodo_id', periodo.id)
         .eq('sucursal_id', sucursalId)
-        .single()
+        .maybeSingle()
 
       if (error) {
         if (error.code === 'PGRST116') return null
@@ -84,38 +84,21 @@ export async function upsertRRHHSubcuentas(
   datos: RRHHSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Buscar periodo_id — usar .maybeSingle() para no fallar con 406 si no existe
     const { data: periodo, error: periodoErr } = await supabaseAdmin
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
-      .single()
+      .maybeSingle()
 
-    if (periodoErr || !periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado en la base de datos` }
+    if (periodoErr) {
+      return { success: false, error: `Error buscando período '${periodoKey}': ${periodoErr.message}` }
+    }
+    if (!periodo) {
+      return { success: false, error: `Período '${periodoKey}' no existe en la tabla periodos. Crealo primero.` }
     }
 
-    // --- Intentar via RPC (SECURITY DEFINER / service_role) ---
-    const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc('guardar_rrhh_subcuentas', {
-      p_periodo_id: periodo.id,
-      p_sucursal_id: sucursalId,
-      p_sueldos: datos.sueldos ?? 0,
-      p_cargas_sociales: datos.cargas_sociales ?? 0,
-      p_indemnizaciones: datos.indemnizaciones ?? 0,
-      p_tabla_merito: datos.tabla_merito ?? 0,
-    })
-
-    if (!rpcErr && rpcResult) {
-      const result = rpcResult as { success: boolean; error?: string }
-      if (result.success) return { success: true }
-      console.error('RPC guardar_rrhh_subcuentas error interno:', result.error)
-      return { success: false, error: result.error ?? 'Error en función SQL' }
-    }
-
-    if (rpcErr) {
-      console.warn('RPC no disponible, usando DELETE+INSERT directo. Error RPC:', rpcErr.message)
-    }
-
-    // --- Fallback: DELETE + INSERT via supabaseAdmin ---
+    // DELETE + INSERT directo usando service_role (sin RPC — function no creada aún en Supabase)
     await supabaseAdmin
       .from('rrhh_subcuentas')
       .delete()
@@ -136,7 +119,7 @@ export async function upsertRRHHSubcuentas(
       })
 
     if (insErr) {
-      const msg = `HTTP ${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | Hint: ${insErr.hint}` : ''}`
+      const msg = `${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | ${insErr.hint}` : ''}`
       console.error('Error INSERT rrhh_subcuentas:', msg)
       throw new Error(msg)
     }
