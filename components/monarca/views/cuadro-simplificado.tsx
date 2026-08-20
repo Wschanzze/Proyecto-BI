@@ -64,9 +64,15 @@ export function calcularCuadroResultado(
   let subcuentasRRHH: RRHHSubcuentasDetalle
   let esRRHHEstimado = false
   
-  if (rrhhSubcuentas && (rrhhSubcuentas.sueldos > 0 || rrhhSubcuentas.cargas_sociales > 0)) {
-    rrhh = rrhhSubcuentas.sueldos + rrhhSubcuentas.cargas_sociales + 
-           rrhhSubcuentas.indemnizaciones + rrhhSubcuentas.tabla_merito
+  const totalRealRRHH = rrhhSubcuentas ? (
+    (rrhhSubcuentas.sueldos || 0) + 
+    (rrhhSubcuentas.cargas_sociales || 0) + 
+    (rrhhSubcuentas.indemnizaciones || 0) + 
+    (rrhhSubcuentas.tabla_merito || 0)
+  ) : 0
+
+  if (rrhhSubcuentas && totalRealRRHH > 0) {
+    rrhh = totalRealRRHH
     subcuentasRRHH = rrhhSubcuentas
     esRRHHEstimado = false
   } else {
@@ -755,47 +761,64 @@ export function CuadroSimplificado({
                                 tipo === 'resultado-total' && "text-primary-foreground"
                               )}>
                                 <span>{label}</span>
-                                {ratioPct && (
-                                  <span
-                                    title={tooltipEstimacion}
-                                    className={cn(
-                                      "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help transition-colors",
-                                      estInfo.mesesEstimados > 0 && estInfo.mesesEstimados < estInfo.totalMeses
-                                        ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 font-medium"
-                                        : "bg-muted/60 text-muted-foreground border-border/40",
-                                      tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
-                                    )}
-                                  >
-                                    ({ratioPct})
-                                  </span>
-                                )}
-                              </span>
-                              {tooltip && (
-                                <span title={tooltip} className="inline-flex">
-                                  <Info 
-                                    className={cn(
-                                      "h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help",
-                                      tipo === 'resultado-total' ? "text-primary-foreground/60" : "text-muted-foreground/40"
-                                    )} 
-                                  />
-                                </span>
-                              )}
+                                {ratioPct && (() => {
+                                   if (estInfo.mesesEstimados === 0) {
+                                     return (
+                                       <span
+                                         title={`Datos 100% Reales. Todos los ${estInfo.totalMeses} meses visibles contienen información real cargada en la base de datos.`}
+                                         className="font-sans text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-700/50 flex items-center gap-1 cursor-help"
+                                       >
+                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                         Real
+                                       </span>
+                                     )
+                                   }
+                                   if (estInfo.mesesEstimados < estInfo.totalMeses) {
+                                     return (
+                                       <span
+                                         title={`Mezcla de datos: ${estInfo.mesesReales} meses reales y ${estInfo.mesesEstimados} proyectados con ratio de supuesto del ${ratioPct}.`}
+                                         className="font-sans text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-700 border border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700/50 flex items-center gap-1 cursor-help"
+                                       >
+                                         Mix ({estInfo.mesesReales}R / {estInfo.mesesEstimados}P)
+                                       </span>
+                                     )
+                                   }
+                                   return (
+                                     <span
+                                       title={`Proyectado: Se aplica el ratio de supuesto del ${ratioPct} en todos los ${estInfo.totalMeses} meses.`}
+                                       className={cn(
+                                         "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help transition-colors bg-muted/60 text-muted-foreground border-border/40",
+                                         tipo === 'resultado-total' && "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                                       )}
+                                     >
+                                       ({ratioPct} Proyectado)
+                                     </span>
+                                   )
+                                 })()}
+                               </span>
+                               {tooltip && (
+                                 <span title={tooltip} className="inline-flex">
+                                   <Info 
+                                     className={cn(
+                                       "h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-help",
+                                       tipo === 'resultado-total' ? "text-primary-foreground/60" : "text-muted-foreground/40"
+                                     )} 
+                                   />
+                                 </span>
+                               )}
                             </div>
                           </td>
                           
                           {/* Valores por período */}
                           {valores.map((valor, idx) => {
-                            // Calcular porcentajes sobre Ventas sin IVA
                             const ventasSinIva = periodosVisibles[idx]?.pl?.ventasSinIva || 0
                             const periodoPl = periodosVisibles[idx]?.pl || null
                             const esEstimadoCell = ratioPct ? isCellEstimada(key, periodoPl) : false
                             
-                            // Porcentaje para Resultado Total (NETO)
                             const porcentajeResultadoTotal = key === 'resultadoTotal' && ventasSinIva > 0
                               ? (valor / ventasSinIva) * 100
                               : null
                             
-                            // Porcentaje para Contribución Marginal
                             const porcentajeContribucion = key === 'contribucionMarginal' && ventasSinIva > 0
                               ? (valor / ventasSinIva) * 100
                               : null
@@ -809,7 +832,7 @@ export function CuadroSimplificado({
                                 tipo === 'ingreso-base' && "bg-success/3",
                               )}>
                                 <div 
-                                  title={ratioPct ? (esEstimadoCell ? `Monto estimado según supuesto (${ratioPct})` : `Dato real cargado`) : undefined}
+                                  title={ratioPct ? (esEstimadoCell ? `Monto estimado según supuesto (${ratioPct})` : `Dato real cargado en base de datos`) : undefined}
                                   className="flex flex-col items-end gap-0.5"
                                 >
                                   <span className={cn(
@@ -833,6 +856,14 @@ export function CuadroSimplificado({
                                       {formatPercent(porcentajeContribucion)} s/Ventas
                                     </span>
                                   )}
+                                  {ratioPct && ventasSinIva > 0 && key !== 'resultadoTotal' && key !== 'contribucionMarginal' && (
+                                     <span className={cn(
+                                       "text-[10px] font-mono font-medium",
+                                       esEstimadoCell ? "text-amber-600/80 dark:text-amber-400/80" : "text-emerald-600/80 dark:text-emerald-400/80"
+                                     )}>
+                                       {formatPercent((valor / ventasSinIva) * 100)} {esEstimadoCell ? '(Est.)' : '(Real)'}
+                                     </span>
+                                   )}
                                 </div>
                               </td>
                             )
