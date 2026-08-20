@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { 
-  ArrowLeft, Lock, Eye, EyeOff, 
+  ArrowLeft, Lock, Eye, EyeOff, LogOut,
   Database, TrendingUp, ShieldCheck, 
   FileSpreadsheet, Users, Building2, Landmark, 
   CalendarDays, Sliders, Target, CheckCircle2, BookOpen,
@@ -26,6 +26,46 @@ import { cn } from "@/lib/utils"
 
 const ADMIN_PIN = "1234"
 const PIN_LENGTH = 4
+
+// ─── Persistencia de Sesión Admin ──────────────────────────────────────────
+const ADMIN_SESSION_KEY = "monarca_admin_unlocked"
+const ADMIN_EXPIRY_KEY = "monarca_admin_expiry"
+const SESSION_DURATION_HOURS = 12
+const SESSION_DURATION_MS = SESSION_DURATION_HOURS * 60 * 60 * 1000
+
+function checkIsUnlocked(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    const val = localStorage.getItem(ADMIN_SESSION_KEY)
+    const expiry = localStorage.getItem(ADMIN_EXPIRY_KEY)
+    if (val === "true" && expiry) {
+      if (Date.now() < parseInt(expiry, 10)) {
+        return true
+      }
+    }
+  } catch (e) {
+    console.error("Error al leer sesión de admin:", e)
+  }
+  return false
+}
+
+function saveUnlockSession() {
+  try {
+    localStorage.setItem(ADMIN_SESSION_KEY, "true")
+    localStorage.setItem(ADMIN_EXPIRY_KEY, (Date.now() + SESSION_DURATION_MS).toString())
+  } catch (e) {
+    console.error("Error al guardar sesión de admin:", e)
+  }
+}
+
+function clearUnlockSession() {
+  try {
+    localStorage.removeItem(ADMIN_SESSION_KEY)
+    localStorage.removeItem(ADMIN_EXPIRY_KEY)
+  } catch (e) {
+    console.error("Error al limpiar sesión de admin:", e)
+  }
+}
 
 type CategoryGroup = "cargas" | "modelado" | "control"
 
@@ -238,7 +278,7 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 }
 
 /* ─── Admin shell (after unlock) ───────────────────────────────────────── */
-function AdminShell() {
+function AdminShell({ onLock }: { onLock?: () => void }) {
   const [activeGroup, setActiveGroup] = useState<CategoryGroup>("cargas")
   const [tab, setTab] = useState<AdminTab>("cargar")
   const [periodoKey, setPeriodoKey] = useState("2026-07")
@@ -275,7 +315,6 @@ function AdminShell() {
   // Cambiar grupo mantención / default del primer tab del grupo
   const handleGroupChange = (group: GroupDef) => {
     setActiveGroup(group.id)
-    // Si el tab actual no pertenece al nuevo grupo, activar el primer tab del grupo
     const existsInGroup = group.tabs.some(t => t.id === tab)
     if (!existsInGroup) {
       setTab(group.tabs[0].id)
@@ -284,7 +323,6 @@ function AdminShell() {
 
   // Obtener grupo actual
   const currentGroupDef = CATEGORY_GROUPS.find(g => g.id === activeGroup) || CATEGORY_GROUPS[0]
-  const currentTabDef = currentGroupDef.tabs.find(t => t.id === tab) || currentGroupDef.tabs[0]
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -382,14 +420,27 @@ function AdminShell() {
             })}
           </div>
 
-          {/* Return link */}
-          <Link
-            href="/"
-            className="ml-4 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Volver al panel</span>
-          </Link>
+          {/* Action buttons on the right */}
+          <div className="flex items-center gap-2 shrink-0">
+            {onLock && (
+              <button
+                type="button"
+                onClick={onLock}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-destructive/80 hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                title="Bloquear sesión de administración"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Bloquear</span>
+              </button>
+            )}
+            <Link
+              href="/"
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Volver al panel</span>
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -430,7 +481,11 @@ function AdminShell() {
             <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
             <span>Sistema BI Monarca — Módulo de Administración</span>
           </div>
-          <div>Acceso restringido • PIN verificado</div>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              Sesión activa (12h)
+            </span>
+          </div>
         </div>
       </footer>
     </div>
@@ -440,10 +495,38 @@ function AdminShell() {
 /* ─── Page entry point ──────────────────────────────────────────────────── */
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false)
+  const [checking, setChecking] = useState(true)
 
-  if (!unlocked) {
-    return <PinGate onUnlock={() => setUnlocked(true)} />
+  useEffect(() => {
+    if (checkIsUnlocked()) {
+      setUnlocked(true)
+    }
+    setChecking(false)
+  }, [])
+
+  const handleUnlock = () => {
+    saveUnlockSession()
+    setUnlocked(true)
   }
 
-  return <AdminShell />
+  const handleLock = () => {
+    clearUnlockSession()
+    setUnlocked(false)
+  }
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!unlocked) {
+    return <PinGate onUnlock={handleUnlock} />
+  }
+
+  return <AdminShell onLock={handleLock} />
 }
