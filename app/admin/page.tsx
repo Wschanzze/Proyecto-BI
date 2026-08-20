@@ -174,7 +174,8 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "cargar", label: "Cargar Resultados (CSV)" },
   { id: "gestion-cargas", label: "Gestión de Cargas — RRHH" },
-  { id: "costos-fijos", label: "Costos Fijos & Ingresos" },
+  { id: "costos-fijos", label: "Gestión de Cargas — Costos Fijos" },
+  { id: "ingresos-financieros", label: "Gestión de Cargas — Ingresos Financieros" },
   { id: "estacionalidad", label: "Estacionalidad" },
   { id: "chequeo", label: "Chequeo" },
   { id: "metricas", label: "Métricas P&L" },
@@ -272,6 +273,7 @@ function AdminShell() {
                 sucursales={sucursales}
               />
             )}
+            {tab === "ingresos-financieros" && <GestionIngresosFinancieros />}
             {tab === "estacionalidad" && <EstacionalidadAdmin />}
             {tab === "metricas" && <MetricasAdmin />}
             {tab === "proyecciones" && <ProyeccionesAdmin />}
