@@ -172,8 +172,8 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
 /* ─── Admin shell (after unlock) ───────────────────────────────────────── */
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
-  { id: "cargar", label: "Cargar Datos" },
-  { id: "gestion-cargas", label: "Gestión Cargas & Datos" },
+  { id: "cargar", label: "Cargar Resultados (CSV)" },
+  { id: "gestion-cargas", label: "Gestión de Cargas — RRHH" },
   { id: "costos-fijos", label: "Costos Fijos & Ingresos" },
   { id: "estacionalidad", label: "Estacionalidad" },
   { id: "chequeo", label: "Chequeo" },

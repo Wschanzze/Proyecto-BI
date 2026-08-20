@@ -1,24 +1,8 @@
 // components/monarca/views/gestion-cargas.tsx
 "use client"
 
-import { useEffect, useState } from "react"
-import {
-  Users,
-  DollarSign,
-  Download,
-  Upload,
-  FileSpreadsheet,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  Info,
-  Calendar,
-  Building2,
-  Calculator,
-  FileText,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,79 +13,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PageHeader } from "@/components/monarca/shared"
 import {
-  getPlantillaEmpleados,
-  cargarNominaMensual,
-  cargarCostosEstructurales,
-  getNominaMensual,
-  getCostosEstructurales,
-  getResumenRRHHPorSucursal,
-  getResumenCostosPorCategoria,
-} from "@/lib/rrhh-costos"
-import type { 
-  PlantillaEmpleado, 
-  TemplateRRHH, 
-  TemplateCosto,
-  Periodo 
-} from "@/lib/data"
-import type { DBSucursal } from "@/lib/supabase"
-import { formatCurrency, formatNumber, periodoLabel } from "@/lib/format"
-import * as XLSX from 'xlsx'
+  Users,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  Info,
+  FileSpreadsheet,
+  Download,
+  Calculator,
+  RefreshCw,
+  Table
+} from "lucide-react"
+import { PageHeader } from "@/components/monarca/shared"
+import { distribuirRRHHSubcuentas } from "@/lib/distribucion-costos"
+import { getRRHHSubcuentas, upsertRRHHSubcuentas, type RRHHSubcuentas, type RRHHSubcuentasCarga } from "@/lib/rrhh-subcuentas"
+import { formatCurrency, periodoLabel } from "@/lib/format"
+import type { Periodo } from "@/lib/data"
 
-interface CargaResultado {
-  tipo: 'rrhh' | 'costos'
-  success: boolean
-  insertados: number
-  errores: string[]
-  archivo?: string
+interface RRHHForm {
+  sueldos: string
+  cargas_sociales: string
+  indemnizaciones: string
+  tabla_merito: string
 }
 
 export function GestionCargas() {
-  const [sucursalSeleccionada, setSucursalSeleccionada] = useState<string>('colon')
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<string>('2026-08')
-  const [plantillaEmpleados, setPlantillaEmpleados] = useState<PlantillaEmpleado[]>([])
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<string>("2026-07")
   const [loading, setLoading] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null)
-  const [ultimaCarga, setUltimaCarga] = useState<CargaResultado | null>(null)
-  const [sistemaListo, setSistemaListo] = useState(false)
-  const [modoIncremental, setModoIncremental] = useState<boolean>(false)
+  
+  // Estado del formulario manual
+  const [rrhhForm, setRrhhForm] = useState<RRHHForm>({
+    sueldos: '0',
+    cargas_sociales: '0',
+    indemnizaciones: '0',
+    tabla_merito: '0',
+  })
 
-  // Helper universal: parsear etiqueta de mes a periodo key (soporta YYYY-MM-DD, DD-MM-YYYY, nombres de meses, fechas Excel, etc.)
-  const parseMesAKey = (mesRaw: any): string | null => {
+  // Lista de resumen de subcuentas cargadas en DB
+  const [subcuentasExistentes, setSubcuentasExistentes] = useState<{ periodoKey: string; data: RRHHSubcuentas }[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Universal month parser: handles '01-ene', '01-feb', '2026-01', Spanish month names & Excel dates
+  const parseMesUniversal = (mesRaw: any): string | null => {
     if (mesRaw === null || mesRaw === undefined) return null
 
     if (typeof mesRaw === 'number') {
       const s = String(mesRaw)
-      if (s.length === 6 && s.startsWith('20')) return `${s.slice(0, 4)}-${s.slice(4, 6)}`
+      if (s.length === 6 && s.startsWith('20')) {
+        return `${s.slice(0, 4)}-${s.slice(4, 6)}`
+      }
       if (mesRaw > 30000 && mesRaw < 60000) {
         const date = new Date(Math.round((mesRaw - 25569) * 86400 * 1000))
         if (!isNaN(date.getTime())) {
-          return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+          const y = date.getUTCFullYear()
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+          return `${y}-${m}`
         }
       }
     }
 
     if (mesRaw instanceof Date && !isNaN(mesRaw.getTime())) {
-      return `${mesRaw.getUTCFullYear()}-${String(mesRaw.getUTCMonth() + 1).padStart(2, '0')}`
+      const y = mesRaw.getUTCFullYear()
+      const m = String(mesRaw.getUTCMonth() + 1).padStart(2, '0')
+      return `${y}-${m}`
     }
 
     const cleaned = String(mesRaw).toLowerCase().trim()
     if (!cleaned) return null
 
-    // 1. Formato ISO YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02) -> Año 2024..2029 al inicio
+    // 1. Formato ISO / YYYY-MM-DD / YYYY-MM (ej: 2026-02-01, 2026-02)
     const yyyyFirst = cleaned.match(/\b(202[4-9])[-/.](0?[1-9]|1[0-2])(?:[-/.](0?[1-9]|[12]\d|3[01]))?\b/)
     if (yyyyFirst) {
       return `${yyyyFirst[1]}-${yyyyFirst[2].padStart(2, '0')}`
     }
 
-    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026) -> Año 2024..2029 al final
+    // 2. Formato Argentina DD-MM-YYYY o DD/MM/YYYY (ej: 01-02-2026, 15/06/2026)
     const ddMmYyyy = cleaned.match(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
     if (ddMmYyyy) {
       return `${ddMmYyyy[3]}-${ddMmYyyy[2].padStart(2, '0')}`
     }
 
-    // 3. Nombres de meses en español (ej: "ene-26", "01-feb", "01-mar")
+    // 3. Nombres de meses en español (ej: "01-ene", "01-feb", "01-mar", "ene-26")
     const MESES_MAP: Record<string, string> = {
       enero: '01', ene: '01',
       febrero: '02', feb: '02',
@@ -129,354 +123,146 @@ export function GestionCargas() {
       }
     }
 
-    // 4. Formato MM-YYYY o MM/YYYY
+    // 4. Formato MM-YYYY o MM/YYYY (ej: 06/2026, 01-2026)
     const mmYyyy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](202[4-9])\b/)
     if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`
 
-    // 5. Formato MM/YY o MM-YY
+    // 5. Formato MM/YY o MM-YY (ej: 06/26)
     const mmYy = cleaned.match(/\b(0?[1-9]|1[0-2])[-/.](2[4-9]|3[0-9])\b/)
     if (mmYy) return `20${mmYy[2]}-${mmYy[1].padStart(2, '0')}`
 
     return null
   }
 
-  // Períodos disponibles: 2024-01 a 2026-12
-  const generarPeriodos = (): Periodo[] => {
-    const result: Periodo[] = []
+  // Generar lista de períodos 2024-01 a 2026-12
+  const periodosDisponibles: Periodo[] = (() => {
+    const res: Periodo[] = []
     for (let anio = 2024; anio <= 2026; anio++) {
       for (let mes = 1; mes <= 12; mes++) {
         const key = `${anio}-${String(mes).padStart(2, '0')}`
-        result.push({ key, anio, mes, index: (anio - 2024) * 12 + mes })
+        res.push({ key, anio, mes, index: (anio - 2024) * 12 + mes })
       }
     }
-    return result
-  }
+    return res
+  })()
 
-  const sucursales: DBSucursal[] = [
-    { id: 'colon', nombre: 'Colón', orden: 1 },
-    { id: 'san-martin', nombre: 'San Martín', orden: 2 },
-    { id: 'falucho', nombre: 'Falucho', orden: 3 },
-    { id: 'peron', nombre: 'Perón', orden: 4 },
-    { id: 'virtual', nombre: 'Virtual', orden: 5 },
-  ]
-  const periodos = generarPeriodos()
-
-  // Plantilla de fallback para cuando no hay datos en la DB
-  const plantillaFallback: PlantillaEmpleado[] = [
-    // Colón
-    { id: 1, sucursal_id: 'colon', legajo: '1001', apellido: 'Gonzalez', nombre: 'Juan Carlos', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 450000, activo: true, orden_carga: 1 },
-    { id: 2, sucursal_id: 'colon', legajo: '1002', apellido: 'Martinez', nombre: 'Ana Maria', puesto: 'Cajera Senior', categoria: 'operativo', sueldo_basico_default: 180000, activo: true, orden_carga: 2 },
-    { id: 3, sucursal_id: 'colon', legajo: '1003', apellido: 'Rodriguez', nombre: 'Carlos', puesto: 'Repositor', categoria: 'operativo', sueldo_basico_default: 160000, activo: true, orden_carga: 3 },
-    
-    // San Martín
-    { id: 4, sucursal_id: 'san-martin', legajo: '2001', apellido: 'Perez', nombre: 'Laura', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 450000, activo: true, orden_carga: 1 },
-    { id: 5, sucursal_id: 'san-martin', legajo: '2002', apellido: 'Garcia', nombre: 'Roberto', puesto: 'Cajero', categoria: 'operativo', sueldo_basico_default: 175000, activo: true, orden_carga: 2 },
-    { id: 6, sucursal_id: 'san-martin', legajo: '2003', apellido: 'Sanchez', nombre: 'Maria', puesto: 'Cajera', categoria: 'operativo', sueldo_basico_default: 175000, activo: true, orden_carga: 3 },
-    
-    // Falucho
-    { id: 7, sucursal_id: 'falucho', legajo: '3001', apellido: 'Vargas', nombre: 'Alberto', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 420000, activo: true, orden_carga: 1 },
-    { id: 8, sucursal_id: 'falucho', legajo: '3002', apellido: 'Diaz', nombre: 'Valeria', puesto: 'Cajera', categoria: 'operativo', sueldo_basico_default: 170000, activo: true, orden_carga: 2 },
-    
-    // Perón  
-    { id: 9, sucursal_id: 'peron', legajo: '4001', apellido: 'Herrera', nombre: 'Marcelo', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 440000, activo: true, orden_carga: 1 },
-    { id: 10, sucursal_id: 'peron', legajo: '4002', apellido: 'Ramos', nombre: 'Silvia', puesto: 'Cajera Senior', categoria: 'operativo', sueldo_basico_default: 180000, activo: true, orden_carga: 2 },
-    
-    // Virtual
-    { id: 11, sucursal_id: 'virtual', legajo: '5001', apellido: 'Alvarez', nombre: 'Ricardo', puesto: 'Director General', categoria: 'gerencial', sueldo_basico_default: 600000, activo: true, orden_carga: 1 },
-    { id: 12, sucursal_id: 'virtual', legajo: '5002', apellido: 'Jimenez', nombre: 'Monica', puesto: 'Contadora', categoria: 'administrativo', sueldo_basico_default: 350000, activo: true, orden_carga: 2 },
-  ]
-
-  useEffect(() => {
-    cargarPlantillaEmpleados()
-  }, [sucursalSeleccionada])
-
-  const cargarPlantillaEmpleados = async () => {
+  // Cargar datos actuales de RRHH para el período seleccionado
+  const loadPeriodoData = async () => {
+    if (periodoSeleccionado === 'multi') return
     try {
-      setLoading(true)
-      const plantilla = await getPlantillaEmpleados(sucursalSeleccionada)
-      
-      if (plantilla && plantilla.length > 0) {
-        setPlantillaEmpleados(plantilla)
-        setSistemaListo(true)
-        setMensaje({ 
-          tipo: 'success', 
-          texto: `Plantilla cargada: ${plantilla.length} empleados de ${sucursales.find(s => s.id === sucursalSeleccionada)?.nombre}` 
+      const data = await getRRHHSubcuentas(periodoSeleccionado, '__consolidado__')
+      if (data) {
+        setRrhhForm({
+          sueldos: String(data.sueldos || 0),
+          cargas_sociales: String(data.cargas_sociales || 0),
+          indemnizaciones: String(data.indemnizaciones || 0),
+          tabla_merito: String(data.tabla_merito || 0),
         })
       } else {
-        // Usar plantilla de fallback filtrada por sucursal
-        const fallback = plantillaFallback.filter(emp => emp.sucursal_id === sucursalSeleccionada)
-        setPlantillaEmpleados(fallback)
-        setSistemaListo(false)
-        setMensaje({ 
-          tipo: 'info', 
-          texto: 'Usando plantilla de ejemplo. Para datos reales, verificar que se ejecutó la migración seed en Supabase.' 
-        })
+        setRrhhForm({ sueldos: '0', cargas_sociales: '0', indemnizaciones: '0', tabla_merito: '0' })
       }
     } catch (err) {
-      console.error('Error al cargar plantilla:', err)
-      
-      // Usar plantilla de fallback en caso de error
-      const fallback = plantillaFallback.filter(emp => emp.sucursal_id === sucursalSeleccionada)
-      setPlantillaEmpleados(fallback)
-      setSistemaListo(false)
-      setMensaje({ 
-        tipo: 'error', 
-        texto: 'Error de conexión con Supabase. Usando datos de ejemplo. Verificar configuración de BD.' 
-      })
-    } finally {
-      setLoading(false)
+      console.error('Error al cargar datos RRHH:', err)
     }
   }
 
-  // ===== GENERACIÓN DE TEMPLATES =====
-
-  const generarTemplateRRHH = () => {
-    const wb = XLSX.utils.book_new()
-    
-    // Crear datos de ejemplo basados en la plantilla
-    const datosEjemplo: any[] = plantillaEmpleados.map(emp => ({
-      legajo: emp.legajo,
-      apellido: emp.apellido,
-      nombre: emp.nombre,
-      puesto: emp.puesto,
-      sueldo_basico: emp.sueldo_basico_default,
-      horas_extras: 0,
-      premios: 0,
-      bonificaciones: 0,
-      viaticos: 0,
-      dias_trabajados: 30,
-      ausentismos: 0,
-      observaciones: ''
-    }))
-
-    // Agregar fila de instrucciones
-    datosEjemplo.unshift({
-      legajo: 'INSTRUCCIONES:',
-      apellido: 'No modificar columnas legajo, apellido, nombre, puesto',
-      nombre: 'Completar solo los valores numéricos',
-      puesto: 'Dias_trabajados: máximo 30',
-      sueldo_basico: 'OBLIGATORIO',
-      horas_extras: 'Opcional (0 si no aplica)',
-      premios: 'Opcional',
-      bonificaciones: 'Opcional', 
-      viaticos: 'No remunerativo',
-      dias_trabajados: 30,
-      ausentismos: 'Cantidad de días',
-      observaciones: 'Texto libre'
-    })
-
-    const ws = XLSX.utils.json_to_sheet(datosEjemplo)
-    
-    // Configurar anchos de columna
-    ws['!cols'] = [
-      { wch: 12 }, // legajo
-      { wch: 20 }, // apellido
-      { wch: 20 }, // nombre
-      { wch: 25 }, // puesto
-      { wch: 15 }, // sueldo_basico
-      { wch: 12 }, // horas_extras
-      { wch: 12 }, // premios
-      { wch: 15 }, // bonificaciones
-      { wch: 12 }, // viaticos
-      { wch: 12 }, // dias_trabajados
-      { wch: 12 }, // ausentismos
-      { wch: 30 }, // observaciones
-    ]
-
-    XLSX.utils.book_append_sheet(wb, ws, 'RRHH_Template')
-
-    // Crear hoja de información
-    const wsInfo = XLSX.utils.aoa_to_sheet([
-      ['TEMPLATE DE CARGA - NÓMINA MENSUAL RRHH'],
-      [''],
-      ['INSTRUCCIONES:'],
-      ['1. Complete SOLO las columnas numéricas (sueldo_basico es obligatorio)'],
-      ['2. NO modifique las columnas: legajo, apellido, nombre, puesto'],
-      ['3. Días trabajados: máximo 30 días por mes'],
-      ['4. Ausentismos: cantidad de días de ausencia'],
-      ['5. Los cálculos de descuentos y aportes se realizan automáticamente'],
-      [''],
-      ['CÁLCULOS AUTOMÁTICOS:'],
-      ['• Jubilación: 11% del total remunerativo'],
-      ['• Obra Social: 3% del total remunerativo'],
-      ['• Aportes Patronales: 23.5% del total remunerativo'],
-      ['• ART: 1.2% del total remunerativo'],
-      [''],
-      [`SUCURSAL: ${sucursales.find(s => s.id === sucursalSeleccionada)?.nombre}`],
-      [`PERÍODO: ${periodoLabel(parseInt(periodoSeleccionado.split('-')[0]), parseInt(periodoSeleccionado.split('-')[1]))}`],
-      [`GENERADO: ${new Date().toLocaleDateString('es-AR')}`],
-    ])
-    
-    XLSX.utils.book_append_sheet(wb, wsInfo, 'Instrucciones')
-
-    // Descargar archivo
-    const fileName = `RRHH_Template_${sucursalSeleccionada}_${periodoSeleccionado}.xlsx`
-    XLSX.writeFile(wb, fileName)
-
-    setMensaje({ 
-      tipo: 'success', 
-      texto: `Template RRHH generado: ${fileName}` 
-    })
+  // Cargar lista de todos los períodos con datos de RRHH en Supabase
+  const loadSubcuentasExistentes = async () => {
+    try {
+      const list: { periodoKey: string; data: RRHHSubcuentas }[] = []
+      for (const p of periodosDisponibles) {
+        const data = await getRRHHSubcuentas(p.key, '__consolidado__')
+        if (data && data.total_rrhh > 0) {
+          list.push({ periodoKey: p.key, data })
+        }
+      }
+      setSubcuentasExistentes(list)
+    } catch (err) {
+      console.error('Error al cargar historial RRHH:', err)
+    }
   }
 
-  const generarTemplateCostos = () => {
-    const wb = XLSX.utils.book_new()
+  useEffect(() => {
+    loadPeriodoData()
+  }, [periodoSeleccionado])
 
-    // Datos de ejemplo para costos estructurales
+  useEffect(() => {
+    loadSubcuentasExistentes()
+  }, [])
+
+  const handleInputChange = (field: keyof RRHHForm, val: string) => {
+    const cleaned = val.replace(/[^0-9.]/g, '')
+    setRrhhForm(prev => ({ ...prev, [field]: cleaned }))
+  }
+
+  const totalCalculado = () => {
+    const s = parseFloat(rrhhForm.sueldos) || 0
+    const c = parseFloat(rrhhForm.cargas_sociales) || 0
+    const i = parseFloat(rrhhForm.indemnizaciones) || 0
+    const m = parseFloat(rrhhForm.tabla_merito) || 0
+    return s + c + i + m
+  }
+
+  // Carga manual desde el formulario
+  const handleGuardarManual = async () => {
+    if (periodoSeleccionado === 'multi') {
+      setMensaje({ tipo: 'error', texto: 'Seleccioná un período específico para la carga manual.' })
+      return
+    }
+
+    setLoading(true)
+    setMensaje(null)
+
+    const rrhhData: RRHHSubcuentasCarga = {
+      sueldos: parseFloat(rrhhForm.sueldos) || 0,
+      cargas_sociales: parseFloat(rrhhForm.cargas_sociales) || 0,
+      indemnizaciones: parseFloat(rrhhForm.indemnizaciones) || 0,
+      tabla_merito: parseFloat(rrhhForm.tabla_merito) || 0,
+    }
+
+    const res = await distribuirRRHHSubcuentas(periodoSeleccionado, rrhhData)
+    setLoading(false)
+
+    if (res.success) {
+      setMensaje({
+        tipo: 'success',
+        texto: `✅ Datos de RRHH para ${periodoSeleccionado} guardados y distribuidos entre sucursales exitosamente.`
+      })
+      loadSubcuentasExistentes()
+    } else {
+      setMensaje({ tipo: 'error', texto: `Error: ${res.error}` })
+    }
+  }
+
+  // Generar Template de RRHH con los 4 conceptos exactos
+  const handleDescargarTemplate = () => {
+    const wb = XLSX.utils.book_new()
     const datosEjemplo = [
-      {
-        categoria_costo: 'INSTRUCCIONES',
-        subcategoria: 'Ver hoja "Instrucciones" para detalles',
-        descripcion: 'Completar todas las filas con datos reales',
-        importe: 'OBLIGATORIO (número)',
-        importe_variable: 'Opcional (parte variable)',
-        importe_fijo: 'Opcional (parte fija)',
-        tipo_gasto: 'operativo/administrativo/comercial/financiero',
-        proveedor: 'Nombre del proveedor',
-        numero_factura: 'Número de factura',
-        fecha_vencimiento: 'YYYY-MM-DD',
-        observaciones: 'Texto libre'
-      },
-      // Ejemplos por categoría
-      {
-        categoria_costo: 'servicios',
-        subcategoria: 'luz',
-        descripcion: 'Factura energía eléctrica',
-        importe: 45000,
-        importe_variable: 0,
-        importe_fijo: 45000,
-        tipo_gasto: 'operativo',
-        proveedor: 'EDESUR',
-        numero_factura: 'E-001234567',
-        fecha_vencimiento: '2026-09-15',
-        observaciones: ''
-      },
-      {
-        categoria_costo: 'servicios',
-        subcategoria: 'gas',
-        descripcion: 'Factura gas natural',
-        importe: 18000,
-        importe_variable: 8000,
-        importe_fijo: 10000,
-        tipo_gasto: 'operativo',
-        proveedor: 'METROGAS',
-        numero_factura: 'G-987654321',
-        fecha_vencimiento: '2026-09-10',
-        observaciones: 'Consumo variable por calefacción'
-      },
-      {
-        categoria_costo: 'alquileres',
-        subcategoria: 'alquiler_local',
-        descripcion: 'Alquiler local comercial',
-        importe: 120000,
-        importe_variable: 0,
-        importe_fijo: 120000,
-        tipo_gasto: 'operativo',
-        proveedor: 'Inmobiliaria Central',
-        numero_factura: 'A-2026-08-001',
-        fecha_vencimiento: '2026-09-01',
-        observaciones: 'Contrato 3 años'
-      },
-      {
-        categoria_costo: 'seguros',
-        subcategoria: 'seguro_integral',
-        descripcion: 'Seguro integral comercio',
-        importe: 35000,
-        importe_variable: 0,
-        importe_fijo: 35000,
-        tipo_gasto: 'operativo',
-        proveedor: 'La Segunda Seguros',
-        numero_factura: 'S-789123456',
-        fecha_vencimiento: '2026-09-20',
-        observaciones: 'Cobertura completa'
-      },
-      {
-        categoria_costo: 'mantenimiento',
-        subcategoria: 'equipos_refrigeracion',
-        descripcion: 'Service heladeras y freezers',
-        importe: 28000,
-        importe_variable: 15000,
-        importe_fijo: 13000,
-        tipo_gasto: 'operativo',
-        proveedor: 'Frío Técnico SA',
-        numero_factura: 'FT-456789',
-        fecha_vencimiento: '2026-09-05',
-        observaciones: 'Mantenimiento mensual'
-      },
-      {
-        categoria_costo: 'marketing',
-        subcategoria: 'publicidad_local',
-        descripcion: 'Volantes y promoción local',
-        importe: 15000,
-        importe_variable: 15000,
-        importe_fijo: 0,
-        tipo_gasto: 'comercial',
-        proveedor: 'Gráfica Express',
-        numero_factura: 'GE-2026-234',
-        fecha_vencimiento: '2026-08-30',
-        observaciones: 'Campaña mes patrio'
-      }
+      { Mes: '01-ene', SUELDO: 709342757.8, CCSS: 172667187.2, INDEMNIZATORIOS: 16914061.88, MERITO: 5404267.43 },
+      { Mes: '01-feb', SUELDO: 729924761.4, CCSS: 176530320.8, INDEMNIZATORIOS: 15336380.77, MERITO: 7198140.99 },
+      { Mes: '01-mar', SUELDO: 732103404.9, CCSS: 175948803.7, INDEMNIZATORIOS: 16049553.98, MERITO: 7673472.61 },
+      { Mes: '01-abr', SUELDO: 758937710.1, CCSS: 188623665.2, INDEMNIZATORIOS: 18816195.79, MERITO: 6896210.67 },
+      { Mes: '01-may', SUELDO: 741985200.2, CCSS: 187394353.1, INDEMNIZATORIOS: 3233933.80, MERITO: 6729186.49 },
+      { Mes: '01-jun', SUELDO: 786843181.6, CCSS: 191227138.3, INDEMNIZATORIOS: 13907217.20, MERITO: 5121670.60 },
+      { Mes: '01-jul', SUELDO: 796078245.5, CCSS: 195666800.5, INDEMNIZATORIOS: 13383195.85, MERITO: 7348110.54 },
     ]
 
     const ws = XLSX.utils.json_to_sheet(datosEjemplo)
-    
-    // Configurar anchos
     ws['!cols'] = [
-      { wch: 18 }, // categoria_costo
-      { wch: 20 }, // subcategoria  
-      { wch: 30 }, // descripcion
-      { wch: 15 }, // importe
-      { wch: 15 }, // importe_variable
-      { wch: 15 }, // importe_fijo
-      { wch: 15 }, // tipo_gasto
-      { wch: 25 }, // proveedor
-      { wch: 18 }, // numero_factura
-      { wch: 15 }, // fecha_vencimiento
-      { wch: 30 }, // observaciones
+      { wch: 12 }, // Mes
+      { wch: 18 }, // SUELDO
+      { wch: 18 }, // CCSS
+      { wch: 20 }, // INDEMNIZATORIOS
+      { wch: 18 }, // MERITO
     ]
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Costos_Template')
-
-    // Hoja de información
-    const wsInfo = XLSX.utils.aoa_to_sheet([
-      ['TEMPLATE DE CARGA - COSTOS ESTRUCTURALES'],
-      [''],
-      ['INSTRUCCIONES:'],
-      ['1. Eliminar la fila de "INSTRUCCIONES" antes de cargar'],
-      ['2. Completar todos los campos obligatorios'],
-      ['3. Las categorías válidas son: servicios, alquileres, seguros, impuestos, mantenimiento, marketing, otros'],
-      ['4. Los tipos de gasto válidos son: operativo, administrativo, comercial, financiero'],
-      ['5. Si no especifica importe_fijo/variable, se asume todo como fijo'],
-      [''],
-      ['CATEGORÍAS DE COSTOS:'],
-      ['• servicios: luz, gas, teléfono, internet, agua, etc.'],
-      ['• alquileres: alquiler_local, alquiler_equipos, etc.'],
-      ['• seguros: seguro_integral, seguro_mercaderia, etc.'],
-      ['• impuestos: municipal, provincial, nacional, etc.'],
-      ['• mantenimiento: equipos_refrigeracion, limpieza, reparaciones, etc.'],
-      ['• marketing: publicidad_local, promociones, etc.'],
-      ['• otros: varios, extraordinarios, etc.'],
-      [''],
-      ['FORMATO DE FECHAS: YYYY-MM-DD (ej: 2026-09-15)'],
-      [''],
-      [`SUCURSAL: ${sucursales.find(s => s.id === sucursalSeleccionada)?.nombre}`],
-      [`PERÍODO: ${periodoLabel(parseInt(periodoSeleccionado.split('-')[0]), parseInt(periodoSeleccionado.split('-')[1]))}`],
-      [`GENERADO: ${new Date().toLocaleDateString('es-AR')}`],
-    ])
-    
-    XLSX.utils.book_append_sheet(wb, wsInfo, 'Instrucciones')
-
-    const fileName = `Costos_Template_${sucursalSeleccionada}_${periodoSeleccionado}.xlsx`
-    XLSX.writeFile(wb, fileName)
-
-    setMensaje({ 
-      tipo: 'success', 
-      texto: `Template Costos generado: ${fileName}` 
-    })
+    XLSX.utils.book_append_sheet(wb, ws, 'RRHH_Subcuentas')
+    XLSX.writeFile(wb, 'Template_Carga_RRHH_Subcuentas.xlsx')
+    setMensaje({ tipo: 'info', texto: 'Template de RRHH descargado. Podés completarlo y subirlo en la sección de carga.' })
   }
-  // ===== MANEJO DE ARCHIVOS =====
 
-  const handleArchivoRRHH = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Cargar archivo Excel/CSV multi-período
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     event.target.value = ''
@@ -487,626 +273,403 @@ export function GestionCargas() {
     try {
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 })
 
-      const headers = (jsonData[0] as string[]).map(h => String(h || '').toLowerCase().trim())
-      const filas = jsonData.slice(1) as any[][]
+      if (!rows || rows.length < 2) {
+        setMensaje({ tipo: 'error', texto: 'El archivo está vacío o no contiene filas de datos.' })
+        setLoading(false)
+        return
+      }
 
-      // Filtrar fila de instrucciones
-      const filasDatos = filas.filter(fila =>
-        fila[0] && fila[0] !== 'INSTRUCCIONES:' && typeof fila[0] === 'string'
-      )
+      const parseMonto = (val: any): number => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val
+        if (typeof val === 'string') {
+          const clean = val.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')
+          return parseFloat(clean) || 0
+        }
+        return 0
+      }
 
-      // Buscar columna de mes (puede llamarse 'mes', 'periodo', 'period', 'month')
-      const mesColuIdx = headers.findIndex(h => h === 'mes' || h === 'periodo' || h === 'period' || h === 'month')
-      const modoMulti = periodoSeleccionado === 'multi' || mesColuIdx >= 0
+      // 1. Identificar encabezados de columna
+      let headerIdx = -1
+      let colMes = -1
+      let colSueldo = -1
+      let colCCSS = -1
+      let colIndem = -1
+      let colMerito = -1
 
-      if (modoMulti && mesColuIdx >= 0) {
-        // MODO MULTI-PERÍODO: agrupar filas por período
-        const filasPorPeriodo: Record<string, TemplateRRHH[]> = {}
-        for (const fila of filasDatos) {
-          const mesRaw = fila[mesColuIdx]
-          const pk = parseMesAKey(String(mesRaw || '')) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
-          if (!pk) continue
-          const empleado: TemplateRRHH = {
-            legajo: String(fila[headers.indexOf('legajo')] || fila[0] || ''),
-            apellido: String(fila[headers.indexOf('apellido')] || fila[1] || ''),
-            nombre: String(fila[headers.indexOf('nombre')] || fila[2] || ''),
-            sueldo_basico: Number(fila[headers.indexOf('sueldo_basico')] ?? fila[4]) || 0,
-            horas_extras: Number(fila[headers.indexOf('horas_extras')] ?? fila[5]) || 0,
-            premios: Number(fila[headers.indexOf('premios')] ?? fila[6]) || 0,
-            bonificaciones: Number(fila[headers.indexOf('bonificaciones')] ?? fila[7]) || 0,
-            viaticos: Number(fila[headers.indexOf('viaticos')] ?? fila[8]) || 0,
-            dias_trabajados: Number(fila[headers.indexOf('dias_trabajados')] ?? fila[9]) || 30,
-            ausentismos: Number(fila[headers.indexOf('ausentismos')] ?? fila[10]) || 0,
-            observaciones: String(fila[headers.indexOf('observaciones')] ?? fila[11] ?? '')
-          }
-          if (!filasPorPeriodo[pk]) filasPorPeriodo[pk] = []
-          filasPorPeriodo[pk].push(empleado)
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
+        const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
+        
+        const idxM = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'fecha' || c === 'date')
+        const idxS = r.findIndex(c => c.includes('sueldo') || c.includes('remunerativo') || c.includes('basico'))
+        const idxC = r.findIndex(c => c.includes('ccss') || c.includes('cargas') || c.includes('aporte') || c.includes('contribucion'))
+        const idxI = r.findIndex(c => c.includes('indemn') || c.includes('despido'))
+        const idxMer = r.findIndex(c => c.includes('merito') || c.includes('desempeño') || c.includes('bono'))
+
+        if (idxS >= 0 || idxC >= 0 || idxM >= 0) {
+          headerIdx = i
+          colMes = idxM >= 0 ? idxM : 0
+          colSueldo = idxS
+          colCCSS = idxC
+          colIndem = idxI
+          colMerito = idxMer
+          break
+        }
+      }
+
+      if (headerIdx === -1) {
+        // Fallback por posición predeterminada: Col 0: Mes, Col 1: Sueldo, Col 2: CCSS, Col 3: Indemnizatorios, Col 4: Merito
+        headerIdx = 0
+        colMes = 0
+        colSueldo = 1
+        colCCSS = 2
+        colIndem = 3
+        colMerito = 4
+      }
+
+      const rrhhPorPeriodo: Record<string, RRHHSubcuentasCarga> = {}
+
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i]
+        if (!row || row.length === 0) continue
+
+        const mesCell = row[colMes]
+        if (mesCell === undefined || mesCell === null || String(mesCell).trim() === '') continue
+        const cellStr = String(mesCell).toLowerCase().trim()
+        if (cellStr.includes('total') || cellStr.includes('acumulado') || cellStr.includes('suma')) continue
+
+        const pk = parseMesUniversal(mesCell) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
+        if (!pk) continue
+
+        const sueldos = colSueldo >= 0 ? parseMonto(row[colSueldo]) : 0
+        const cargas_sociales = colCCSS >= 0 ? parseMonto(row[colCCSS]) : 0
+        const indemnizaciones = colIndem >= 0 ? parseMonto(row[colIndem]) : 0
+        const tabla_merito = colMerito >= 0 ? parseMonto(row[colMerito]) : 0
+
+        if (!rrhhPorPeriodo[pk]) {
+          rrhhPorPeriodo[pk] = { sueldos: 0, cargas_sociales: 0, indemnizaciones: 0, tabla_merito: 0 }
         }
 
-        const periodosDetectados = Object.keys(filasPorPeriodo)
-        let totalInsertados = 0
-        const erroresAcumulados: string[] = []
+        rrhhPorPeriodo[pk].sueldos = (rrhhPorPeriodo[pk].sueldos || 0) + sueldos
+        rrhhPorPeriodo[pk].cargas_sociales = (rrhhPorPeriodo[pk].cargas_sociales || 0) + cargas_sociales
+        rrhhPorPeriodo[pk].indemnizaciones = (rrhhPorPeriodo[pk].indemnizaciones || 0) + indemnizaciones
+        rrhhPorPeriodo[pk].tabla_merito = (rrhhPorPeriodo[pk].tabla_merito || 0) + tabla_merito
+      }
 
-        for (const pk of periodosDetectados) {
-          const [anio, mes] = pk.split('-').map(Number)
-          const resultado = await cargarNominaMensual(
-            anio * 100 + mes,
-            sucursalSeleccionada,
-            filasPorPeriodo[pk],
-            file.name,
-            modoIncremental
-          )
-          totalInsertados += resultado.insertados
-          if (!resultado.success) erroresAcumulados.push(...resultado.errores.map(e => `[${pk}] ${e}`))
-        }
+      const periodosDetectados = Object.keys(rrhhPorPeriodo).sort()
 
-        setUltimaCarga({ tipo: 'rrhh', success: erroresAcumulados.length === 0, insertados: totalInsertados, errores: erroresAcumulados, archivo: file.name })
+      if (periodosDetectados.length === 0) {
+        setMensaje({ tipo: 'error', texto: 'No se encontraron períodos válidos en el archivo.' })
+        setLoading(false)
+        return
+      }
+
+      const erroresList: string[] = []
+      let exitosos = 0
+
+      for (const pk of periodosDetectados) {
+        const res = await distribuirRRHHSubcuentas(pk, rrhhPorPeriodo[pk])
+        if (!res.success) erroresList.push(`[${pk}]: ${res.error}`)
+        else exitosos++
+      }
+
+      setLoading(false)
+      if (erroresList.length > 0) {
         setMensaje({
-          tipo: erroresAcumulados.length === 0 ? 'success' : 'error',
-          texto: `✅ RRHH Multi-Período: ${periodosDetectados.length} meses procesados (${totalInsertados} registros). Períodos: ${periodosDetectados.join(', ')}`
+          tipo: 'error',
+          texto: `Se procesaron ${exitosos} de ${periodosDetectados.length} períodos con errores: ${erroresList.join(' | ')}`
         })
       } else {
-        // MODO PERÍODO ÚNICO
-        if (periodoSeleccionado === 'multi') {
-          setMensaje({ tipo: 'error', texto: 'El archivo no tiene columna "Mes". Seleccioná un período específico o agregá la columna Mes al archivo.' })
-          setLoading(false)
-          return
-        }
-        const datosRRHH: TemplateRRHH[] = filasDatos.map(fila => ({
-          legajo: String(fila[0] || ''),
-          apellido: String(fila[1] || ''),
-          nombre: String(fila[2] || ''),
-          sueldo_basico: Number(fila[4]) || 0,
-          horas_extras: Number(fila[5]) || 0,
-          premios: Number(fila[6]) || 0,
-          bonificaciones: Number(fila[7]) || 0,
-          viaticos: Number(fila[8]) || 0,
-          dias_trabajados: Number(fila[9]) || 30,
-          ausentismos: Number(fila[10]) || 0,
-          observaciones: String(fila[11] || '')
-        }))
-        const [anio, mes] = periodoSeleccionado.split('-').map(Number)
-        const resultado = await cargarNominaMensual(anio * 100 + mes, sucursalSeleccionada, datosRRHH, file.name, modoIncremental)
-        setUltimaCarga({ tipo: 'rrhh', success: resultado.success, insertados: resultado.insertados, errores: resultado.errores, archivo: file.name })
         setMensaje({
-          tipo: resultado.success ? 'success' : 'error',
-          texto: resultado.success ? `RRHH cargado: ${resultado.insertados} empleados procesados` : `Error RRHH: ${resultado.errores.join(', ')}`
+          tipo: 'success',
+          texto: `✅ Se cargaron y distribuyeron exitosamente ${periodosDetectados.length} períodos de RRHH: ${periodosDetectados.join(', ')}.`
         })
+        loadSubcuentasExistentes()
+        loadPeriodoData()
       }
     } catch (err) {
-      setMensaje({ tipo: 'error', texto: `Error al procesar archivo RRHH: ${err instanceof Error ? err.message : 'Error desconocido'}` })
-    } finally {
       setLoading(false)
-    }
-  }
-
-  const handleArchivoCostos = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    event.target.value = ''
-
-    setLoading(true)
-    setMensaje(null)
-
-    try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-
-      const headers = (jsonData[0] as string[]).map(h => String(h || '').toLowerCase().trim())
-      const filas = jsonData.slice(1) as any[][]
-
-      const filasDatos = filas.filter(fila =>
-        fila[0] && fila[0] !== 'INSTRUCCIONES' && fila[0] !== 'categoria_costo'
-      )
-
-      // Buscar columna de mes
-      const mesColuIdx = headers.findIndex(h => h === 'mes' || h === 'periodo' || h === 'period' || h === 'month')
-      const modoMulti = periodoSeleccionado === 'multi' || mesColuIdx >= 0
-
-      const parseFila = (fila: any[]): TemplateCosto => ({
-        categoria_costo: String(fila[headers.indexOf('categoria_costo')] ?? fila[0] ?? ''),
-        subcategoria: String(fila[headers.indexOf('subcategoria')] ?? fila[1] ?? ''),
-        descripcion: String(fila[headers.indexOf('descripcion')] ?? fila[2] ?? ''),
-        importe: Number(fila[headers.indexOf('importe')] ?? fila[3]) || 0,
-        importe_variable: Number(fila[headers.indexOf('importe_variable')] ?? fila[4]) || 0,
-        importe_fijo: Number(fila[headers.indexOf('importe_fijo')] ?? fila[5]) || 0,
-        tipo_gasto: String(fila[headers.indexOf('tipo_gasto')] ?? fila[6] ?? 'operativo'),
-        proveedor: String(fila[headers.indexOf('proveedor')] ?? fila[7] ?? ''),
-        numero_factura: String(fila[headers.indexOf('numero_factura')] ?? fila[8] ?? ''),
-        fecha_vencimiento: fila[headers.indexOf('fecha_vencimiento')] ? String(fila[headers.indexOf('fecha_vencimiento')]) : undefined,
-        observaciones: String(fila[headers.indexOf('observaciones')] ?? fila[10] ?? '')
+      setMensaje({
+        tipo: 'error',
+        texto: `Error al procesar el archivo: ${err instanceof Error ? err.message : 'Error desconocido'}`
       })
-
-      if (modoMulti && mesColuIdx >= 0) {
-        // MODO MULTI-PERÍODO
-        const filasPorPeriodo: Record<string, TemplateCosto[]> = {}
-        for (const fila of filasDatos) {
-          const mesRaw = fila[mesColuIdx]
-          const pk = parseMesAKey(String(mesRaw || '')) ?? (periodoSeleccionado !== 'multi' ? periodoSeleccionado : null)
-          if (!pk) continue
-          if (!filasPorPeriodo[pk]) filasPorPeriodo[pk] = []
-          filasPorPeriodo[pk].push(parseFila(fila))
-        }
-
-        const periodosDetectados = Object.keys(filasPorPeriodo)
-        let totalInsertados = 0
-        const erroresAcumulados: string[] = []
-
-        for (const pk of periodosDetectados) {
-          const [anio, mes] = pk.split('-').map(Number)
-          const resultado = await cargarCostosEstructurales(anio * 100 + mes, sucursalSeleccionada, filasPorPeriodo[pk], file.name, modoIncremental)
-          totalInsertados += resultado.insertados
-          if (!resultado.success) erroresAcumulados.push(...resultado.errores.map(e => `[${pk}] ${e}`))
-        }
-
-        setUltimaCarga({ tipo: 'costos', success: erroresAcumulados.length === 0, insertados: totalInsertados, errores: erroresAcumulados, archivo: file.name })
-        setMensaje({
-          tipo: erroresAcumulados.length === 0 ? 'success' : 'error',
-          texto: `✅ Costos Multi-Período: ${periodosDetectados.length} meses procesados (${totalInsertados} conceptos). Períodos: ${periodosDetectados.join(', ')}`
-        })
-      } else {
-        if (periodoSeleccionado === 'multi') {
-          setMensaje({ tipo: 'error', texto: 'El archivo no tiene columna "Mes". Seleccioná un período específico o agregá la columna Mes al archivo.' })
-          setLoading(false)
-          return
-        }
-        const datosCostos = filasDatos.map(parseFila)
-        const [anio, mes] = periodoSeleccionado.split('-').map(Number)
-        const resultado = await cargarCostosEstructurales(anio * 100 + mes, sucursalSeleccionada, datosCostos, file.name, modoIncremental)
-        setUltimaCarga({ tipo: 'costos', success: resultado.success, insertados: resultado.insertados, errores: resultado.errores, archivo: file.name })
-        setMensaje({
-          tipo: resultado.success ? 'success' : 'error',
-          texto: resultado.success ? `Costos cargados: ${resultado.insertados} conceptos procesados` : `Error Costos: ${resultado.errores.join(', ')}`
-        })
-      }
-    } catch (err) {
-      setMensaje({ tipo: 'error', texto: `Error al procesar archivo Costos: ${err instanceof Error ? err.message : 'Error desconocido'}` })
-    } finally {
-      setLoading(false)
     }
   }
-
-  // Auto-hide mensajes después de 8 segundos
-  useEffect(() => {
-    if (mensaje) {
-      const timer = setTimeout(() => setMensaje(null), 8000)
-      return () => clearTimeout(timer)
-    }
-  }, [mensaje])
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Gestión de Cargas & Datos RRHH/Costos"
-        subtitle="Sistema de carga masiva para nómina mensual, costos estructurales y gestión de plantillas de empleados."
-        actions={
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              Fase 2 - RRHH
-            </Badge>
-            <Button onClick={cargarPlantillaEmpleados} variant="outline" size="sm" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Actualizar
-            </Button>
-          </div>
-        }
+        title="Gestión de Cargas — RRHH"
+        description="Carga y distribución de subcuentas de Personal y Cargas Sociales (Sueldos, CCSS, Indemnizaciones y Tabla Mérito)"
       />
 
-      {/* Mensaje de estado */}
-      {mensaje && (
-        <Card className={`border-l-4 ${
-          mensaje.tipo === 'success' 
-            ? 'border-l-success bg-success/5' 
-            : mensaje.tipo === 'error'
-            ? 'border-l-destructive bg-destructive/5'
-            : 'border-l-primary bg-primary/5'
-        }`}>
-          <CardContent className="flex items-center gap-3 p-4">
-            {mensaje.tipo === 'success' && <CheckCircle className="h-5 w-5 text-success" />}
-            {mensaje.tipo === 'error' && <AlertCircle className="h-5 w-5 text-destructive" />}
-            {mensaje.tipo === 'info' && <Info className="h-5 w-5 text-primary" />}
-            <div>
-              <span className="text-sm font-medium">{mensaje.texto}</span>
-              {ultimaCarga && ultimaCarga.errores.length > 0 && (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  <details>
-                    <summary className="cursor-pointer">Ver detalles de errores ({ultimaCarga.errores.length})</summary>
-                    <ul className="mt-1 list-disc list-inside space-y-1">
-                      {ultimaCarga.errores.map((error, idx) => (
-                        <li key={idx}>{error}</li>
-                      ))}
-                    </ul>
-                  </details>
-                </div>
-              )}
+      {/* Selector de Período y Modo Multi-período */}
+      <Card className="border-border">
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-foreground">
+                Período de Trabajo / Carga
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Seleccioná un período para carga manual o eligí Multi-período para subir archivos con varios meses.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="w-full sm:w-[260px]">
+              <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado}>
+                <SelectTrigger className="w-full font-medium">
+                  <SelectValue placeholder="Seleccionar período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="multi">📅 Multi-período (lee columna Mes del archivo)</SelectItem>
+                  {periodosDisponibles.map(p => (
+                    <SelectItem key={p.key} value={p.key}>
+                      {periodoLabel(p.anio, p.mes)} ({p.key})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Alertas de Resultado */}
+      {mensaje && (
+        <div
+          className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${
+            mensaje.tipo === 'success'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              : mensaje.tipo === 'error'
+              ? 'border-destructive/30 bg-destructive/10 text-destructive'
+              : 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+          }`}
+        >
+          {mensaje.tipo === 'success' && <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />}
+          {mensaje.tipo === 'error' && <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />}
+          {mensaje.tipo === 'info' && <Info className="h-5 w-5 shrink-0 mt-0.5" />}
+          <div className="flex-1 font-medium leading-relaxed">{mensaje.texto}</div>
+        </div>
       )}
 
-      {/* Filtros principales */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-sm">Sucursal</span>
+      {/* Grid con dos secciones: Carga masiva via Excel/CSV vs Carga Manual */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Card 1: Carga Masiva (Excel / CSV) */}
+        <Card className="border-border flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">Carga Masiva vía Archivo (Excel / CSV)</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Subí tu plantilla con las columnas: Mes, SUELDO, CCSS, INDEMNIZATORIOS, MERITO
+                </p>
+              </div>
             </div>
-            <Select value={sucursalSeleccionada} onValueChange={(val) => { if (val) setSucursalSeleccionada(val) }}>
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sucursales.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-dashed border-border p-4 text-center bg-muted/30">
+                <Users className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-xs text-muted-foreground mb-3">
+                  Soporta archivos Excel (<code className="text-primary font-mono">.xlsx, .xls</code>) o CSV.
+                  Detecta fechas estilo <code className="text-primary font-mono">01-ene</code>, <code className="text-primary font-mono">01-feb</code>, <code className="text-primary font-mono">2026-01</code>.
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    className="gap-2"
+                  >
+                    {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {loading ? 'Procesando...' : 'Subir Archivo RRHH'}
+                  </Button>
+
+                  <Button
+                    onClick={handleDescargarTemplate}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4 text-primary" />
+                    Descargar Template
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground space-y-1 border border-border/50">
+              <span className="font-semibold text-foreground flex items-center gap-1">
+                <Info className="h-3.5 w-3.5 text-primary" /> Mapeo automático de cuentas:
+              </span>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1">
+                <li><strong>SUELDO</strong>: Sueldos brutos totales</li>
+                <li><strong>CCSS</strong>: Cargas Sociales (Aportes patronales + ART)</li>
+                <li><strong>INDEMNIZATORIOS</strong>: Indemnizaciones y bajas</li>
+                <li><strong>MERITO</strong>: Tabla Mérito / Bonos por desempeño</li>
+              </ul>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className={`border-success/20 ${periodoSeleccionado === 'multi' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-success/5'}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="h-5 w-5 text-success" />
-              <span className="font-semibold text-sm">Período</span>
-              {periodoSeleccionado === 'multi' && (
-                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 border border-amber-400/40">MULTI-PERÍODO</span>
-              )}
+        {/* Card 2: Carga / Edición Manual */}
+        <Card className="border-border flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                <Calculator className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">Carga Manual de Subcuentas RRHH</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Ingresá los montos totales para {periodoSeleccionado === 'multi' ? 'el período seleccionado' : periodoSeleccionado}
+                </p>
+              </div>
             </div>
-            <Select value={periodoSeleccionado} onValueChange={(val) => { if (val) setPeriodoSeleccionado(val) }}>
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="multi">📅 Multi-período (lee columna Mes del archivo)</SelectItem>
-                {periodos.slice().reverse().map(p => (
-                  <SelectItem key={p.key} value={p.key}>
-                    {periodoLabel(p.anio, p.mes)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {periodoSeleccionado === 'multi' && (
-              <p className="text-[10px] text-amber-600 mt-1.5">
-                El archivo debe tener una columna <strong>Mes</strong> (ej: ene-26) por fila.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Campo Sueldos */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  SUELDO (Sueldos Brutos)
+                </label>
+                <input
+                  type="text"
+                  value={rrhhForm.sueldos}
+                  onChange={(e) => handleInputChange('sueldos', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
 
-        <Card className="border-warning/20 bg-warning/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="h-5 w-5 text-warning" />
-              <span className="font-semibold text-sm">Sistema RRHH</span>
+              {/* Campo CCSS */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  CCSS (Cargas Sociales)
+                </label>
+                <input
+                  type="text"
+                  value={rrhhForm.cargas_sociales}
+                  onChange={(e) => handleInputChange('cargas_sociales', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Campo Indemnizatorios */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  INDEMNIZATORIOS (Indemnizaciones)
+                </label>
+                <input
+                  type="text"
+                  value={rrhhForm.indemnizaciones}
+                  onChange={(e) => handleInputChange('indemnizaciones', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Campo Mérito */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  MERITO (Tabla Mérito)
+                </label>
+                <input
+                  type="text"
+                  value={rrhhForm.tabla_merito}
+                  onChange={(e) => handleInputChange('tabla_merito', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
             </div>
-            <div className="text-lg font-bold">
-              {formatNumber(plantillaEmpleados.length)} empleados
+
+            {/* Total Calculado */}
+            <div className="rounded-lg bg-emerald-500/10 p-3 flex items-center justify-between border border-emerald-500/20">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                Total RRHH Período:
+              </span>
+              <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(totalCalculado())}
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {sistemaListo ? 'Conectado a Supabase' : 'Modo ejemplo/fallback'}
-            </p>
-            {!sistemaListo && (
-              <Badge variant="outline" className="mt-1 text-[10px]">
-                Verificar BD
-              </Badge>
-            )}
+
+            <Button
+              onClick={handleGuardarManual}
+              disabled={loading || periodoSeleccionado === 'multi'}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {loading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Users className="h-4 w-4 mr-2" />}
+              Guardar y Distribuir RRHH ({periodoSeleccionado})
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Modo de Carga */}
-      <Card className="border-primary/20 bg-card">
-        <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h4 className="text-sm font-bold text-primary flex items-center gap-2">
-              Modo de Carga de Archivos
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Define el comportamiento al subir planillas Excel de Nómina o Costos Estructurales para la sucursal y período seleccionados.
-            </p>
-          </div>
-          <div className="flex items-center gap-4 shrink-0">
-            <label className="flex items-center gap-2.5 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={modoIncremental}
-                onChange={(e) => setModoIncremental(e.target.checked)}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
-              />
-              <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                Modo Incremental
-              </span>
-            </label>
-            <Badge className={`text-[10px] uppercase font-bold px-2.5 py-0.5 border-0 ${
-              modoIncremental ? "bg-success/20 text-success hover:bg-success/30" : "bg-warning/20 text-warning hover:bg-warning/30"
-            }`}>
-              {modoIncremental ? "Fusión / Agregar" : "Reemplazar Existente"}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sección RRHH */}
+      {/* Tabla de Períodos Cargados de RRHH */}
       <Card className="border-border">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold">Nómina Mensual RRHH</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Carga de sueldos, cargas sociales y liquidación mensual
-                </p>
-              </div>
+            <div className="flex items-center gap-2">
+              <Table className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base font-bold">Histórico de Subcuentas de RRHH Cargadas</CardTitle>
             </div>
-            <Badge variant="secondary" className="text-xs">
-              Excel → Supabase
+            <Badge variant="outline" className="text-xs">
+              {subcuentasExistentes.length} Períodos en BD
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <Download className="h-4 w-4 text-primary" />
-                1. Descargar Template
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Template pre-cargado con empleados de {sucursales.find(s => s.id === sucursalSeleccionada)?.nombre}
-              </p>
-              <Button 
-                onClick={generarTemplateRRHH} 
-                variant="outline" 
-                size="sm" 
-                className="w-full gap-2"
-                disabled={plantillaEmpleados.length === 0}
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Descargar Template RRHH
-              </Button>
+        <CardContent>
+          {subcuentasExistentes.length === 0 ? (
+            <div className="text-center py-6 text-xs text-muted-foreground">
+              No hay subcuentas de RRHH cargadas actualmente. Usá el formulario o subí un archivo para comenzar.
             </div>
-
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4 text-success" />
-                2. Subir Archivo Completado
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Archivo Excel completado con datos de nómina del mes
-              </p>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleArchivoRRHH}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  disabled={loading}
-                />
-                <Button 
-                  variant="default" 
-                  size="sm" 
-                  className="w-full gap-2"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  {loading ? 'Procesando...' : 'Cargar Archivo RRHH'}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Plantilla de empleados */}
-          {plantillaEmpleados.length > 0 && (
-            <div className="mt-4">
-              <h4 className="font-semibold text-sm mb-2">Empleados en Plantilla:</h4>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {plantillaEmpleados.slice(0, 6).map(emp => (
-                  <div key={emp.legajo} className="flex items-center gap-2 p-2 rounded bg-muted/50 text-xs">
-                    <Badge variant="outline" className="text-[10px]">{emp.legajo}</Badge>
-                    <span className="font-medium">{emp.apellido}, {emp.nombre}</span>
-                    <span className="text-muted-foreground">({emp.puesto})</span>
-                  </div>
-                ))}
-                {plantillaEmpleados.length > 6 && (
-                  <div className="flex items-center justify-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
-                    +{plantillaEmpleados.length - 6} más...
-                  </div>
-                )}
-              </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/50 border-b border-border text-muted-foreground">
+                  <tr>
+                    <th className="p-2.5 font-semibold">Período</th>
+                    <th className="p-2.5 font-semibold text-right">SUELDO</th>
+                    <th className="p-2.5 font-semibold text-right">CCSS</th>
+                    <th className="p-2.5 font-semibold text-right">INDEMNIZATORIOS</th>
+                    <th className="p-2.5 font-semibold text-right">MERITO</th>
+                    <th className="p-2.5 font-semibold text-right">TOTAL RRHH</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {subcuentasExistentes.map(({ periodoKey, data }) => (
+                    <tr key={periodoKey} className="hover:bg-muted/30 font-mono">
+                      <td className="p-2.5 font-sans font-bold text-foreground">
+                        {periodoKey}
+                      </td>
+                      <td className="p-2.5 text-right">{formatCurrency(data.sueldos)}</td>
+                      <td className="p-2.5 text-right">{formatCurrency(data.cargas_sociales)}</td>
+                      <td className="p-2.5 text-right">{formatCurrency(data.indemnizaciones)}</td>
+                      <td className="p-2.5 text-right">{formatCurrency(data.tabla_merito)}</td>
+                      <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(data.total_rrhh)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </CardContent>
-      </Card>
-      {/* Sección Costos Estructurales */}
-      <Card className="border-border">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <DollarSign className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold">Costos Estructurales</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Servicios, alquileres, seguros, impuestos y otros costos fijos
-                </p>
-              </div>
-            </div>
-            <Badge variant="secondary" className="text-xs">
-              Excel → Supabase
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <Download className="h-4 w-4 text-primary" />
-                1. Descargar Template
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Template con ejemplos de costos típicos por categoría
-              </p>
-              <Button 
-                onClick={generarTemplateCostos} 
-                variant="outline" 
-                size="sm" 
-                className="w-full gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Descargar Template Costos
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4 text-destructive" />
-                2. Subir Archivo Completado
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Archivo Excel con todos los costos del período
-              </p>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleArchivoCostos}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  disabled={loading}
-                />
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="w-full gap-2"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  {loading ? 'Procesando...' : 'Cargar Archivo Costos'}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Categorías de costos */}
-          <div className="mt-4">
-            <h4 className="font-semibold text-sm mb-2">Categorías de Costos Soportadas:</h4>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {[
-                { cat: 'servicios', icon: '⚡', desc: 'Luz, gas, agua, tel.' },
-                { cat: 'alquileres', icon: '🏢', desc: 'Local, equipos' },
-                { cat: 'seguros', icon: '🛡️', desc: 'Integral, mercadería' },
-                { cat: 'impuestos', icon: '📊', desc: 'Municipal, provincial' },
-                { cat: 'mantenimiento', icon: '🔧', desc: 'Equipos, limpieza' },
-                { cat: 'marketing', icon: '📢', desc: 'Publicidad, promoción' },
-                { cat: 'otros', icon: '📋', desc: 'Varios, extraordinarios' }
-              ].map(item => (
-                <div key={item.cat} className="flex items-center gap-2 p-2 rounded bg-muted/50 text-xs">
-                  <span className="text-base">{item.icon}</span>
-                  <div>
-                    <div className="font-medium capitalize">{item.cat}</div>
-                    <div className="text-muted-foreground text-[10px]">{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Resumen de última carga */}
-      {ultimaCarga && (
-        <Card className={`border-l-4 ${
-          ultimaCarga.success ? 'border-l-success bg-success/5' : 'border-l-destructive bg-destructive/5'
-        }`}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              {ultimaCarga.success ? (
-                <CheckCircle className="h-5 w-5 text-success" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-destructive" />
-              )}
-              Resumen de Última Carga
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <span className="text-xs text-muted-foreground">Tipo:</span>
-                <div className="font-semibold capitalize">
-                  {ultimaCarga.tipo === 'rrhh' ? 'Nómina RRHH' : 'Costos Estructurales'}
-                </div>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Registros:</span>
-                <div className="font-semibold">
-                  {formatNumber(ultimaCarga.insertados)} insertados
-                </div>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Archivo:</span>
-                <div className="font-semibold text-xs">
-                  {ultimaCarga.archivo || 'Sin nombre'}
-                </div>
-              </div>
-            </div>
-            
-            {ultimaCarga.errores.length > 0 && (
-              <div className="mt-3 p-3 rounded bg-destructive/10 border border-destructive/20">
-                <h5 className="font-semibold text-sm text-destructive mb-2">
-                  Errores encontrados ({ultimaCarga.errores.length}):
-                </h5>
-                <div className="max-h-32 overflow-y-auto">
-                  <ul className="text-xs space-y-1 text-destructive/80">
-                    {ultimaCarga.errores.map((error, idx) => (
-                      <li key={idx} className="flex gap-2">
-                        <span className="text-destructive">•</span>
-                        <span>{error}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Información técnica */}
-      <Card className="border-muted">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Información Técnica:</p>
-              <p>• Los templates se generan dinámicamente basados en la sucursal y período seleccionados.</p>
-              <p>• Los empleados se crean automáticamente desde la plantilla si no existen en la base de datos.</p>
-              <p>• Los cálculos de descuentos, aportes patronales y ART se realizan automáticamente.</p>
-              <p>• Los archivos pueden procesarse múltiples veces (upsert) - se actualizan registros existentes.</p>
-              <p>• Formatos soportados: .xlsx y .xls. El archivo debe seguir exactamente la estructura del template.</p>
-              <p>• Las validaciones incluyen: empleados en plantilla, importes &gt; 0, categorías válidas.</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

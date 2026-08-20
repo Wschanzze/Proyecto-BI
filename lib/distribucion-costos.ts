@@ -4,6 +4,7 @@
 import { supabase } from './supabase'
 import { upsertCostosFijosSubcuentas, type CostosFijosSubcuentasCarga } from './costos-fijos-subcuentas'
 import { upsertIngresosFinancierosSubcuentas, type IngresosFinancierosSubcuentasCarga } from './ingresos-financieros-subcuentas'
+import { upsertRRHHSubcuentas, type RRHHSubcuentasCarga } from './rrhh-subcuentas'
 
 /**
  * Calcular participación de cada sucursal en las ventas de un período
@@ -190,6 +191,60 @@ export async function distribuirIngresosFinancieros(
     return { success: true, detalles }
   } catch (error) {
     console.error('Error al distribuir ingresos financieros:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error desconocido' 
+    }
+  }
+}
+
+/**
+ * Distribuir subcuentas de RRHH totales entre sucursales según participación en ventas
+ */
+export async function distribuirRRHHSubcuentas(
+  periodoKey: string,
+  rrhhTotal: RRHHSubcuentasCarga
+): Promise<{ success: boolean; error?: string; detalles?: any[] }> {
+  try {
+    const participacion = await calcularParticipacionVentas(periodoKey)
+    
+    if (Object.keys(participacion).length === 0) {
+      return { 
+        success: false, 
+        error: 'No hay datos de ventas para este período. Cargá primero los datos de facturación.' 
+      }
+    }
+
+    const detalles: any[] = []
+    const resultados = await Promise.all(
+      Object.entries(participacion).map(async ([sucursalId, porcentaje]) => {
+        const rrhhDistribuidos: RRHHSubcuentasCarga = {
+          sueldos: (rrhhTotal.sueldos || 0) * porcentaje,
+          cargas_sociales: (rrhhTotal.cargas_sociales || 0) * porcentaje,
+          indemnizaciones: (rrhhTotal.indemnizaciones || 0) * porcentaje,
+          tabla_merito: (rrhhTotal.tabla_merito || 0) * porcentaje,
+        }
+
+        const result = await upsertRRHHSubcuentas(periodoKey, sucursalId, rrhhDistribuidos)
+        
+        detalles.push({
+          sucursalId,
+          porcentaje: porcentaje * 100,
+          total: Object.values(rrhhDistribuidos).reduce((sum, val) => sum + val, 0)
+        })
+
+        return result
+      })
+    )
+
+    const errores = resultados.filter(r => !r.success)
+    if (errores.length > 0) {
+      return { success: false, error: `Errores al guardar RRHH: ${errores.map(e => e.error).join(', ')}` }
+    }
+
+    return { success: true, detalles }
+  } catch (error) {
+    console.error('Error al distribuir subcuentas RRHH:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Error desconocido' 
