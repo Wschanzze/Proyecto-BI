@@ -1,7 +1,7 @@
 // lib/costos-fijos-subcuentas.ts
 // Gestión de subcuentas detalladas de Costos Fijos (15 cuentas)
 
-import { supabase } from './supabase'
+import { supabase, supabaseAdmin } from './supabase'
 
 export interface CostosFijosSubcuentas {
   periodo_id: number
@@ -51,7 +51,7 @@ export async function getCostosFijosSubcuentas(
 ): Promise<CostosFijosSubcuentas | null> {
   try {
     // Obtener periodo_id (la columna se llama 'key')
-    const { data: periodo } = await supabase
+    const { data: periodo } = await supabaseAdmin
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
@@ -61,7 +61,7 @@ export async function getCostosFijosSubcuentas(
 
     if (sucursalId === '__consolidado__') {
       // Consolidado: sumar todas las sucursales
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('costos_fijos_subcuentas')
         .select('*')
         .eq('periodo_id', periodo.id)
@@ -91,7 +91,7 @@ export async function getCostosFijosSubcuentas(
       }
     } else {
       // Por sucursal específica
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('costos_fijos_subcuentas')
         .select('*')
         .eq('periodo_id', periodo.id)
@@ -121,7 +121,7 @@ export async function upsertCostosFijosSubcuentas(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Obtener periodo_id
-    const { data: periodo, error: periodoErr } = await supabase
+    const { data: periodo, error: periodoErr } = await supabaseAdmin
       .from('periodos')
       .select('id')
       .eq('key', periodoKey)
@@ -132,7 +132,7 @@ export async function upsertCostosFijosSubcuentas(
     }
 
     // --- Intentar via RPC (SECURITY DEFINER, sin problemas de RLS/FK) ---
-    const { data: rpcResult, error: rpcErr } = await supabase.rpc('guardar_costos_fijos_subcuentas', {
+    const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc('guardar_costos_fijos_subcuentas', {
       p_periodo_id: periodo.id,
       p_sucursal_id: sucursalId,
       p_alquileres: datos.alquileres ?? 0,
@@ -188,13 +188,13 @@ export async function upsertCostosFijosSubcuentas(
       actualizado_en: new Date().toISOString(),
     }
 
-    await supabase
+    await supabaseAdmin
       .from('costos_fijos_subcuentas')
       .delete()
       .eq('periodo_id', periodo.id)
       .eq('sucursal_id', sucursalId)
 
-    const { error: insErr } = await supabase
+    const { error: insErr } = await supabaseAdmin
       .from('costos_fijos_subcuentas')
       .insert(payload)
 
