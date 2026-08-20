@@ -315,25 +315,102 @@ export function CargaCostosFijos({
 
   // Mapea la denominación al campo de costo fijo correspondiente (sin ignorar filas)
   const mapDenominacion = (denominacion: string): { tipo: 'costo' | 'ingreso'; campo: string } => {
-    const d = denominacion.toLowerCase().trim()
-    if (d.includes('alquiler')) return { tipo: 'costo', campo: 'alquileres' }
-    if (d.includes('honorario') || d.includes('asesor') || d.includes('contador') || d.includes('abogado') || d.includes('profesional')) return { tipo: 'costo', campo: 'honorarios' }
-    if (d.includes('tasa') || d.includes('impuesto') || d.includes('municipal') || d.includes('luz') || d.includes('gas') || d.includes('agua') || d.includes('edesur') || d.includes('edenor') || d.includes('metrogas') || d.includes('internet') || (d.includes('servicio') && !d.includes('otros'))) return { tipo: 'costo', campo: 'tasas_servicios' }
-    if (d.includes('mantenimiento') || d.includes('tecnico') || d.includes('reparaci') || d.includes('frio') || d.includes('service')) return { tipo: 'costo', campo: 'mantenimiento_servicios_tecnicos' }
-    if (d.includes('perdida') || d.includes('inventario') || d.includes('merma') || d.includes('rotura') || d.includes('vencimien')) return { tipo: 'costo', campo: 'perdida_gestion_inventarios' }
-    if (d.includes('seguridad') || d.includes('vigilancia') || d.includes('seguro') || d.includes('alarma')) return { tipo: 'costo', campo: 'seguridad_vigilancia' }
-    if (d.includes('otros servicios') || d.includes('limpieza') || d.includes('flete')) return { tipo: 'costo', campo: 'otros_servicios' }
-    if (d.includes('personal') || d.includes('sueldo') || d.includes('cargas social') || d.includes('capacitac') || d.includes('uniforme')) return { tipo: 'costo', campo: 'gastos_personal' }
-    if (d.includes('comision') || d.includes('bancari') || d.includes('posnet') || d.includes('postnet') || d.includes('mp') || d.includes('mercado pago') || d.includes('tarjeta')) return { tipo: 'costo', campo: 'comisiones_gastos_bancarios' }
-    if (d.includes('extraordinario') || d.includes('eventual')) return { tipo: 'costo', campo: 'gastos_extraordinarios' }
-    if (d.includes('comercializ') || d.includes('marketing') || d.includes('publicidad') || d.includes('propaganda') || d.includes('folleto')) return { tipo: 'costo', campo: 'gastos_comercializacion' }
-    if (d.includes('administra') || d.includes('libreria') || d.includes('papeleria') || d.includes('oficina')) return { tipo: 'costo', campo: 'gastos_administracion' }
-    if (d.includes('financi') || d.includes('interes') || d.includes('prestamo')) return { tipo: 'costo', campo: 'gastos_financiacion' }
-    if (d.includes('diferencia') || d.includes('caja') || d.includes('faltante')) return { tipo: 'costo', campo: 'diferencias_caja_perdida' }
-    if (d.includes('operatoria financiera') || d.includes('intereses ganados')) return { tipo: 'ingreso', campo: 'operatoria_financiera' }
-    if (d.includes('rendimiento') || d.includes('inversion') || d.includes('fci') || d.includes('plazo fijo')) return { tipo: 'ingreso', campo: 'rendimientos_financieros' }
+    const d = denominacion
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
 
-    // Fallback seguro: asigna a otros_gastos en lugar de descartan filas
+    // 1. Alquileres
+    if (d.includes('alquiler')) return { tipo: 'costo', campo: 'alquileres' }
+
+    // 2. Honorarios
+    if (d.includes('honorario') || d.includes('asesor') || d.includes('contador') || d.includes('abogado') || d.includes('profesional')) {
+      return { tipo: 'costo', campo: 'honorarios' }
+    }
+
+    // 3. Mantenimiento y Servicios Técnicos (debe ir antes de tasas_servicios)
+    if (d.includes('mantenimiento') || d.includes('tecnico') || d.includes('reparaci') || d.includes('frio') || d.includes('service')) {
+      return { tipo: 'costo', campo: 'mantenimiento_servicios_tecnicos' }
+    }
+
+    // 4. Pérdida en Gestión de Inventarios
+    if (d.includes('perdida en gestion') || d.includes('inventario') || d.includes('merma') || d.includes('rotura') || d.includes('vencimien')) {
+      return { tipo: 'costo', campo: 'perdida_gestion_inventarios' }
+    }
+
+    // 5. Seguridad y Vigilancia
+    if (d.includes('seguridad') || d.includes('vigilancia') || d.includes('seguro') || d.includes('alarma')) {
+      return { tipo: 'costo', campo: 'seguridad_vigilancia' }
+    }
+
+    // 6. Otros Servicios (debe ir antes de tasas_servicios)
+    if (d.includes('otros servicios') || d.includes('limpieza') || d.includes('flete')) {
+      return { tipo: 'costo', campo: 'otros_servicios' }
+    }
+
+    // 7. Gastos en Personal (debe ir antes de tasas_servicios)
+    if (d.includes('personal') || d.includes('sueldo') || d.includes('cargas social') || d.includes('capacitac') || d.includes('uniforme')) {
+      return { tipo: 'costo', campo: 'gastos_personal' }
+    }
+
+    // 8. Comisiones y Gastos Bancarios
+    if (d.includes('comision') || d.includes('bancari') || d.includes('posnet') || d.includes('postnet') || d.includes('mp') || d.includes('mercado pago') || d.includes('tarjeta')) {
+      return { tipo: 'costo', campo: 'comisiones_gastos_bancarios' }
+    }
+
+    // 9. Gastos Extraordinarios
+    if (d.includes('extraordinario') || d.includes('eventual')) {
+      return { tipo: 'costo', campo: 'gastos_extraordinarios' }
+    }
+
+    // 10. Gastos de Comercialización
+    if (d.includes('comercializ') || d.includes('marketing') || d.includes('publicidad') || d.includes('propaganda') || d.includes('folleto')) {
+      return { tipo: 'costo', campo: 'gastos_comercializacion' }
+    }
+
+    // 11. Gastos de Administración
+    if (d.includes('administra') || d.includes('libreria') || d.includes('papeleria') || d.includes('oficina')) {
+      return { tipo: 'costo', campo: 'gastos_administracion' }
+    }
+
+    // 12. Gastos de Financiación
+    if (d.includes('financi') || d.includes('interes') || d.includes('prestamo')) {
+      return { tipo: 'costo', campo: 'gastos_financiacion' }
+    }
+
+    // 13. Diferencias de Caja - Pérdida
+    if (d.includes('diferencia') || (d.includes('caja') && d.includes('perdida')) || d.includes('faltante')) {
+      return { tipo: 'costo', campo: 'diferencias_caja_perdida' }
+    }
+
+    // 14. Ingresos Financieros
+    if (d.includes('operatoria financiera') || d.includes('intereses ganados')) {
+      return { tipo: 'ingreso', campo: 'operatoria_financiera' }
+    }
+    if (d.includes('rendimiento') || d.includes('inversion') || d.includes('fci') || d.includes('plazo fijo')) {
+      return { tipo: 'ingreso', campo: 'rendimientos_financieros' }
+    }
+
+    // 15. Tasas y Servicios / Impuestos sobre la Actividad
+    // ¡OJO! Se usa /\bgas\b/ para evitar que "gastos" coincida con "gas"
+    if (
+      d.includes('tasa') ||
+      d.includes('impuesto') ||
+      d.includes('municipal') ||
+      d.includes('luz') ||
+      /\bgas\b/.test(d) ||
+      d.includes('agua') ||
+      d.includes('edesur') ||
+      d.includes('edenor') ||
+      d.includes('metrogas') ||
+      d.includes('internet') ||
+      (d.includes('servicio') && !d.includes('otros') && !d.includes('tecnico'))
+    ) {
+      return { tipo: 'costo', campo: 'tasas_servicios' }
+    }
+
+    // Fallback seguro: asigna a otros_gastos en lugar de descartar filas
     return { tipo: 'costo', campo: 'otros_gastos' }
   }
 
@@ -463,7 +540,7 @@ export function CargaCostosFijos({
         let colMonto = -1
 
         for (let i = 0; i < Math.min(10, rows.length); i++) {
-          const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().trim())
+          const r = (rows[i] || []).map(cell => String(cell || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
           const idxMes = r.findIndex(c => c === 'mes' || c === 'periodo' || c === 'period' || c === 'fecha' || c === 'date')
           const idxDen = r.findIndex(c => c === 'denominacion' || c === 'concepto' || c === 'descripcion' || c === 'subcuenta' || c === 'cuenta' || c === 'nombre' || c === 'rubro')
           const idxMon = r.findIndex(c => c === 'total' || c === 'monto' || c === 'importe' || c === 'valor' || c === 'precio')
