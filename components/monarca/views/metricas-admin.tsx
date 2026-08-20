@@ -45,10 +45,7 @@ interface MetricaEditando {
 }
 
 const CATEGORIAS_ADMIN = [
-  { id: 'ratios', nombre: 'Ratios P&L', descripcion: 'Porcentajes aplicados sobre ventas sin IVA', icon: Percent },
-  { id: 'impuestos', nombre: 'Impuestos', descripcion: 'Tasas impositivas específicas', icon: DollarSign },
-  { id: 'estimaciones', nombre: 'Estimaciones CMV', descripcion: 'Costos de mercadería por categoría', icon: Hash },
-  { id: 'kpis', nombre: 'KPIs Base', descripcion: 'Métricas de referencia para cálculos', icon: Settings },
+  { id: 'ratios', nombre: 'Ratios P&L (Cuadro Simplificado)', descripcion: 'Porcentajes de supuesto aplicados sobre ventas sin IVA en el Estado de Pérdidas y Ganancias — Evolución Mensual', icon: Percent },
 ]
 
 function getIconoTipo(tipo: string) {
@@ -228,7 +225,7 @@ export function MetricasAdmin() {
         {CATEGORIAS_ADMIN.map(categoria => {
           const metricasCategoria = metricasFiltradas.filter(m => m.categoria === categoria.id)
           
-          if (metricasCategoria.length === 0 && categoriaFiltro !== 'todas' && categoriaFiltro !== categoria.id) {
+          if (metricasCategoria.length === 0) {
             return null
           }
 
