@@ -1,23 +1,45 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { Save, RefreshCw, AlertCircle, CheckCircle, TrendingUp, DollarSign, Percent } from "lucide-react"
+import { RefreshCw, AlertCircle, CheckCircle, TrendingUp, Info } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PageHeader } from "@/components/monarca/shared"
 import { getMetricasConfigurables, actualizarMetrica } from "@/lib/metricas-admin"
 import type { MetricaConfigurable } from "@/lib/data"
-import { formatCurrency, formatPercent } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const METRICAS_BASE = [
-  { claveBase: 'proy_facturacion', nombre: 'Facturación Esperada', tipo: 'monto' },
-  { claveBase: 'proy_cmv_pct', nombre: 'CMV Objetivo', tipo: 'porcentaje' },
-  { claveBase: 'proy_rrhh_pct', nombre: 'RRHH Objetivo', tipo: 'porcentaje' },
-  { claveBase: 'proy_gastos_comerciales_pct', nombre: 'Gastos Comerciales Objetivo', tipo: 'porcentaje' },
-  { claveBase: 'proy_mermas_pct', nombre: 'Mermas Objetivo', tipo: 'porcentaje' },
+  { claveBase: 'proy_facturacion', nombre: 'Facturación Esperada', tipo: 'monto', descripcion: 'Facturación total bruta esperada (con IVA)' },
+  { claveBase: 'proy_cmv_pct', nombre: 'CMV Objetivo', tipo: 'porcentaje', descripcion: '% de Costo de Mercaderías Vendidas s/Venta Neta' },
+  { claveBase: 'proy_rrhh_pct', nombre: 'RRHH Objetivo', tipo: 'porcentaje', descripcion: '% de Gastos de Personal s/Venta Neta' },
+  { claveBase: 'proy_gastos_comerciales_pct', nombre: 'Gastos Comerciales Objetivo', tipo: 'porcentaje', descripcion: '% de Gastos Comerciales s/Venta Neta' },
+  { claveBase: 'proy_mermas_pct', nombre: 'Mermas Objetivo', tipo: 'porcentaje', descripcion: '% de Mermas s/Venta Neta' },
 ]
+
+const MESES_LABEL = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+// Meses con datos reales cargados en 2026 (Ene-Jul = índices 0..6)
+const MESES_CON_DATOS_REALES = 7
+
+function formatDisplayValue(valor: number, tipo: string): string {
+  if (tipo === 'porcentaje') {
+    return (valor * 100).toFixed(2)
+  }
+  // Monto: formatear en millones abreviado para display, raw para edicion
+  return Math.round(valor).toString()
+}
+
+function formatMonto(valor: number): string {
+  if (valor >= 1_000_000_000) {
+    return `$${(valor / 1_000_000_000).toFixed(2)}B`
+  }
+  if (valor >= 1_000_000) {
+    return `$${(valor / 1_000_000).toFixed(1)}M`
+  }
+  return `$${Math.round(valor).toLocaleString('es-AR')}`
+}
 
 export function ProyeccionesAdmin() {
   const [metricas, setMetricas] = useState<MetricaConfigurable[]>([])
@@ -111,49 +133,59 @@ export function ProyeccionesAdmin() {
     return map
   }, [metricas])
 
-  const renderCeldaInput = (mb: typeof METRICAS_BASE[0], metrica?: MetricaConfigurable) => {
-    if (!metrica) return <span className="text-muted-foreground italic text-xs">Falta DB</span>
+  const renderCeldaInput = (mb: typeof METRICAS_BASE[0], metrica?: MetricaConfigurable, mesIdx?: number) => {
+    if (!metrica) return <span className="text-muted-foreground italic text-xs">Sin datos</span>
     
     const isEditing = editando.has(metrica.id)
     const isSaving = guardando.has(metrica.id)
     
     // Valor a mostrar (si no edita)
-    let displayValue = ""
-    if (metrica.tipo === 'porcentaje') {
-      displayValue = (metrica.valor * 100).toFixed(1)
-    } else {
-      displayValue = metrica.valor.toString() // Monto exacto
-    }
-    
+    const displayValue = formatDisplayValue(metrica.valor, metrica.tipo)
     const currentValue = isEditing ? editando.get(metrica.id)! : displayValue
 
+    // Display formatted value
+    const formattedDisplay = metrica.tipo === 'monto' 
+      ? formatMonto(metrica.valor)
+      : `${(metrica.valor * 100).toFixed(2)}%`
+
     return (
-      <div className="flex flex-col items-center gap-2 group relative">
+      <div className="flex flex-col items-center gap-1 group relative">
         <div className="relative w-full">
-          {metrica.tipo === 'porcentaje' && (
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
+          {isEditing ? (
+            <>
+              {metrica.tipo === 'porcentaje' && (
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
+              )}
+              {metrica.tipo === 'monto' && (
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+              )}
+              <input 
+                type="number"
+                step="any"
+                value={currentValue}
+                onChange={(e) => handleInputChange(metrica.id, e.target.value)}
+                autoFocus
+                className={cn(
+                  "w-full rounded-md border border-primary bg-background text-right text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary pl-6 pr-2 py-1.5",
+                )}
+                disabled={isSaving}
+              />
+            </>
+          ) : (
+            <button
+              onClick={() => handleInputChange(metrica.id, displayValue)}
+              className="w-full text-right text-sm font-semibold rounded-md px-2 py-1.5 transition-colors hover:bg-muted/60 hover:text-primary cursor-pointer"
+              title={`Clic para editar: ${metrica.tipo === 'monto' ? Math.round(metrica.valor).toLocaleString('es-AR') : (metrica.valor * 100).toFixed(4) + '%'}`}
+            >
+              {formattedDisplay}
+            </button>
           )}
-          {metrica.tipo === 'monto' && (
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
-          )}
-          <input 
-            type="number"
-            step="any"
-            value={currentValue}
-            onChange={(e) => handleInputChange(metrica.id, e.target.value)}
-            className={cn(
-              "w-full rounded-md border border-transparent bg-transparent text-right text-sm font-medium transition-colors hover:border-border hover:bg-muted/50 focus:border-primary focus:bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50",
-              metrica.tipo === 'porcentaje' ? "pl-6 pr-2 py-1.5" : "pl-6 pr-2 py-1.5",
-              isEditing && "border-primary bg-background"
-            )}
-            disabled={isSaving}
-          />
         </div>
         {isEditing && (
           <Button 
             size="sm" 
             variant="default"
-            className="absolute -bottom-8 right-0 z-20 h-7 w-full text-xs shadow-md"
+            className="mt-1 h-7 w-full text-xs shadow-md"
             onClick={() => handleSave(metrica)}
             disabled={isSaving}
           >
@@ -179,7 +211,7 @@ export function ProyeccionesAdmin() {
     <div className="space-y-6">
       <PageHeader
         title="Supuestos de Proyección Mensual"
-        subtitle="Definí los montos de facturación esperados y ratios operativos objetivo mes a mes para alimentar el P&L matemático."
+        subtitle="Facturación esperada y ratios operativos objetivo mes a mes para alimentar el P&L matemático."
         actions={
           <Button onClick={loadData} variant="outline" size="sm" className="gap-2">
             <RefreshCw className="h-4 w-4" />
@@ -187,6 +219,22 @@ export function ProyeccionesAdmin() {
           </Button>
         }
       />
+
+      {/* Leyenda */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          <span>Datos reales cargados (Ene–Jul 2026)</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-2.5 w-2.5 rounded-full bg-primary/60" />
+          <span>Proyección estimada (Ago–Dic)</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground ml-2">
+          <Info className="h-3.5 w-3.5" />
+          <span>Clic en cualquier número para editar</span>
+        </div>
+      </div>
 
       {mensaje && (
         <div className={cn(
@@ -205,53 +253,68 @@ export function ProyeccionesAdmin() {
             Planificación Mes a Mes (Ene a Dic)
           </CardTitle>
           <CardDescription>
-            Hacé clic en cualquier número para editar el supuesto de ese mes específico. 
-            Modificá la facturación para ver cómo impacta estacionalmente, y ajustá tus objetivos operativos.
+            Los primeros 7 meses usan datos reales de facturación 2026. Los meses restantes se proyectan por estacionalidad histórica 2025 × crecimiento promedio YoY (+135%).
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                {/* Cabecera Split Profesional */}
                 <tr className="border-b border-border/50 bg-muted/30">
-                  <th rowSpan={2} className="sticky left-0 z-20 bg-card px-4 py-4 text-left font-bold text-base min-w-[250px] border-r-2 border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-bottom">
+                  <th rowSpan={2} className="sticky left-0 z-20 bg-card px-4 py-4 text-left font-bold text-sm min-w-[220px] border-r-2 border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-bottom">
                     Supuesto Estratégico
                   </th>
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <th key={i} className="px-3 pt-4 pb-2 text-center min-w-[120px] whitespace-nowrap">
-                      <div className="font-bold text-base text-foreground">Mes {i + 1}</div>
-                    </th>
-                  ))}
+                  {MESES_LABEL.map((label, i) => {
+                    const esReal = i < MESES_CON_DATOS_REALES
+                    return (
+                      <th key={i} className={cn("px-2 pt-3 pb-1 text-center min-w-[105px] whitespace-nowrap", esReal ? "bg-emerald-500/5" : "bg-primary/5")}>
+                        <div className={cn("font-bold text-sm", esReal ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                          {label}
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
-                <tr className="border-b-2 border-primary/20 bg-muted/30">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <th key={'badge-' + i} className="px-3 pb-4 pt-2 text-center min-w-[120px] whitespace-nowrap">
-                      <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 text-[10px] uppercase tracking-wider font-semibold border-0">
-                        Proyectado
-                      </Badge>
-                    </th>
-                  ))}
+                <tr className="border-b-2 border-border/40 bg-muted/20">
+                  {MESES_LABEL.map((_, i) => {
+                    const esReal = i < MESES_CON_DATOS_REALES
+                    return (
+                      <th key={'badge-' + i} className={cn("px-2 pb-3 pt-1 text-center min-w-[105px] whitespace-nowrap", esReal ? "bg-emerald-500/5" : "bg-primary/5")}>
+                        {esReal ? (
+                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-[9px] uppercase tracking-wider font-semibold border-0 px-1.5">
+                            Real
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 text-[9px] uppercase tracking-wider font-semibold border-0 px-1.5">
+                            Estimado
+                          </Badge>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {METRICAS_BASE.map(mb => {
+                {METRICAS_BASE.map((mb, mbIdx) => {
                   const arr = matrizProyecciones.get(mb.claveBase) || []
                   return (
-                    <tr key={mb.claveBase} className="group border-b border-border hover:bg-muted/30 transition-colors">
+                    <tr key={mb.claveBase} className={cn("group border-b border-border hover:bg-muted/30 transition-colors", mbIdx % 2 === 0 ? "" : "bg-muted/10")}>
                       <td className="sticky left-0 z-10 p-0 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r-2 border-border bg-card">
                         <div className="px-4 py-3 h-full w-full transition-colors group-hover:bg-muted/50 flex flex-col justify-center">
-                          <span className="font-medium text-foreground">{mb.nombre}</span>
-                          <span className="text-xs text-muted-foreground mt-0.5 capitalize">
-                            Tipo: {mb.tipo}
+                          <span className="font-semibold text-foreground text-sm">{mb.nombre}</span>
+                          <span className="text-xs text-muted-foreground mt-0.5">
+                            {mb.descripcion}
                           </span>
                         </div>
                       </td>
-                      {arr.map((metrica, i) => (
-                        <td key={i} className="px-2 py-2 align-top">
-                          {renderCeldaInput(mb, metrica)}
-                        </td>
-                      ))}
+                      {arr.map((metrica, i) => {
+                        const esReal = i < MESES_CON_DATOS_REALES
+                        return (
+                          <td key={i} className={cn("px-1.5 py-2 align-middle", esReal ? "bg-emerald-500/[0.03]" : "")}>
+                            {renderCeldaInput(mb, metrica, i)}
+                          </td>
+                        )
+                      })}
                     </tr>
                   )
                 })}
