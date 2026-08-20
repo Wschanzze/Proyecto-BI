@@ -273,6 +273,48 @@ function getRatioPercentage(key: string, config: ConfiguracionPL | null): string
   return null
 }
 
+function isCellEstimada(key: string, pl: CuadroResultadoLinea | null): boolean {
+  if (!pl) return false
+
+  switch (key) {
+    case 'iva':
+    case 'impuestos':
+    case 'merma':
+      return true
+    case 'rrhh':
+      return !pl.rrhhSubcuentas || (pl.rrhhSubcuentas.sueldos === 0 && pl.rrhhSubcuentas.cargas_sociales === 0)
+    case 'costosFijos':
+      return !pl.costosFijosSubcuentas || (pl.costosFijosSubcuentas.alquileres === 0 && pl.costosFijosSubcuentas.tasas_servicios === 0 && pl.costosFijosSubcuentas.otros_servicios === 0 && pl.costosFijosSubcuentas.gastos_personal === 0)
+    case 'ingresosFinancieros':
+      return !pl.ingresosFinancierosSubcuentas || (pl.ingresosFinancierosSubcuentas.operatoria_financiera === 0 && pl.ingresosFinancierosSubcuentas.rendimientos_financieros === 0)
+    default:
+      return false
+  }
+}
+
+function getEstimacionInfo(
+  key: string,
+  periodosVisibles: { periodo: Periodo; pl: CuadroResultadoLinea | null }[]
+) {
+  const totalMeses = periodosVisibles.length
+  let mesesEstimados = 0
+  const mesesEstimadosNombres: string[] = []
+
+  periodosVisibles.forEach(({ periodo, pl }) => {
+    if (isCellEstimada(key, pl)) {
+      mesesEstimados++
+      mesesEstimadosNombres.push(periodoLabelCorto(periodo.anio, periodo.mes))
+    }
+  })
+
+  return {
+    totalMeses,
+    mesesEstimados,
+    mesesReales: totalMeses - mesesEstimados,
+    mesesEstimadosNombres,
+  }
+}
+
 export function CuadroSimplificado({
   periodoKey,
   onPeriodoChange,
@@ -616,6 +658,7 @@ export function CuadroSimplificado({
                     const mostraSeparador = seccion !== seccionAnterior
                     seccionAnterior = seccion
                     const ratioPct = getRatioPercentage(key, configuracionPL)
+                    const estInfo = getEstimacionInfo(key, periodosVisibles)
 
                     return (
                       <Fragment key={key}>
@@ -689,6 +732,27 @@ export function CuadroSimplificado({
                                     ({ratioPct})
                                   </span>
                                 )}
+                                {ratioPct && (
+                                  <span
+                                    title={
+                                      estInfo.mesesEstimados === 0
+                                        ? `Todos los ${estInfo.totalMeses} meses visibles tienen datos reales cargados`
+                                        : `Meses estimados (${estInfo.mesesEstimados}/${estInfo.totalMeses}): ${estInfo.mesesEstimadosNombres.join(', ')}`
+                                    }
+                                    className={cn(
+                                      "font-mono text-xs px-1.5 py-0.5 rounded font-normal border cursor-help",
+                                      estInfo.mesesEstimados === 0 && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 font-semibold",
+                                      estInfo.mesesEstimados > 0 && estInfo.mesesEstimados < estInfo.totalMeses && "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 font-semibold",
+                                      estInfo.mesesEstimados === estInfo.totalMeses && "bg-muted/60 text-muted-foreground border-border/40"
+                                    )}
+                                  >
+                                    {estInfo.mesesEstimados === 0
+                                      ? `(0 de ${estInfo.totalMeses} mes est. — Real)`
+                                      : estInfo.mesesEstimados < estInfo.totalMeses
+                                        ? `(${estInfo.mesesEstimados} de ${estInfo.totalMeses} mes est.: ${estInfo.mesesEstimadosNombres.join(', ')})`
+                                        : `(${estInfo.totalMeses} de ${estInfo.totalMeses} mes est.)`}
+                                  </span>
+                                )}
                               </span>
                               {tooltip && (
                                 <span title={tooltip} className="inline-flex">
@@ -707,6 +771,8 @@ export function CuadroSimplificado({
                           {valores.map((valor, idx) => {
                             // Calcular porcentajes sobre Ventas sin IVA
                             const ventasSinIva = periodosVisibles[idx]?.pl?.ventasSinIva || 0
+                            const periodoPl = periodosVisibles[idx]?.pl || null
+                            const esEstimadoCell = ratioPct ? isCellEstimada(key, periodoPl) : false
                             
                             // Porcentaje para Resultado Total (NETO)
                             const porcentajeResultadoTotal = key === 'resultadoTotal' && ventasSinIva > 0
@@ -738,6 +804,23 @@ export function CuadroSimplificado({
                                   )}>
                                     {formatCurrency(valor)}
                                   </span>
+                                  {ratioPct && (
+                                    <span
+                                      title={
+                                        esEstimadoCell
+                                          ? `Estimado según supuesto (${ratioPct}) — No se cargaron datos reales para este período`
+                                          : `Dato real cargado en el sistema para este período`
+                                      }
+                                      className={cn(
+                                        "text-[10px] font-mono font-medium px-1.5 py-0.2 rounded mt-0.5 inline-block cursor-help",
+                                        esEstimadoCell
+                                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                      )}
+                                    >
+                                      {esEstimadoCell ? `(est. ${ratioPct})` : `(real)`}
+                                    </span>
+                                  )}
                                   {porcentajeResultadoTotal !== null && (
                                     <span className="text-[10px] text-primary-foreground/70 font-medium">
                                       {formatPercent(porcentajeResultadoTotal)} s/Ventas
