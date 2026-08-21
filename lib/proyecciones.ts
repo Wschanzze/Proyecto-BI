@@ -15,8 +15,8 @@ export function calcularProyeccionAnual(anio: number, config: ConfiguracionPL): 
     const idx = mes - 1
     const facturacion = proy.facturacionMensual[idx] || 0
     
-    // Asumimos IVA 21% estándar para simplificar, o calcular inverso: facturacion / 1.21
-    const ivaTasa = config.ratios.iva || 0.21
+    // Usar tasa de IVA ponderada efectiva del mix real (Carnicería/Frescos al 10.5% + Salón al 21%)
+    const ivaTasa = config.ratios.iva || 0.187528
     const ventasSinIva = facturacion / (1 + ivaTasa)
     const iva = facturacion - ventasSinIva
     

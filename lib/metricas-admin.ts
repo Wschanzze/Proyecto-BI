@@ -46,7 +46,7 @@ export async function getConfiguracionPL(sucursalId?: string): Promise<Configura
 
     return {
       ratios: {
-        iva: getValor('ratios', 'iva_porcentaje', 0.21),
+        iva: getValor('ratios', 'iva_porcentaje', 0.187528),
         rrhh: getValor('ratios', 'rrhh_porcentaje', 0.12),
         gastosComerciales: getValor('ratios', 'gastos_comerciales_porcentaje', 0.03),
         impuestosOperativos: getValor('ratios', 'impuestos_operativos_porcentaje', 0.02),
