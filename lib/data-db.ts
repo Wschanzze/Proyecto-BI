@@ -93,7 +93,7 @@ function metricsFromRaw(facturacionConIva: number, iva: number, costo: number, c
   const cmgMonto = ventasSinIva - costo
   const cmgPct = ventasSinIva > 0 ? (cmgMonto / ventasSinIva) * 100 : 0
   return {
-    facturacion: ventasSinIva, // Facturación sin IVA (base contable pura)
+    facturacion: facturacionConIva, // Facturación bruta con IVA (Línea 1 del Cuadro Simplificado)
     iva,
     costo,
     articulos: cantidad,

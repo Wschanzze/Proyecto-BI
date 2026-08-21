@@ -42,7 +42,7 @@ function MetricCells({ m }: { m: MetricsConDerivados }) {
   }
   return (
     <>
-      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(m.facturacion)}</td>
+      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(m.facturacion - m.iva)}</td>
       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatPercent(m.participacionFacturacion)}</td>
       <td className={cn("px-3 py-2 text-right tabular-nums font-medium", varClass(m.variacionMesAnterior))}>
         {m.variacionMesAnterior === null ? "—" : formatSigned(m.variacionMesAnterior)}
