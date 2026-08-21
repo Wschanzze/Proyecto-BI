@@ -277,9 +277,6 @@ function getRatioPercentage(key: string, config: ConfiguracionPL | null): string
   let ratioVal: number | undefined
 
   switch (key) {
-    case 'iva':
-      ratioVal = config.ratios.iva
-      break
     case 'rrhh':
       ratioVal = config.ratios.rrhh
       break
@@ -309,6 +306,7 @@ function isCellEstimada(key: string, pl: CuadroResultadoLinea | null): boolean {
 
   switch (key) {
     case 'iva':
+      return false // IVA proviene directamente de los datos reales cargados en la base de datos
     case 'impuestos':
     case 'merma':
       return true
