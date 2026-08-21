@@ -306,10 +306,12 @@ export async function getCuadroFromDB(periodoKey: string, sucursalId = '__consol
             let costoCalculadoTipo: 'prorrateado' | 'formula_markup' | undefined =
               esProrrateado ? 'prorrateado' : undefined
 
-            if (g.sector_id === SECTOR_ID_ROTISERIA && gMetrics.facturacion > 0) {
-              // Reemplazar el costo con la fórmula: costo = facturación / 1.4
-              const costoFormula = gMetrics.facturacion / 1.4
-              gMetrics = metricsFromRaw(gMetrics.facturacion, gMetrics.iva, costoFormula, gMetrics.articulos)
+            if ((g.sector_id === SECTOR_ID_ROTISERIA || g.id.startsWith('frescos-rot-')) && gMetrics.facturacion > 0) {
+              const facturacionBruta = gMetrics.facturacion
+              // En Rotisería no se cargan datos de IVA; se calcula automáticamente al 21% (facturación / 1.21 * 0.21)
+              const ivaFormula = facturacionBruta - (facturacionBruta / 1.21)
+              const costoFormula = facturacionBruta / 1.4
+              gMetrics = metricsFromRaw(facturacionBruta, ivaFormula, costoFormula, gMetrics.articulos)
               costoCalculadoTipo = 'formula_markup'
             }
             // ───────────────────────────────────────────────────────────────
