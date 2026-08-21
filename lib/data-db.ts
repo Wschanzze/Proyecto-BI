@@ -88,11 +88,12 @@ function emptyMetrics(): Metrics {
   }
 }
 
-function metricsFromRaw(facturacion: number, iva: number, costo: number, cantidad: number): Metrics {
-  const cmgMonto = facturacion - costo
-  const cmgPct = facturacion > 0 ? (cmgMonto / facturacion) * 100 : 0
+function metricsFromRaw(facturacionConIva: number, iva: number, costo: number, cantidad: number): Metrics {
+  const ventasSinIva = facturacionConIva - iva
+  const cmgMonto = ventasSinIva - costo
+  const cmgPct = ventasSinIva > 0 ? (cmgMonto / ventasSinIva) * 100 : 0
   return {
-    facturacion,
+    facturacion: ventasSinIva, // Facturación sin IVA (base contable pura)
     iva,
     costo,
     articulos: cantidad,

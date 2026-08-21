@@ -760,24 +760,20 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
   const seasonal = SEASONAL[periodo.mes] ?? 1
   const noise = 0.9 + seeded(`${def.id}-${periodo.index}`) * 0.2 // 0.9..1.1
   const facturacion = Math.round(def.base * trend * seasonal * noise)
-  const iva = Math.round(facturacion * 0.21) // IVA 21%
-  const costo = Math.round(facturacion * (1 - def.cmg / 100)) // Costo basado en margen
-
-  const rdoOpFactor = 0.85 + seeded(`op-${def.id}-${periodo.index}`) * 0.3
-  const rdoOperativo = Math.round((facturacion * def.rdoOp * rdoOpFactor) / 100)
-  const acciones = Math.round((facturacion * def.acciones) / 100)
-  const resultadoFinal = rdoOperativo - acciones
+  const ventasSinIva = facturacion - iva
+  const costo = Math.round(ventasSinIva * (1 - def.cmg / 100)) // Costo basado en margen
+  const cmgMonto = ventasSinIva - costo
 
   return {
-    facturacion,
+    facturacion: ventasSinIva,
     iva,
     costo,
     articulos: def.articulos,
     cmg: def.cmg,
-    resultadoOperativo: rdoOperativo,
+    resultadoOperativo: cmgMonto,
     rrhhSobreVentas: def.rrhh,
     accionesSobreVentas: def.acciones,
-    resultadoFinal,
+    resultadoFinal: cmgMonto,
   }
 }
 
