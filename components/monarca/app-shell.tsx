@@ -20,15 +20,50 @@ export function AppShell() {
   const [user, setUser] = useState<any>(null)
   const [authLoading, setAuthLoading] = useState(true)
 
-  const [tab, setTab] = useState<TabId>("dashboard")
-  const [periodoKey, setPeriodoKey] = useState(PERIODO_ACTUAL.key)
-  const [sucursalId, setSucursalId] = useState("__consolidado__")
+  const [tab, setTab] = useState<TabId>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("monarca_tab") as TabId
+      if (saved) return saved
+    }
+    return "dashboard"
+  })
+  
+  const [periodoKey, setPeriodoKey] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("monarca_periodoKey")
+      if (saved) return saved
+    }
+    return PERIODO_ACTUAL.key
+  })
+
+  const [sucursalId, setSucursalId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("monarca_sucursalId")
+      if (saved) return saved
+    }
+    return "__consolidado__"
+  })
 
   const [periodos, setPeriodos] = useState<Periodo[]>([])
   const [sucursales, setSucursales] = useState<DBSucursal[]>([])
   
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingTab, setLoadingTab] = useState(false)
+
+  // Guardar filtros en sessionStorage cuando cambian
+  const handlePeriodoChange = (newKey: string) => {
+    setPeriodoKey(newKey)
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("monarca_periodoKey", newKey)
+    }
+  }
+
+  const handleSucursalChange = (newSucursal: string) => {
+    setSucursalId(newSucursal)
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("monarca_sucursalId", newSucursal)
+    }
+  }
 
   // 1. Escuchar sesión de Supabase Auth
   useEffect(() => {
@@ -38,48 +73,73 @@ export function AppShell() {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      const newUser = session?.user ?? null
+      setUser((prevUser: any) => {
+        // Si el usuario es el mismo (ej: token refresh al cambiar de pestaña), no actualizar referencia de estado
+        if (prevUser?.id === newUser?.id && prevUser?.email === newUser?.email) {
+          return prevUser
+        }
+        return newUser
+      })
       setAuthLoading(false)
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // 2. Cargar catálogo de períodos/sucursales
+  // 2. Cargar catálogo de períodos/sucursales (solo cuando cambia el ID del usuario)
+  const userId = user?.id || user?.email || null
+
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
     async function init() {
       try {
         const { getPeriodosDB, getSucursalesDB } = await import("@/lib/data-db")
         const [p, s] = await Promise.all([getPeriodosDB(), getSucursalesDB()])
         setPeriodos(p)
         setSucursales(s)
-        if (p.length > 0) {
-          setPeriodoKey(p[p.length - 1].key)
-        }
+        
+        setPeriodoKey((prev) => {
+          if (prev && p.some(item => item.key === prev)) {
+            return prev
+          }
+          const defaultKey = p.length > 0 ? p[p.length - 1].key : prev
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("monarca_periodoKey", defaultKey)
+          }
+          return defaultKey
+        })
       } catch (err) {
         console.error("Error al cargar períodos/sucursales:", err)
       } finally {
         setTimeout(() => {
           setLoadingInitial(false)
-        }, 500)
+        }, 300)
       }
     }
     init()
-  }, [user])
+  }, [userId])
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("monarca_tab")
+      sessionStorage.removeItem("monarca_periodoKey")
+      sessionStorage.removeItem("monarca_sucursalId")
+    }
     await supabase.auth.signOut()
     setUser(null)
   }
 
   const handleTabChange = (newTab: TabId) => {
     if (newTab === tab) return
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("monarca_tab", newTab)
+    }
     setLoadingTab(true)
     setTab(newTab)
     setTimeout(() => {
       setLoadingTab(false)
-    }, 400)
+    }, 300)
   }
 
   // Si está verificando sesión de Auth
@@ -104,9 +164,9 @@ export function AppShell() {
             {tab === "dashboard" && (
               <DashboardView
                 periodoKey={periodoKey}
-                onPeriodoChange={setPeriodoKey}
+                onPeriodoChange={handlePeriodoChange}
                 sucursalId={sucursalId}
-                onSucursalChange={setSucursalId}
+                onSucursalChange={handleSucursalChange}
                 periodos={periodos}
                 sucursales={sucursales}
               />
@@ -114,9 +174,9 @@ export function AppShell() {
             {tab === "detallado" && (
               <CuadroDetallado
                 periodoKey={periodoKey}
-                onPeriodoChange={setPeriodoKey}
+                onPeriodoChange={handlePeriodoChange}
                 sucursalId={sucursalId}
-                onSucursalChange={setSucursalId}
+                onSucursalChange={handleSucursalChange}
                 periodos={periodos}
                 sucursales={sucursales}
               />
@@ -124,9 +184,9 @@ export function AppShell() {
             {tab === "simplificado" && (
               <CuadroSimplificado
                 periodoKey={periodoKey}
-                onPeriodoChange={setPeriodoKey}
+                onPeriodoChange={handlePeriodoChange}
                 sucursalId={sucursalId}
-                onSucursalChange={setSucursalId}
+                onSucursalChange={handleSucursalChange}
                 periodos={periodos}
                 sucursales={sucursales}
               />
