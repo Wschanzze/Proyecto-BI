@@ -1,22 +1,5 @@
-// lib/supabase.ts
-// Cliente Supabase singleton — funciona tanto en browser como en server (Next.js)
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wlaotnafjrvckoxbdokk.supabase.co"
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsYW90bmFmanJ2Y2tveGJkb2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjE5ODcsImV4cCI6MjEwMTUzNzk4N30.QarhnOSA9yGi2Mf8UNnSUNSYIkyCQgEAdpBJ0GwtxL0"
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsYW90bmFmanJ2Y2tveGJkb2trIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTk2MTk4NywiZXhwIjoyMTAxNTM3OTg3fQ.d9MOFM3FhUH0E1UnMK_URT5HM3TUNmBwUt3JqSOvL3Q"
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: false, storageKey: 'sb-anon' },
-})
-
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false, storageKey: 'sb-admin' },
-})
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Tipos del esquema de base de datos
-// ──────────────────────────────────────────────────────────────────────────────
+﻿// lib/supabase.ts
+// Cliente de compatibilidad y soporte para modo DEMO autónomo.
 
 export interface DBSucursal {
   id: string      // slug sin tilde: 'colon', 'san-martin', ...
@@ -54,7 +37,6 @@ export interface DBPeriodo {
   archivo_nombre: string | null
 }
 
-/** Resultado crudo tal como viene del archivo — una fila por sucursal × grupo × período */
 export interface DBResultado {
   id: number
   periodo_id: number
@@ -66,7 +48,6 @@ export interface DBResultado {
   costo: number
 }
 
-/** Input para insertar/actualizar resultados desde la pantalla de carga */
 export interface ResultadoInput {
   sucursal_id: string
   grupo_id: string
@@ -74,4 +55,63 @@ export interface ResultadoInput {
   facturacion: number
   iva: number
   costo: number
+}
+
+// Mock chainable query builder
+function createMockQueryBuilder() {
+  const handler: any = {
+    select: () => handler,
+    insert: () => handler,
+    update: () => handler,
+    delete: () => handler,
+    upsert: () => handler,
+    eq: () => handler,
+    neq: () => handler,
+    in: () => handler,
+    order: () => handler,
+    limit: () => handler,
+    single: async () => ({ data: null, error: null }),
+    maybeSingle: async () => ({ data: null, error: null }),
+    then: (resolve: any) => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve),
+  }
+  return handler
+}
+
+const mockAuth = {
+  getSession: async () => ({
+    data: {
+      session: {
+        user: { id: "demo-user-id", email: "demo@monarca-bi.com", user_metadata: { name: "Usuario Demo" } },
+      },
+    },
+    error: null,
+  }),
+  onAuthStateChange: (callback: any) => {
+    // Invocar inicialmente con la sesión demo
+    setTimeout(() => {
+      callback("SIGNED_IN", {
+        user: { id: "demo-user-id", email: "demo@monarca-bi.com", user_metadata: { name: "Usuario Demo" } },
+      })
+    }, 10)
+    return { data: { subscription: { unsubscribe: () => {} } } }
+  },
+  signInWithPassword: async ({ email }: { email?: string; password?: string }) => ({
+    data: {
+      user: { id: "demo-user-id", email: email || "demo@monarca-bi.com", user_metadata: { name: "Usuario Demo" } },
+      session: { user: { id: "demo-user-id", email: email || "demo@monarca-bi.com" } },
+    },
+    error: null,
+  }),
+  signOut: async () => ({ error: null }),
+}
+
+export const supabase: any = {
+  auth: mockAuth,
+  from: () => createMockQueryBuilder(),
+  rpc: async () => ({ data: null, error: null }),
+}
+
+export const supabaseAdmin: any = {
+  ...supabase,
+  auth: mockAuth,
 }

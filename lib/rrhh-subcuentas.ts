@@ -1,7 +1,7 @@
-// lib/rrhh-subcuentas.ts
-// Gestión de subcuentas detalladas de RRHH (Sueldos, Cargas Sociales, Indemnizaciones, Tabla Mérito)
+﻿// lib/rrhh-subcuentas.ts
+// Gestión de subcuentas detalladas de RRHH en modo DEMO autónomo.
 
-import { supabase, supabaseAdmin } from './supabase'
+import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
 
 export interface RRHHSubcuentas {
   periodo_id: number
@@ -20,182 +20,129 @@ export interface RRHHSubcuentasCarga {
   tabla_merito?: number
 }
 
-/**
- * Obtener subcuentas RRHH por período y sucursal
- */
+// Almacén en memoria de modificaciones del usuario
+const rrhhCache: Map<string, RRHHSubcuentas> = new Map()
+
+function getCacheKey(periodoKey: string, sucursalId: string): string {
+  return `${periodoKey}__${sucursalId}`
+}
+
 export async function getRRHHSubcuentas(
   periodoKey: string,
   sucursalId: string = '__consolidado__'
 ): Promise<RRHHSubcuentas | null> {
-  try {
-    const { data: periodo } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
+  const cacheKey = getCacheKey(periodoKey, sucursalId)
+  if (rrhhCache.has(cacheKey)) {
+    return rrhhCache.get(cacheKey)!
+  }
 
-    if (!periodo) return null
+  // Si es consolidado y hay registros individuales en cache, consolidarlos
+  if (sucursalId === '__consolidado__') {
+    let totalSueldos = 0
+    let totalCargas = 0
+    let totalIndemnizaciones = 0
+    let totalMerito = 0
+    let hasCustom = false
 
-    if (sucursalId === '__consolidado__') {
-      const { data, error } = await supabaseAdmin
-        .from('rrhh_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-
-      if (error) throw error
-      if (!data || data.length === 0) return null
-
-      return {
-        periodo_id: periodo.id,
-        sucursal_id: '__consolidado__',
-        sueldos: data.reduce((sum, r) => sum + Number(r.sueldos || 0), 0),
-        cargas_sociales: data.reduce((sum, r) => sum + Number(r.cargas_sociales || 0), 0),
-        indemnizaciones: data.reduce((sum, r) => sum + Number(r.indemnizaciones || 0), 0),
-        tabla_merito: data.reduce((sum, r) => sum + Number(r.tabla_merito || 0), 0),
-        total_rrhh: data.reduce((sum, r) => sum + Number(r.total_rrhh || 0), 0),
+    for (const suc of SUCURSALES_DEMO) {
+      const key = getCacheKey(periodoKey, suc.id)
+      if (rrhhCache.has(key)) {
+        hasCustom = true
+        const item = rrhhCache.get(key)!
+        totalSueldos += item.sueldos
+        totalCargas += item.cargas_sociales
+        totalIndemnizaciones += item.indemnizaciones
+        totalMerito += item.tabla_merito
       }
-    } else {
-      const { data, error } = await supabaseAdmin
-        .from('rrhh_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-        .eq('sucursal_id', sucursalId)
-        .maybeSingle()
-
-      if (error) {
-        if (error.code === 'PGRST116') return null
-        throw error
-      }
-
-      return data as RRHHSubcuentas
     }
-  } catch (error) {
-    console.error('Error al obtener subcuentas RRHH:', error)
-    return null
+
+    if (hasCustom) {
+      return {
+        periodo_id: 1,
+        sucursal_id: '__consolidado__',
+        sueldos: Math.round(totalSueldos),
+        cargas_sociales: Math.round(totalCargas),
+        indemnizaciones: Math.round(totalIndemnizaciones),
+        tabla_merito: Math.round(totalMerito),
+        total_rrhh: Math.round(totalSueldos + totalCargas + totalIndemnizaciones + totalMerito),
+      }
+    }
+  }
+
+  // Generación determinística basada en la facturación del período
+  const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const totalRrhhEst = Math.round(ventasSinIva * 0.12) // 12% ratio estándar
+
+  const sueldos = Math.round(totalRrhhEst * 0.70)
+  const cargas_sociales = Math.round(totalRrhhEst * 0.26)
+  const indemnizaciones = Math.round(totalRrhhEst * 0.025)
+  const tabla_merito = Math.round(totalRrhhEst * 0.015)
+  const total_rrhh = sueldos + cargas_sociales + indemnizaciones + tabla_merito
+
+  return {
+    periodo_id: 1,
+    sucursal_id: sucursalId,
+    sueldos,
+    cargas_sociales,
+    indemnizaciones,
+    tabla_merito,
+    total_rrhh,
   }
 }
 
-/**
- * Cargar o actualizar subcuentas RRHH manualmente
- */
 export async function upsertRRHHSubcuentas(
   periodoKey: string,
   sucursalId: string,
   datos: RRHHSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Buscar periodo_id — usar .maybeSingle() para no fallar con 406 si no existe
-    const { data: periodo, error: periodoErr } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
-
-    if (periodoErr) {
-      return { success: false, error: `Error buscando período '${periodoKey}': ${periodoErr.message}` }
-    }
-    if (!periodo) {
-      return { success: false, error: `Período '${periodoKey}' no existe en la tabla periodos. Crealo primero.` }
+    const prev = (await getRRHHSubcuentas(periodoKey, sucursalId)) || {
+      periodo_id: 1,
+      sucursal_id: sucursalId,
+      sueldos: 0,
+      cargas_sociales: 0,
+      indemnizaciones: 0,
+      tabla_merito: 0,
+      total_rrhh: 0,
     }
 
-    // DELETE + INSERT directo usando service_role (sin RPC — function no creada aún en Supabase)
-    await supabaseAdmin
-      .from('rrhh_subcuentas')
-      .delete()
-      .eq('periodo_id', periodo.id)
-      .eq('sucursal_id', sucursalId)
-
-    const { error: insErr } = await supabaseAdmin
-      .from('rrhh_subcuentas')
-      .insert({
-        periodo_id: periodo.id,
-        sucursal_id: sucursalId,
-        sueldos: datos.sueldos ?? 0,
-        cargas_sociales: datos.cargas_sociales ?? 0,
-        indemnizaciones: datos.indemnizaciones ?? 0,
-        tabla_merito: datos.tabla_merito ?? 0,
-        archivo_origen: 'Carga desde interfaz web',
-        actualizado_en: new Date().toISOString(),
-      })
-
-    if (insErr) {
-      const msg = `${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | ${insErr.hint}` : ''}`
-      console.error('Error INSERT rrhh_subcuentas:', msg)
-      throw new Error(msg)
+    const updated: RRHHSubcuentas = {
+      periodo_id: prev.periodo_id,
+      sucursal_id: sucursalId,
+      sueldos: datos.sueldos ?? prev.sueldos,
+      cargas_sociales: datos.cargas_sociales ?? prev.cargas_sociales,
+      indemnizaciones: datos.indemnizaciones ?? prev.indemnizaciones,
+      tabla_merito: datos.tabla_merito ?? prev.tabla_merito,
+      total_rrhh:
+        (datos.sueldos ?? prev.sueldos) +
+        (datos.cargas_sociales ?? prev.cargas_sociales) +
+        (datos.indemnizaciones ?? prev.indemnizaciones) +
+        (datos.tabla_merito ?? prev.tabla_merito),
     }
 
+    rrhhCache.set(getCacheKey(periodoKey, sucursalId), updated)
     return { success: true }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : JSON.stringify(error)
-    console.error('Error al guardar subcuentas RRHH:', msg)
-    return { success: false, error: msg }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Error al guardar subcuentas de RRHH' }
   }
 }
 
-/**
- * Recalcular subcuentas RRHH desde nómina mensual
- * (llama a la función SQL calcular_rrhh_subcuentas)
- */
 export async function recalcularRRHHSubcuentas(
   periodoKey: string,
   sucursalId: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Obtener periodo_id (la columna se llama 'key' no 'periodo_key')
-    const { data: periodo } = await supabase
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .single()
-
-    if (!periodo) {
-      return { success: false, error: 'Período no encontrado' }
-    }
-
-    // Llamar a la función SQL
-    const { error } = await supabase.rpc('calcular_rrhh_subcuentas', {
-      p_periodo_id: periodo.id,
-      p_sucursal_id: sucursalId
-    })
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error('Error al recalcular subcuentas RRHH:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido' 
-    }
-  }
+  rrhhCache.delete(getCacheKey(periodoKey, sucursalId))
+  return { success: true }
 }
 
-/**
- * Obtener todas las subcuentas RRHH de un período (todas las sucursales)
- */
 export async function getAllRRHHSubcuentasByPeriodo(
   periodoKey: string
 ): Promise<RRHHSubcuentas[]> {
-  try {
-    const { data: periodo } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .single()
-
-    if (!periodo) return []
-
-    const { data, error } = await supabaseAdmin
-      .from('rrhh_subcuentas')
-      .select('*')
-      .eq('periodo_id', periodo.id)
-      .order('sucursal_id')
-
-    if (error) throw error
-
-    return (data || []) as RRHHSubcuentas[]
-  } catch (error) {
-    console.error('Error al obtener subcuentas RRHH por período:', error)
-    return []
+  const result: RRHHSubcuentas[] = []
+  for (const suc of SUCURSALES_DEMO) {
+    const item = await getRRHHSubcuentas(periodoKey, suc.id)
+    if (item) result.push(item)
   }
+  return result
 }

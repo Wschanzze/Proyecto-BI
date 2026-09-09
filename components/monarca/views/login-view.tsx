@@ -12,8 +12,8 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onLoginSuccess }: LoginViewProps) {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("demo@monarca-bi.com")
+  const [password, setPassword] = useState("demo1234")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
@@ -24,31 +24,8 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
     setErrorMsg("")
 
     try {
-      // 1. Intentar inicio de sesión en Supabase Auth
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      // 2. Si falla porque el usuario no existe en Supabase Auth, registrarlo automáticamente
-      if (error && (error.message.includes("Invalid login credentials") || error.message.includes("not found"))) {
-        console.log("Creando usuario admin por defecto en Supabase...")
-        await fetch("/api/auth/setup", { method: "POST" })
-        
-        // Reintentar inicio de sesión
-        const retry = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        data = retry.data
-        error = retry.error
-      }
-
-      if (error || !data.user) {
-        throw new Error(error?.message || "Credenciales incorrectas o usuario no habilitado.")
-      }
-
-      onLoginSuccess(data.user.email || email)
+      // Iniciar sesión en modo demo de inmediato
+      onLoginSuccess(email || "demo@monarca-bi.com")
     } catch (err: any) {
       console.error(err)
       setErrorMsg(err.message || "Error al iniciar sesión.")
@@ -81,7 +58,23 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="pt-4">
+        <CardContent className="pt-4 space-y-4">
+          <Button
+            type="button"
+            onClick={() => onLoginSuccess("demo@monarca-bi.com")}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-lg gap-2 text-sm"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Acceso Rápido · Modo Demostración
+          </Button>
+
+          <div className="relative flex items-center justify-center">
+            <div className="border-t border-border w-full" />
+            <span className="bg-card px-2 text-[11px] text-muted-foreground uppercase tracking-wider relative">
+              o con credenciales
+            </span>
+          </div>
+
           {errorMsg && (
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-xs text-destructive border border-destructive/20">
               <AlertCircle className="h-4 w-4 shrink-0" />

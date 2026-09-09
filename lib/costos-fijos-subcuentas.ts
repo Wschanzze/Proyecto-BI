@@ -1,7 +1,7 @@
-// lib/costos-fijos-subcuentas.ts
-// Gestión de subcuentas detalladas de Costos Fijos (15 cuentas)
+﻿// lib/costos-fijos-subcuentas.ts
+// Gestión de subcuentas detalladas de Costos Fijos (15 cuentas) en modo DEMO autónomo.
 
-import { supabase, supabaseAdmin } from './supabase'
+import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
 
 export interface CostosFijosSubcuentas {
   periodo_id: number
@@ -42,209 +42,184 @@ export interface CostosFijosSubcuentasCarga {
   diferencias_caja_perdida?: number
 }
 
-/**
- * Obtener subcuentas de Costos Fijos por período y sucursal
- */
+// Almacén en memoria de modificaciones del usuario
+const costosFijosCache: Map<string, CostosFijosSubcuentas> = new Map()
+
+function getCacheKey(periodoKey: string, sucursalId: string): string {
+  return `${periodoKey}__${sucursalId}`
+}
+
 export async function getCostosFijosSubcuentas(
   periodoKey: string,
   sucursalId: string = '__consolidado__'
 ): Promise<CostosFijosSubcuentas | null> {
-  try {
-    // Obtener periodo_id (la columna se llama 'key')
-    const { data: periodo } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
+  const cacheKey = getCacheKey(periodoKey, sucursalId)
+  if (costosFijosCache.has(cacheKey)) {
+    return costosFijosCache.get(cacheKey)!
+  }
 
-    if (!periodo) return null
+  // Si es consolidado y hay registros individuales en cache, consolidarlos
+  if (sucursalId === '__consolidado__') {
+    let hasCustom = false
+    const sumFields: Partial<Record<keyof CostosFijosSubcuentasCarga, number>> = {}
 
-    if (sucursalId === '__consolidado__') {
-      // Consolidado: sumar todas las sucursales
-      const { data, error } = await supabaseAdmin
-        .from('costos_fijos_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-
-      if (error) throw error
-      if (!data || data.length === 0) return null
-
-      return {
-        periodo_id: periodo.id,
-        sucursal_id: '__consolidado__',
-        alquileres: data.reduce((sum, r) => sum + Number(r.alquileres || 0), 0),
-        honorarios: data.reduce((sum, r) => sum + Number(r.honorarios || 0), 0),
-        tasas_servicios: data.reduce((sum, r) => sum + Number(r.tasas_servicios || 0), 0),
-        mantenimiento_servicios_tecnicos: data.reduce((sum, r) => sum + Number(r.mantenimiento_servicios_tecnicos || 0), 0),
-        perdida_gestion_inventarios: data.reduce((sum, r) => sum + Number(r.perdida_gestion_inventarios || 0), 0),
-        seguridad_vigilancia: data.reduce((sum, r) => sum + Number(r.seguridad_vigilancia || 0), 0),
-        otros_servicios: data.reduce((sum, r) => sum + Number(r.otros_servicios || 0), 0),
-        gastos_personal: data.reduce((sum, r) => sum + Number(r.gastos_personal || 0), 0),
-        otros_gastos: data.reduce((sum, r) => sum + Number(r.otros_gastos || 0), 0),
-        comisiones_gastos_bancarios: data.reduce((sum, r) => sum + Number(r.comisiones_gastos_bancarios || 0), 0),
-        gastos_extraordinarios: data.reduce((sum, r) => sum + Number(r.gastos_extraordinarios || 0), 0),
-        gastos_comercializacion: data.reduce((sum, r) => sum + Number(r.gastos_comercializacion || 0), 0),
-        gastos_administracion: data.reduce((sum, r) => sum + Number(r.gastos_administracion || 0), 0),
-        gastos_financiacion: data.reduce((sum, r) => sum + Number(r.gastos_financiacion || 0), 0),
-        diferencias_caja_perdida: data.reduce((sum, r) => sum + Number(r.diferencias_caja_perdida || 0), 0),
-        total_costos_fijos: data.reduce((sum, r) => sum + Number(r.total_costos_fijos || 0), 0),
+    for (const suc of SUCURSALES_DEMO) {
+      const key = getCacheKey(periodoKey, suc.id)
+      if (costosFijosCache.has(key)) {
+        hasCustom = true
+        const item = costosFijosCache.get(key)!
+        for (const [f, val] of Object.entries(item)) {
+          if (typeof val === 'number' && f !== 'periodo_id') {
+            const k = f as keyof CostosFijosSubcuentasCarga
+            sumFields[k] = (sumFields[k] || 0) + val
+          }
+        }
       }
-    } else {
-      // Por sucursal específica
-      const { data, error } = await supabaseAdmin
-        .from('costos_fijos_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-        .eq('sucursal_id', sucursalId)
-        .maybeSingle()
-
-      if (error) {
-        if (error.code === 'PGRST116') return null // No encontrado
-        throw error
-      }
-
-      return data as CostosFijosSubcuentas
     }
-  } catch (error) {
-    console.error('Error al obtener subcuentas de Costos Fijos:', error)
-    return null
+
+    if (hasCustom) {
+      const total = Object.values(sumFields).reduce((s, v) => s + (v || 0), 0)
+      return {
+        periodo_id: 1,
+        sucursal_id: '__consolidado__',
+        alquileres: sumFields.alquileres || 0,
+        honorarios: sumFields.honorarios || 0,
+        tasas_servicios: sumFields.tasas_servicios || 0,
+        mantenimiento_servicios_tecnicos: sumFields.mantenimiento_servicios_tecnicos || 0,
+        perdida_gestion_inventarios: sumFields.perdida_gestion_inventarios || 0,
+        seguridad_vigilancia: sumFields.seguridad_vigilancia || 0,
+        otros_servicios: sumFields.otros_servicios || 0,
+        gastos_personal: sumFields.gastos_personal || 0,
+        otros_gastos: sumFields.otros_gastos || 0,
+        comisiones_gastos_bancarios: sumFields.comisiones_gastos_bancarios || 0,
+        gastos_extraordinarios: sumFields.gastos_extraordinarios || 0,
+        gastos_comercializacion: sumFields.gastos_comercializacion || 0,
+        gastos_administracion: sumFields.gastos_administracion || 0,
+        gastos_financiacion: sumFields.gastos_financiacion || 0,
+        diferencias_caja_perdida: sumFields.diferencias_caja_perdida || 0,
+        total_costos_fijos: total,
+      }
+    }
+  }
+
+  // Generación determinística basada en la facturación del período
+  const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const totalCostosFijosEst = Math.round(ventasSinIva * 0.032) // ~3.2% ratio estándar
+
+  const sub = {
+    alquileres: Math.round(totalCostosFijosEst * 0.25),
+    honorarios: Math.round(totalCostosFijosEst * 0.05),
+    tasas_servicios: Math.round(totalCostosFijosEst * 0.10),
+    mantenimiento_servicios_tecnicos: Math.round(totalCostosFijosEst * 0.08),
+    perdida_gestion_inventarios: Math.round(totalCostosFijosEst * 0.05),
+    seguridad_vigilancia: Math.round(totalCostosFijosEst * 0.07),
+    otros_servicios: Math.round(totalCostosFijosEst * 0.05),
+    gastos_personal: Math.round(totalCostosFijosEst * 0.03),
+    otros_gastos: Math.round(totalCostosFijosEst * 0.07),
+    comisiones_gastos_bancarios: Math.round(totalCostosFijosEst * 0.04),
+    gastos_extraordinarios: Math.round(totalCostosFijosEst * 0.03),
+    gastos_comercializacion: Math.round(totalCostosFijosEst * 0.10),
+    gastos_administracion: Math.round(totalCostosFijosEst * 0.05),
+    gastos_financiacion: Math.round(totalCostosFijosEst * 0.02),
+    diferencias_caja_perdida: Math.round(totalCostosFijosEst * 0.01),
+  }
+
+  const total = Object.values(sub).reduce((a, b) => a + b, 0)
+
+  return {
+    periodo_id: 1,
+    sucursal_id: sucursalId,
+    ...sub,
+    total_costos_fijos: total,
   }
 }
 
-/**
- * Cargar o actualizar subcuentas de Costos Fijos manualmente
- */
 export async function upsertCostosFijosSubcuentas(
   periodoKey: string,
   sucursalId: string,
   datos: CostosFijosSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Obtener periodo_id
-    const { data: periodo, error: periodoErr } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
-
-    if (periodoErr || !periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado. Verifica que exista en la tabla periodos.` }
-    }
-
-    // --- Intentar via RPC (SECURITY DEFINER, sin problemas de RLS/FK) ---
-    const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc('guardar_costos_fijos_subcuentas', {
-      p_periodo_id: periodo.id,
-      p_sucursal_id: sucursalId,
-      p_alquileres: datos.alquileres ?? 0,
-      p_honorarios: datos.honorarios ?? 0,
-      p_tasas_servicios: datos.tasas_servicios ?? 0,
-      p_mantenimiento: datos.mantenimiento_servicios_tecnicos ?? 0,
-      p_perdida_inventarios: datos.perdida_gestion_inventarios ?? 0,
-      p_seguridad: datos.seguridad_vigilancia ?? 0,
-      p_otros_servicios: datos.otros_servicios ?? 0,
-      p_gastos_personal: datos.gastos_personal ?? 0,
-      p_otros_gastos: datos.otros_gastos ?? 0,
-      p_comisiones: datos.comisiones_gastos_bancarios ?? 0,
-      p_gastos_extraordinarios: datos.gastos_extraordinarios ?? 0,
-      p_gastos_comercializacion: datos.gastos_comercializacion ?? 0,
-      p_gastos_administracion: datos.gastos_administracion ?? 0,
-      p_gastos_financiacion: datos.gastos_financiacion ?? 0,
-      p_diferencias_caja: datos.diferencias_caja_perdida ?? 0,
-    })
-
-    if (!rpcErr && rpcResult) {
-      const result = rpcResult as { success: boolean; error?: string }
-      if (result.success) return { success: true }
-      // La función SQL capturó un error interno
-      console.error('RPC guardar_costos_fijos_subcuentas error interno:', result.error)
-      return { success: false, error: result.error ?? 'Error en función SQL' }
-    }
-
-    // Si RPC no está disponible aún (función no creada), fallback a DELETE+INSERT directo
-    if (rpcErr) {
-      console.warn('RPC no disponible, usando DELETE+INSERT directo. Error RPC:', rpcErr.message)
-    }
-
-    // --- Fallback: DELETE + INSERT ---
-    const payload = {
-      periodo_id: periodo.id,
+    const prev = (await getCostosFijosSubcuentas(periodoKey, sucursalId)) || {
+      periodo_id: 1,
       sucursal_id: sucursalId,
-      alquileres: datos.alquileres ?? 0,
-      honorarios: datos.honorarios ?? 0,
-      tasas_servicios: datos.tasas_servicios ?? 0,
-      mantenimiento_servicios_tecnicos: datos.mantenimiento_servicios_tecnicos ?? 0,
-      perdida_gestion_inventarios: datos.perdida_gestion_inventarios ?? 0,
-      seguridad_vigilancia: datos.seguridad_vigilancia ?? 0,
-      otros_servicios: datos.otros_servicios ?? 0,
-      gastos_personal: datos.gastos_personal ?? 0,
-      otros_gastos: datos.otros_gastos ?? 0,
-      comisiones_gastos_bancarios: datos.comisiones_gastos_bancarios ?? 0,
-      gastos_extraordinarios: datos.gastos_extraordinarios ?? 0,
-      gastos_comercializacion: datos.gastos_comercializacion ?? 0,
-      gastos_administracion: datos.gastos_administracion ?? 0,
-      gastos_financiacion: datos.gastos_financiacion ?? 0,
-      diferencias_caja_perdida: datos.diferencias_caja_perdida ?? 0,
-      archivo_origen: 'Carga desde interfaz web',
-      actualizado_en: new Date().toISOString(),
+      alquileres: 0,
+      honorarios: 0,
+      tasas_servicios: 0,
+      mantenimiento_servicios_tecnicos: 0,
+      perdida_gestion_inventarios: 0,
+      seguridad_vigilancia: 0,
+      otros_servicios: 0,
+      gastos_personal: 0,
+      otros_gastos: 0,
+      comisiones_gastos_bancarios: 0,
+      gastos_extraordinarios: 0,
+      gastos_comercializacion: 0,
+      gastos_administracion: 0,
+      gastos_financiacion: 0,
+      diferencias_caja_perdida: 0,
+      total_costos_fijos: 0,
     }
 
-    await supabaseAdmin
-      .from('costos_fijos_subcuentas')
-      .delete()
-      .eq('periodo_id', periodo.id)
-      .eq('sucursal_id', sucursalId)
-
-    const { error: insErr } = await supabaseAdmin
-      .from('costos_fijos_subcuentas')
-      .insert(payload)
-
-    if (insErr) {
-      const msg = `HTTP ${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}${insErr.hint ? ` | Hint: ${insErr.hint}` : ''}`
-      console.error('Error INSERT costos_fijos_subcuentas:', msg, 'Payload:', JSON.stringify(payload))
-      throw new Error(msg)
+    const updatedSub = {
+      alquileres: datos.alquileres ?? prev.alquileres,
+      honorarios: datos.honorarios ?? prev.honorarios,
+      tasas_servicios: datos.tasas_servicios ?? prev.tasas_servicios,
+      mantenimiento_servicios_tecnicos: datos.mantenimiento_servicios_tecnicos ?? prev.mantenimiento_servicios_tecnicos,
+      perdida_gestion_inventarios: datos.perdida_gestion_inventarios ?? prev.perdida_gestion_inventarios,
+      seguridad_vigilancia: datos.seguridad_vigilancia ?? prev.seguridad_vigilancia,
+      otros_servicios: datos.otros_servicios ?? prev.otros_servicios,
+      gastos_personal: datos.gastos_personal ?? prev.gastos_personal,
+      otros_gastos: datos.otros_gastos ?? prev.otros_gastos,
+      comisiones_gastos_bancarios: datos.comisiones_gastos_bancarios ?? prev.comisiones_gastos_bancarios,
+      gastos_extraordinarios: datos.gastos_extraordinarios ?? prev.gastos_extraordinarios,
+      gastos_comercializacion: datos.gastos_comercializacion ?? prev.gastos_comercializacion,
+      gastos_administracion: datos.gastos_administracion ?? prev.gastos_administracion,
+      gastos_financiacion: datos.gastos_financiacion ?? prev.gastos_financiacion,
+      diferencias_caja_perdida: datos.diferencias_caja_perdida ?? prev.diferencias_caja_perdida,
     }
 
+    const total = Object.values(updatedSub).reduce((a, b) => a + b, 0)
+
+    const updated: CostosFijosSubcuentas = {
+      periodo_id: prev.periodo_id,
+      sucursal_id: sucursalId,
+      ...updatedSub,
+      total_costos_fijos: total,
+    }
+
+    costosFijosCache.set(getCacheKey(periodoKey, sucursalId), updated)
     return { success: true }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : JSON.stringify(error)
-    console.error('Error al guardar subcuentas de Costos Fijos:', msg)
-    return { success: false, error: msg }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Error al guardar costos fijos' }
   }
 }
 
-/**
- * Recalcular subcuentas de Costos Fijos desde costos_estructurales
- */
-export async function recalcularCostosFijosSubcuentas(
-  periodoKey: string,
-  sucursalId: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Obtener periodo_id
-    const { data: periodo } = await supabase
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .single()
-
-    if (!periodo) {
-      return { success: false, error: 'Período no encontrado' }
-    }
-
-    // Llamar a la función SQL
-    const { error } = await supabase.rpc('calcular_costos_fijos_subcuentas', {
-      p_periodo_id: periodo.id,
-      p_sucursal_id: sucursalId
-    })
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error('Error al recalcular subcuentas de Costos Fijos:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido' 
-    }
+export async function getAllCostosFijosSubcuentasByPeriodo(
+  periodoKey: string
+): Promise<CostosFijosSubcuentas[]> {
+  const result: CostosFijosSubcuentas[] = []
+  for (const suc of SUCURSALES_DEMO) {
+    const item = await getCostosFijosSubcuentas(periodoKey, suc.id)
+    if (item) result.push(item)
   }
+  return result
+}
+
+export async function distribuirCostosFijosGlobales(
+  periodoKey: string,
+  datosGlobales: CostosFijosSubcuentasCarga
+): Promise<{ success: boolean; error?: string }> {
+  for (const suc of SUCURSALES_DEMO) {
+    const factor = SUCURSAL_FACTORS[suc.id] || 0.2
+    const sucData: CostosFijosSubcuentasCarga = {}
+    for (const [k, v] of Object.entries(datosGlobales)) {
+      if (typeof v === 'number') {
+        (sucData as any)[k] = Math.round(v * factor)
+      }
+    }
+    await upsertCostosFijosSubcuentas(periodoKey, suc.id, sucData)
+  }
+  return { success: true }
 }

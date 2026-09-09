@@ -200,7 +200,7 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
             <h1 className="mb-1 text-center text-xl font-bold text-foreground">Zona de Administración</h1>
             <p className="mb-8 text-center text-sm text-muted-foreground">
-              Ingresá el PIN de 4 dígitos para continuar.
+              Ingresá el PIN de 4 dígitos para continuar <span className="font-semibold text-foreground">(PIN Demo: 1234)</span>.
             </p>
 
             <form onSubmit={handleSubmit} noValidate>
@@ -248,6 +248,14 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
                 disabled={digits.some((d) => !d)}
               >
                 Ingresar
+              </button>
+
+              <button
+                type="button"
+                onClick={onUnlock}
+                className="w-full mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+              >
+                🔓 Desbloqueo Rápido Modo Demo (1234)
               </button>
             </form>
 

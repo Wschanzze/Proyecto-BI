@@ -191,7 +191,7 @@ export function ChequeoAdmin() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-sm font-medium">Analizando base de datos de Supabase...</span>
+              <span className="text-sm font-medium">Analizando estado de datos y catálogos...</span>
             </div>
           ) : datosFiltrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">

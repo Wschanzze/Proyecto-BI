@@ -1,5 +1,6 @@
-// lib/rrhh-costos.ts
-import { supabase } from './supabase'
+﻿// lib/rrhh-costos.ts
+// Gestión de empleados, nómina y plantillas en modo DEMO autónomo.
+
 import type { 
   Empleado, 
   NominaMensual, 
@@ -9,71 +10,69 @@ import type {
   TemplateCosto 
 } from './data'
 
-// ===== EMPLEADOS =====
+const PLANTILLA_DEMO: Record<string, PlantillaEmpleado[]> = {
+  colon: [
+    { id: 1, sucursal_id: 'colon', legajo: 'COL-001', apellido: 'Gómez', nombre: 'Carlos', puesto: 'Gerente de Sucursal', categoria: 'gerencial', sueldo_basico_default: 1450000, activo: true, orden_carga: 1 },
+    { id: 2, sucursal_id: 'colon', legajo: 'COL-002', apellido: 'Rodríguez', nombre: 'Mariana', puesto: 'Cajera Senior', categoria: 'operativo', sueldo_basico_default: 890000, activo: true, orden_carga: 2 },
+    { id: 3, sucursal_id: 'colon', legajo: 'COL-003', apellido: 'Pérez', nombre: 'Juan', puesto: 'Repositor', categoria: 'operativo', sueldo_basico_default: 780000, activo: true, orden_carga: 3 },
+    { id: 4, sucursal_id: 'colon', legajo: 'COL-004', apellido: 'López', nombre: 'Lucía', puesto: 'Administrativa', categoria: 'administrativo', sueldo_basico_default: 920000, activo: true, orden_carga: 4 },
+    { id: 5, sucursal_id: 'colon', legajo: 'COL-005', apellido: 'Fernández', nombre: 'Matías', puesto: 'Seguridad', categoria: 'operativo', sueldo_basico_default: 810000, activo: true, orden_carga: 5 },
+  ],
+  'san-martin': [
+    { id: 6, sucursal_id: 'san-martin', legajo: 'SM-001', apellido: 'Díaz', nombre: 'Alejandro', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 1450000, activo: true, orden_carga: 1 },
+    { id: 7, sucursal_id: 'san-martin', legajo: 'SM-002', apellido: 'Martínez', nombre: 'Carla', puesto: 'Cajera', categoria: 'operativo', sueldo_basico_default: 870000, activo: true, orden_carga: 2 },
+    { id: 8, sucursal_id: 'san-martin', legajo: 'SM-003', apellido: 'Sánchez', nombre: 'Diego', puesto: 'Cajero', categoria: 'operativo', sueldo_basico_default: 870000, activo: true, orden_carga: 3 },
+    { id: 9, sucursal_id: 'san-martin', legajo: 'SM-004', apellido: 'Romero', nombre: 'Gastón', puesto: 'Repositor', categoria: 'operativo', sueldo_basico_default: 780000, activo: true, orden_carga: 4 },
+    { id: 10, sucursal_id: 'san-martin', legajo: 'SM-005', apellido: 'Benítez', nombre: 'Rosa', puesto: 'Limpieza', categoria: 'operativo', sueldo_basico_default: 720000, activo: true, orden_carga: 5 },
+  ],
+  falucho: [
+    { id: 11, sucursal_id: 'falucho', legajo: 'FAL-001', apellido: 'Silva', nombre: 'Martín', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 1400000, activo: true, orden_carga: 1 },
+    { id: 12, sucursal_id: 'falucho', legajo: 'FAL-002', apellido: 'Torres', nombre: 'Camila', puesto: 'Cajera', categoria: 'operativo', sueldo_basico_default: 870000, activo: true, orden_carga: 2 },
+    { id: 13, sucursal_id: 'falucho', legajo: 'FAL-003', apellido: 'Flores', nombre: 'Pablo', puesto: 'Repositor', categoria: 'operativo', sueldo_basico_default: 780000, activo: true, orden_carga: 3 },
+    { id: 14, sucursal_id: 'falucho', legajo: 'FAL-004', apellido: 'Acosta', nombre: 'Florencia', puesto: 'Administrativa', categoria: 'administrativo', sueldo_basico_default: 910000, activo: true, orden_carga: 4 },
+  ],
+  peron: [
+    { id: 15, sucursal_id: 'peron', legajo: 'PER-001', apellido: 'Morales', nombre: 'Federico', puesto: 'Gerente', categoria: 'gerencial', sueldo_basico_default: 1400000, activo: true, orden_carga: 1 },
+    { id: 16, sucursal_id: 'peron', legajo: 'PER-002', apellido: 'Ríos', nombre: 'Daniela', puesto: 'Cajera Senior', categoria: 'operativo', sueldo_basico_default: 890000, activo: true, orden_carga: 2 },
+    { id: 17, sucursal_id: 'peron', legajo: 'PER-003', apellido: 'Castro', nombre: 'Lucas', puesto: 'Repositor', categoria: 'operativo', sueldo_basico_default: 780000, activo: true, orden_carga: 3 },
+    { id: 18, sucursal_id: 'peron', legajo: 'PER-004', apellido: 'Medina', nombre: 'Jorge', puesto: 'Seguridad', categoria: 'operativo', sueldo_basico_default: 810000, activo: true, orden_carga: 4 },
+  ],
+  virtual: [
+    { id: 19, sucursal_id: 'virtual', legajo: 'VIR-001', apellido: 'Navarro', nombre: 'Esteban', puesto: 'Director Comercial', categoria: 'gerencial', sueldo_basico_default: 2100000, activo: true, orden_carga: 1 },
+    { id: 20, sucursal_id: 'virtual', legajo: 'VIR-002', apellido: 'Suárez', nombre: 'Valeria', puesto: 'Contadora', categoria: 'administrativo', sueldo_basico_default: 1650000, activo: true, orden_carga: 2 },
+    { id: 21, sucursal_id: 'virtual', legajo: 'VIR-003', apellido: 'Vega', nombre: 'Paula', puesto: 'Jefa de RRHH', categoria: 'administrativo', sueldo_basico_default: 1650000, activo: true, orden_carga: 3 },
+    { id: 22, sucursal_id: 'virtual', legajo: 'VIR-004', apellido: 'Paz', nombre: 'Gonzalo', puesto: 'Administrativo eCommerce', categoria: 'administrativo', sueldo_basico_default: 950000, activo: true, orden_carga: 4 },
+  ],
+}
 
 export async function getEmpleados(sucursalId?: string): Promise<Empleado[]> {
-  let query = supabase
-    .from('empleados')
-    .select('*')
-    .eq('activo', true)
-    .order('apellido', { ascending: true })
-
-  if (sucursalId && sucursalId !== '__consolidado__') {
-    query = query.eq('sucursal_id', sucursalId)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Error al obtener empleados:', error)
-    return []
-  }
-
-  return data || []
+  const target = sucursalId && sucursalId !== '__consolidado__' ? sucursalId : 'colon'
+  const list = PLANTILLA_DEMO[target] || PLANTILLA_DEMO.colon
+  return list.map(p => ({
+    id: p.id,
+    legajo: p.legajo,
+    apellido: p.apellido,
+    nombre: p.nombre,
+    dni: '35123456',
+    cuil: '20-35123456-8',
+    sucursal_id: p.sucursal_id,
+    puesto: p.puesto,
+    categoria: p.categoria as any,
+    fecha_ingreso: '2023-01-01',
+    fecha_egreso: null,
+    sueldo_basico: p.sueldo_basico_default,
+    activo: true,
+    creado_en: '2023-01-01T00:00:00Z',
+    actualizado_en: '2023-01-01T00:00:00Z',
+  }))
 }
 
 export async function getPlantillaEmpleados(sucursalId: string): Promise<PlantillaEmpleado[]> {
-  const { data, error } = await supabase
-    .from('plantilla_empleados')
-    .select('*')
-    .eq('sucursal_id', sucursalId)
-    .eq('activo', true)
-    .order('orden_carga', { ascending: true })
-
-  if (error) {
-    console.error('Error al obtener plantilla empleados:', error)
-    return []
-  }
-
-  return data || []
+  return PLANTILLA_DEMO[sucursalId] || PLANTILLA_DEMO.colon
 }
 
-// ===== NÓMINA =====
-
-export async function getNominaMensual(
-  periodoId: number, 
-  sucursalId?: string
-): Promise<NominaMensual[]> {
-  let query = supabase
-    .from('nomina_mensual')
-    .select(`
-      *,
-      empleados!inner(apellido, nombre, legajo, puesto)
-    `)
-    .eq('periodo_id', periodoId)
-
-  if (sucursalId && sucursalId !== '__consolidado__') {
-    query = query.eq('sucursal_id', sucursalId)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Error al obtener nómina mensual:', error)
-    return []
-  }
-
-  return data || []
+export async function getNominaMensual(periodoId: number, sucursalId?: string): Promise<NominaMensual[]> {
+  return []
 }
 
 export async function cargarNominaMensual(
@@ -83,141 +82,15 @@ export async function cargarNominaMensual(
   archivoOrigen?: string,
   modoIncremental: boolean = false
 ): Promise<{ success: boolean; insertados: number; errores: string[] }> {
-  try {
-    const errores: string[] = []
-    let insertados = 0
-
-    if (!modoIncremental) {
-      // Limpiar nómina anterior para este período y sucursal
-      const { error: deleteError } = await supabase
-        .from('nomina_mensual')
-        .delete()
-        .eq('periodo_id', periodoId)
-        .eq('sucursal_id', sucursalId)
-
-      if (deleteError) {
-        return { success: false, insertados: 0, errores: [`Error al limpiar nómina anterior: ${deleteError.message}`] }
-      }
-    }
-
-    // Obtener plantilla de empleados para validar
-    const plantilla = await getPlantillaEmpleados(sucursalId)
-    const plantillaMap = new Map(plantilla.map(p => [p.legajo, p]))
-
-    // Validar y preparar datos
-    const nominaParaInsertar: Partial<NominaMensual>[] = []
-
-    for (const [index, registro] of datosNomina.entries()) {
-      const empleadoPlantilla = plantillaMap.get(registro.legajo)
-      
-      if (!empleadoPlantilla) {
-        errores.push(`Fila ${index + 1}: Legajo ${registro.legajo} no encontrado en plantilla`)
-        continue
-      }
-
-      // Buscar o crear empleado
-      let empleado = await getEmpleadoPorLegajo(registro.legajo, sucursalId)
-      
-      if (!empleado) {
-        // Crear empleado desde plantilla
-        empleado = await crearEmpleadoDesdeTemplate(empleadoPlantilla, sucursalId)
-      }
-
-      if (!empleado) {
-        errores.push(`Fila ${index + 1}: No se pudo crear empleado para legajo ${registro.legajo}`)
-        continue
-      }
-
-      // Calcular totales
-      const totalRemunerativo = registro.sueldo_basico + (registro.horas_extras || 0) + (registro.premios || 0) + (registro.bonificaciones || 0)
-      const totalNoRemunerativo = registro.viaticos || 0
-      const jubilacion = totalRemunerativo * 0.11 // 11%
-      const obraSocial = totalRemunerativo * 0.03 // 3%
-      const totalDescuentos = jubilacion + obraSocial
-      const netoACobrar = totalRemunerativo + totalNoRemunerativo - totalDescuentos
-      const aportesPatronales = totalRemunerativo * 0.235 // 23.5%
-      const art = totalRemunerativo * 0.012 // 1.2%
-      const costoTotalEmpresa = totalRemunerativo + totalNoRemunerativo + aportesPatronales + art
-
-      nominaParaInsertar.push({
-        periodo_id: periodoId,
-        sucursal_id: sucursalId,
-        empleado_id: empleado.id,
-        sueldo_basico: registro.sueldo_basico,
-        horas_extras: registro.horas_extras || 0,
-        premios: registro.premios || 0,
-        bonificaciones: registro.bonificaciones || 0,
-        total_remunerativo: totalRemunerativo,
-        viaticos: registro.viaticos || 0,
-        total_no_remunerativo: totalNoRemunerativo,
-        jubilacion,
-        obra_social: obraSocial,
-        total_descuentos: totalDescuentos,
-        aportes_patronales: aportesPatronales,
-        art,
-        neto_a_cobrar: netoACobrar,
-        costo_total_empresa: costoTotalEmpresa,
-        dias_trabajados: registro.dias_trabajados || 30,
-        ausentismos: registro.ausentismos || 0,
-        observaciones: registro.observaciones,
-        archivo_origen: archivoOrigen
-      })
-    }
-
-    // Insertar en lote
-    if (nominaParaInsertar.length > 0) {
-      const { data, error } = await supabase
-        .from('nomina_mensual')
-        .upsert(nominaParaInsertar, { 
-          onConflict: 'periodo_id,empleado_id',
-          ignoreDuplicates: false 
-        })
-        .select()
-
-      if (error) {
-        return { success: false, insertados: 0, errores: [`Error en inserción masiva: ${error.message}`] }
-      }
-
-      insertados = data?.length || 0
-    }
-
-    return {
-      success: true,
-      insertados,
-      errores
-    }
-  } catch (err) {
-    return {
-      success: false,
-      insertados: 0,
-      errores: [`Error inesperado: ${err instanceof Error ? err.message : 'Error desconocido'}`]
-    }
+  return {
+    success: true,
+    insertados: datosNomina.length,
+    errores: []
   }
 }
 
-// ===== COSTOS ESTRUCTURALES =====
-
-export async function getCostosEstructurales(
-  periodoId: number,
-  sucursalId?: string
-): Promise<CostoEstructural[]> {
-  let query = supabase
-    .from('costos_estructurales')
-    .select('*')
-    .eq('periodo_id', periodoId)
-
-  if (sucursalId && sucursalId !== '__consolidado__') {
-    query = query.eq('sucursal_id', sucursalId)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Error al obtener costos estructurales:', error)
-    return []
-  }
-
-  return data || []
+export async function getCostosEstructurales(periodoId: number, sucursalId?: string): Promise<CostoEstructural[]> {
+  return []
 }
 
 export async function cargarCostosEstructurales(
@@ -227,195 +100,27 @@ export async function cargarCostosEstructurales(
   archivoOrigen?: string,
   modoIncremental: boolean = false
 ): Promise<{ success: boolean; insertados: number; errores: string[] }> {
-  try {
-    const errores: string[] = []
-    const costosParaInsertar: Partial<CostoEstructural>[] = []
-
-    if (!modoIncremental) {
-      // Limpiar costos estructurales anteriores para este período y sucursal
-      const { error: deleteError } = await supabase
-        .from('costos_estructurales')
-        .delete()
-        .eq('periodo_id', periodoId)
-        .eq('sucursal_id', sucursalId)
-
-      if (deleteError) {
-        return { success: false, insertados: 0, errores: [`Error al limpiar costos estructurales anteriores: ${deleteError.message}`] }
-      }
-    }
-
-    for (const [index, registro] of datosCostos.entries()) {
-      // Validaciones básicas
-      if (!registro.categoria_costo || !registro.subcategoria || !registro.descripcion || !registro.importe) {
-        errores.push(`Fila ${index + 1}: Datos incompletos (categoria_costo, subcategoria, descripcion e importe son obligatorios)`)
-        continue
-      }
-
-      if (registro.importe <= 0) {
-        errores.push(`Fila ${index + 1}: El importe debe ser mayor a 0`)
-        continue
-      }
-
-      // Calcular componentes fijos y variables si no se especifican
-      const importeFijo = registro.importe_fijo || (registro.importe_variable ? registro.importe - registro.importe_variable : registro.importe)
-      const importeVariable = registro.importe_variable || 0
-
-      costosParaInsertar.push({
-        periodo_id: periodoId,
-        sucursal_id: sucursalId,
-        categoria_costo: registro.categoria_costo as any,
-        subcategoria: registro.subcategoria,
-        descripcion: registro.descripcion,
-        importe: registro.importe,
-        importe_variable: importeVariable,
-        importe_fijo: importeFijo,
-        tipo_gasto: (registro.tipo_gasto as any) || 'operativo',
-        proveedor: registro.proveedor,
-        numero_factura: registro.numero_factura,
-        fecha_vencimiento: registro.fecha_vencimiento,
-        observaciones: registro.observaciones,
-        archivo_origen: archivoOrigen
-      })
-    }
-
-    // Insertar en lote
-    if (costosParaInsertar.length > 0) {
-      const { data, error } = await supabase
-        .from('costos_estructurales')
-        .upsert(costosParaInsertar, {
-          onConflict: 'periodo_id,sucursal_id,categoria_costo,subcategoria,descripcion',
-          ignoreDuplicates: false
-        })
-        .select()
-
-      if (error) {
-        return { success: false, insertados: 0, errores: [`Error en inserción: ${error.message}`] }
-      }
-
-      return {
-        success: true,
-        insertados: data?.length || 0,
-        errores
-      }
-    }
-
-    return { success: true, insertados: 0, errores }
-  } catch (err) {
-    return {
-      success: false,
-      insertados: 0,
-      errores: [`Error inesperado: ${err instanceof Error ? err.message : 'Error desconocido'}`]
-    }
+  return {
+    success: true,
+    insertados: datosCostos.length,
+    errores: []
   }
 }
 
-// ===== FUNCIONES AUXILIARES =====
-
-async function getEmpleadoPorLegajo(legajo: string, sucursalId: string): Promise<Empleado | null> {
-  const { data, error } = await supabase
-    .from('empleados')
-    .select('*')
-    .eq('legajo', legajo)
-    .eq('sucursal_id', sucursalId)
-    .single()
-
-  return error ? null : data
+export async function getResumenRRHHPorSucursal(periodoId: number) {
+  return [
+    { sucursal_id: 'colon', total_empleados: 5, costo_total: 6200000, costo_promedio: 1240000 },
+    { sucursal_id: 'san-martin', total_empleados: 5, costo_total: 5800000, costo_promedio: 1160000 },
+    { sucursal_id: 'falucho', total_empleados: 4, costo_total: 5000000, costo_promedio: 1250000 },
+    { sucursal_id: 'peron', total_empleados: 4, costo_total: 4900000, costo_promedio: 1225000 },
+    { sucursal_id: 'virtual', total_empleados: 4, costo_total: 7800000, costo_promedio: 1950000 },
+  ]
 }
 
-async function crearEmpleadoDesdeTemplate(
-  template: PlantillaEmpleado, 
-  sucursalId: string
-): Promise<Empleado | null> {
-  const { data, error } = await supabase
-    .from('empleados')
-    .insert({
-      legajo: template.legajo,
-      apellido: template.apellido,
-      nombre: template.nombre,
-      dni: `00000000`, // Placeholder - se debe actualizar manualmente
-      cuil: `00-00000000-0`, // Placeholder
-      sucursal_id: sucursalId,
-      puesto: template.puesto,
-      categoria: template.categoria as any,
-      fecha_ingreso: new Date().toISOString().split('T')[0],
-      sueldo_basico: template.sueldo_basico_default
-    })
-    .select()
-    .single()
-
-  return error ? null : data
-}
-
-// ===== RESÚMENES Y TOTALES =====
-
-export async function getResumenRRHHPorSucursal(
-  periodoId: number
-): Promise<Array<{ sucursal_id: string; total_empleados: number; costo_total: number; costo_promedio: number }>> {
-  const { data, error } = await supabase
-    .from('nomina_mensual')
-    .select(`
-      sucursal_id,
-      costo_total_empresa,
-      sucursales!inner(nombre)
-    `)
-    .eq('periodo_id', periodoId)
-
-  if (error) {
-    console.error('Error al obtener resumen RRHH:', error)
-    return []
-  }
-
-  // Agrupar por sucursal
-  const resumenMap = new Map<string, { total_empleados: number; costo_total: number }>()
-
-  for (const registro of data || []) {
-    const actual = resumenMap.get(registro.sucursal_id) || { total_empleados: 0, costo_total: 0 }
-    actual.total_empleados += 1
-    actual.costo_total += registro.costo_total_empresa
-    resumenMap.set(registro.sucursal_id, actual)
-  }
-
-  return Array.from(resumenMap.entries()).map(([sucursal_id, datos]) => ({
-    sucursal_id,
-    total_empleados: datos.total_empleados,
-    costo_total: datos.costo_total,
-    costo_promedio: datos.total_empleados > 0 ? datos.costo_total / datos.total_empleados : 0
-  }))
-}
-
-export async function getResumenCostosPorCategoria(
-  periodoId: number,
-  sucursalId?: string
-): Promise<Array<{ categoria_costo: string; total_importe: number; cantidad_conceptos: number }>> {
-  let query = supabase
-    .from('costos_estructurales')
-    .select('categoria_costo, importe')
-    .eq('periodo_id', periodoId)
-
-  if (sucursalId && sucursalId !== '__consolidado__') {
-    query = query.eq('sucursal_id', sucursalId)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Error al obtener resumen costos:', error)
-    return []
-  }
-
-  // Agrupar por categoría
-  const resumenMap = new Map<string, { total_importe: number; cantidad_conceptos: number }>()
-
-  for (const registro of data || []) {
-    const actual = resumenMap.get(registro.categoria_costo) || { total_importe: 0, cantidad_conceptos: 0 }
-    actual.total_importe += registro.importe
-    actual.cantidad_conceptos += 1
-    resumenMap.set(registro.categoria_costo, actual)
-  }
-
-  return Array.from(resumenMap.entries()).map(([categoria_costo, datos]) => ({
-    categoria_costo,
-    total_importe: datos.total_importe,
-    cantidad_conceptos: datos.cantidad_conceptos
-  }))
+export async function getResumenCostosPorCategoria(periodoId: number, sucursalId?: string) {
+  return [
+    { categoria_costo: 'Servicios', total_importe: 1800000, cantidad_conceptos: 4 },
+    { categoria_costo: 'Mantenimiento', total_importe: 950000, cantidad_conceptos: 3 },
+    { categoria_costo: 'Alquiler', total_importe: 2500000, cantidad_conceptos: 1 },
+  ]
 }

@@ -150,54 +150,21 @@ export function GestionIngresosFinancieros() {
     }
   }
 
-  // Cargar lista de todos los períodos con datos de Ingresos Financieros en DB (batch query)
+  // Cargar lista de todos los períodos con datos de Ingresos Financieros en modo demo
   const loadSubcuentasExistentes = async () => {
     try {
-      const { data: periodos } = await import('@/lib/supabase').then(m => 
-        m.supabaseAdmin
-          .from('periodos')
-          .select('id, key')
-          .order('key')
-      )
+      const { getPeriodosDB } = await import('@/lib/data-db')
+      const { getIngresosFinancierosSubcuentas } = await import('@/lib/ingresos-financieros-subcuentas')
+      const periodos = await getPeriodosDB()
       if (!periodos || periodos.length === 0) return
 
-      const periodoIds = periodos.map(p => p.id)
-      const { data: subcuentas } = await import('@/lib/supabase').then(m =>
-        m.supabaseAdmin
-          .from('ingresos_financieros_subcuentas')
-          .select('periodo_id, operatoria_financiera, rendimientos_financieros, total_ingresos_financieros')
-          .in('periodo_id', periodoIds)
-      )
-
-      if (!subcuentas || subcuentas.length === 0) return
-
-      const periodoMap = new Map(periodos.map(p => [p.id, p.key]))
-      const consolidado = new Map<string, IngresosFinancierosSubcuentas>()
-
-      for (const row of subcuentas) {
-        const pk = periodoMap.get(row.periodo_id)
-        if (!pk) continue
-
-        if (!consolidado.has(pk)) {
-          consolidado.set(pk, {
-            periodo_id: row.periodo_id,
-            sucursal_id: '__consolidado__',
-            operatoria_financiera: 0,
-            rendimientos_financieros: 0,
-            total_ingresos_financieros: 0
-          })
+      const list: { periodoKey: string; data: IngresosFinancierosSubcuentas }[] = []
+      for (const p of periodos.slice(-6)) {
+        const sub = await getIngresosFinancierosSubcuentas(p.key, '__consolidado__')
+        if (sub) {
+          list.push({ periodoKey: p.key, data: sub })
         }
-        const agg = consolidado.get(pk)!
-        agg.operatoria_financiera += Number(row.operatoria_financiera || 0)
-        agg.rendimientos_financieros += Number(row.rendimientos_financieros || 0)
-        agg.total_ingresos_financieros += Number(row.total_ingresos_financieros || (row.operatoria_financiera || 0) + (row.rendimientos_financieros || 0))
       }
-
-      const list = Array.from(consolidado.entries())
-        .filter(([, d]) => d.total_ingresos_financieros > 0)
-        .map(([periodoKey, data]) => ({ periodoKey, data }))
-        .sort((a, b) => a.periodoKey.localeCompare(b.periodoKey))
-
       setSubcuentasExistentes(list)
     } catch (err) {
       console.error('Error al cargar historial Ingresos Financieros:', err)

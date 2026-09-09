@@ -1,7 +1,7 @@
-// lib/ingresos-financieros-subcuentas.ts
-// Gestión de subcuentas de Ingresos Financieros
+﻿// lib/ingresos-financieros-subcuentas.ts
+// Gestión de subcuentas de Ingresos Financieros en modo DEMO autónomo.
 
-import { supabaseAdmin } from './supabase'
+import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
 
 export interface IngresosFinancierosSubcuentas {
   periodo_id: number
@@ -16,112 +16,105 @@ export interface IngresosFinancierosSubcuentasCarga {
   rendimientos_financieros?: number
 }
 
-/**
- * Obtener subcuentas de Ingresos Financieros por período y sucursal
- */
+const ingresosCache: Map<string, IngresosFinancierosSubcuentas> = new Map()
+
+function getCacheKey(periodoKey: string, sucursalId: string): string {
+  return `${periodoKey}__${sucursalId}`
+}
+
 export async function getIngresosFinancierosSubcuentas(
   periodoKey: string,
   sucursalId: string = '__consolidado__'
 ): Promise<IngresosFinancierosSubcuentas | null> {
-  try {
-    const { data: periodo } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
+  const cacheKey = getCacheKey(periodoKey, sucursalId)
+  if (ingresosCache.has(cacheKey)) {
+    return ingresosCache.get(cacheKey)!
+  }
 
-    if (!periodo) return null
+  // Consolidado desde sucursales en cache si existen
+  if (sucursalId === '__consolidado__') {
+    let totalOp = 0
+    let totalRend = 0
+    let hasCustom = false
 
-    if (sucursalId === '__consolidado__') {
-      // Consolidado: sumar todas las sucursales
-      const { data, error } = await supabaseAdmin
-        .from('ingresos_financieros_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-
-      if (error) throw error
-      if (!data || data.length === 0) return null
-
-      return {
-        periodo_id: periodo.id,
-        sucursal_id: '__consolidado__',
-        operatoria_financiera: data.reduce((sum, r) => sum + Number(r.operatoria_financiera || 0), 0),
-        rendimientos_financieros: data.reduce((sum, r) => sum + Number(r.rendimientos_financieros || 0), 0),
-        total_ingresos_financieros: data.reduce((sum, r) => sum + Number(r.total_ingresos_financieros || 0), 0),
+    for (const suc of SUCURSALES_DEMO) {
+      const key = getCacheKey(periodoKey, suc.id)
+      if (ingresosCache.has(key)) {
+        hasCustom = true
+        const item = ingresosCache.get(key)!
+        totalOp += item.operatoria_financiera
+        totalRend += item.rendimientos_financieros
       }
-    } else {
-      // Por sucursal específica
-      const { data, error } = await supabaseAdmin
-        .from('ingresos_financieros_subcuentas')
-        .select('*')
-        .eq('periodo_id', periodo.id)
-        .eq('sucursal_id', sucursalId)
-        .maybeSingle()
-
-      if (error) {
-        if (error.code === 'PGRST116') return null
-        throw error
-      }
-
-      return data as IngresosFinancierosSubcuentas
     }
-  } catch (error) {
-    console.error('Error al obtener subcuentas de Ingresos Financieros:', error)
-    return null
+
+    if (hasCustom) {
+      return {
+        periodo_id: 1,
+        sucursal_id: '__consolidado__',
+        operatoria_financiera: Math.round(totalOp),
+        rendimientos_financieros: Math.round(totalRend),
+        total_ingresos_financieros: Math.round(totalOp + totalRend),
+      }
+    }
+  }
+
+  // Generación determinística basada en facturación
+  const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const totalIngresos = Math.round(ventasSinIva * 0.005) // ~0.5% ratio estándar
+
+  const operatoria_financiera = Math.round(totalIngresos * 0.70)
+  const rendimientos_financieros = Math.round(totalIngresos * 0.30)
+  const total_ingresos_financieros = operatoria_financiera + rendimientos_financieros
+
+  return {
+    periodo_id: 1,
+    sucursal_id: sucursalId,
+    operatoria_financiera,
+    rendimientos_financieros,
+    total_ingresos_financieros,
   }
 }
 
-/**
- * Cargar o actualizar subcuentas de Ingresos Financieros manualmente
- */
 export async function upsertIngresosFinancierosSubcuentas(
   periodoKey: string,
   sucursalId: string,
   datos: IngresosFinancierosSubcuentasCarga
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: periodo, error: periodoErr } = await supabaseAdmin
-      .from('periodos')
-      .select('id')
-      .eq('key', periodoKey)
-      .maybeSingle()
-
-    if (periodoErr) {
-      return { success: false, error: `Error buscando período '${periodoKey}': ${periodoErr.message}` }
+    const prev = (await getIngresosFinancierosSubcuentas(periodoKey, sucursalId)) || {
+      periodo_id: 1,
+      sucursal_id: sucursalId,
+      operatoria_financiera: 0,
+      rendimientos_financieros: 0,
+      total_ingresos_financieros: 0,
     }
 
-    if (!periodo) {
-      return { success: false, error: `Período '${periodoKey}' no encontrado en la tabla periodos.` }
+    const op = datos.operatoria_financiera ?? prev.operatoria_financiera
+    const rend = datos.rendimientos_financieros ?? prev.rendimientos_financieros
+
+    const updated: IngresosFinancierosSubcuentas = {
+      periodo_id: prev.periodo_id,
+      sucursal_id: sucursalId,
+      operatoria_financiera: op,
+      rendimientos_financieros: rend,
+      total_ingresos_financieros: op + rend,
     }
 
-    // DELETE + INSERT directo usando supabaseAdmin (service_role)
-    await supabaseAdmin
-      .from('ingresos_financieros_subcuentas')
-      .delete()
-      .eq('periodo_id', periodo.id)
-      .eq('sucursal_id', sucursalId)
-
-    const { error: insErr } = await supabaseAdmin
-      .from('ingresos_financieros_subcuentas')
-      .insert({
-        periodo_id: periodo.id,
-        sucursal_id: sucursalId,
-        operatoria_financiera: datos.operatoria_financiera ?? 0,
-        rendimientos_financieros: datos.rendimientos_financieros ?? 0,
-        archivo_origen: 'Carga desde interfaz web',
-        actualizado_en: new Date().toISOString(),
-      })
-
-    if (insErr) {
-      const msg = `${insErr.code} — ${insErr.message}${insErr.details ? ` | ${insErr.details}` : ''}`
-      console.error('Error INSERT ingresos_financieros_subcuentas:', msg)
-      throw new Error(msg)
-    }
-
+    ingresosCache.set(getCacheKey(periodoKey, sucursalId), updated)
     return { success: true }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : JSON.stringify(error)
-    console.error('Error al guardar subcuentas de Ingresos Financieros:', msg)
-    return { success: false, error: msg }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Error al guardar ingresos financieros' }
   }
+}
+
+export async function getAllIngresosFinancierosSubcuentasByPeriodo(
+  periodoKey: string
+): Promise<IngresosFinancierosSubcuentas[]> {
+  const result: IngresosFinancierosSubcuentas[] = []
+  for (const suc of SUCURSALES_DEMO) {
+    const item = await getIngresosFinancierosSubcuentas(periodoKey, suc.id)
+    if (item) result.push(item)
+  }
+  return result
 }

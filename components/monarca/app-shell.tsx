@@ -17,8 +17,8 @@ import { supabase } from "@/lib/supabase"
 import { TransitionLoader } from "./shared"
 
 export function AppShell() {
-  const [user, setUser] = useState<any>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [user, setUser] = useState<any>({ email: "demo@monarca-bi.com" })
+  const [authLoading, setAuthLoading] = useState(false)
 
   const [tab, setTab] = useState<TabId>(() => {
     if (typeof window !== "undefined") {
@@ -200,9 +200,9 @@ export function AppShell() {
       <footer className="border-t border-border bg-card py-4">
         <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-1 px-4 text-xs text-muted-foreground md:flex-row md:px-6">
           <span>Supermercados Monarca · Cuadro de Resultados</span>
-          <span className="flex items-center gap-1.5 font-medium text-success">
-            <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-            Conectado a Supabase (Sesión Protegida)
+          <span className="flex items-center gap-1.5 font-medium text-emerald-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Modo Demostración Activo · Datos Simulados
           </span>
         </div>
       </footer>
