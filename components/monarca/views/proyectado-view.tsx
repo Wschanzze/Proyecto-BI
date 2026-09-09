@@ -19,6 +19,7 @@ import {
   Legend, ResponsiveContainer, ReferenceLine 
 } from "recharts"
 import { cn } from "@/lib/utils"
+import type { DBSucursal } from "@/lib/supabase"
 
 function DarkVariacionBadge({ actual, anterior, className }: { actual: number; anterior?: number | null; className?: string }) {
   if (anterior === undefined || anterior === null || anterior === 0) {
@@ -43,23 +44,30 @@ function DarkVariacionBadge({ actual, anterior, className }: { actual: number; a
   )
 }
 
-export function ProyectadoView() {
+interface ProyectadoViewProps {
+  sucursalId?: string
+  onSucursalChange?: (id: string) => void
+  sucursales?: DBSucursal[]
+}
+
+export function ProyectadoView({
+  sucursalId = "__consolidado__",
+  onSucursalChange,
+  sucursales = [],
+}: ProyectadoViewProps = {}) {
   const [loading, setLoading] = useState(true)
   const [anioSeleccionado, setAnioSeleccionado] = useState<string>("2026")
   const [mesesProyectados, setMesesProyectados] = useState<MesProyectado[]>([])
   const [realesPorMes, setRealesPorMes] = useState<Record<string, any>>({})
-  
-  // En un caso real esto vendría por props (como en app-shell), lo adaptamos a la vista
-  const sucursalId = "__consolidado__"
 
   useEffect(() => {
     async function loadData() {
       setLoading(true)
       try {
-        const config = await getConfiguracionPL()
+        const config = await getConfiguracionPL(sucursalId === '__consolidado__' ? undefined : sucursalId)
         
         // Calcular Proyección Matemática para los 12 meses
-        const proyeccion = calcularProyeccionAnual(parseInt(anioSeleccionado), config)
+        const proyeccion = calcularProyeccionAnual(parseInt(anioSeleccionado), config, sucursalId)
         setMesesProyectados(proyeccion)
 
         // Obtener Reales para los meses que ya ocurrieron
@@ -99,7 +107,7 @@ export function ProyectadoView() {
       }
     }
     loadData()
-  }, [anioSeleccionado])
+  }, [anioSeleccionado, sucursalId])
 
   const chartData = useMemo(() => {
     return mesesProyectados.map(m => {
@@ -184,7 +192,25 @@ export function ProyectadoView() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {sucursales.length > 0 && onSucursalChange && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-primary-foreground/80 font-medium">Sucursal:</span>
+                <Select value={sucursalId} onValueChange={(v) => v && onSucursalChange(v)}>
+                  <SelectTrigger className="w-[140px] bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground font-bold h-8">
+                    <SelectValue placeholder="Sucursal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__consolidado__">Consolidado</SelectItem>
+                    {sucursales.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-xs text-primary-foreground/80 font-medium">Ejercicio:</span>
               <Select value={anioSeleccionado} onValueChange={(v) => v && setAnioSeleccionado(v)}>

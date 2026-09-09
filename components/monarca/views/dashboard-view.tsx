@@ -326,22 +326,32 @@ export function DashboardView({
       const cBase = cuadrosMap.get(kBase)
       const cComp = cuadrosMap.get(kComp)
 
+      const ventasSinIvaBase = cBase ? (cBase.total.facturacion - cBase.total.iva) : null
+      const ventasSinIvaComp = cComp ? (cComp.total.facturacion - cComp.total.iva) : null
+      const costoBase = cBase?.total.costo ?? null
+      const costoComp = cComp?.total.costo ?? null
+      const cmgBase = ventasSinIvaBase !== null && costoBase !== null ? (ventasSinIvaBase - costoBase) : null
+      const cmgComp = ventasSinIvaComp !== null && costoComp !== null ? (ventasSinIvaComp - costoComp) : null
+
       return {
         mes: mesNombre,
         mesNum,
         cantBase: cBase?.total.articulos ?? null,
         cantComp: cComp?.total.articulos ?? null,
-        costoBase: cBase?.total.costo ?? null,
-        costoComp: cComp?.total.costo ?? null,
-        cmgBase: cBase?.total.resultadoFinal ?? null,
-        cmgComp: cComp?.total.resultadoFinal ?? null,
-        factBase: cBase?.total.facturacion ?? null,
-        factComp: cComp?.total.facturacion ?? null,
+        costoBase,
+        costoComp,
+        cmgBase,
+        cmgComp,
+        factBase: ventasSinIvaBase,
+        factComp: ventasSinIvaComp,
+        factBrutaBase: cBase?.total.facturacion ?? null,
+        factBrutaComp: cComp?.total.facturacion ?? null,
       }
     })
 
     // Calcular acumulados YTD
     let sumFactBase = 0, sumFactComp = 0
+    let sumFactBrutaBase = 0, sumFactBrutaComp = 0
     let sumCmgBase = 0, sumCmgComp = 0
     let sumCostoBase = 0, sumCostoComp = 0
     let sumCantBase = 0, sumCantComp = 0
@@ -350,6 +360,8 @@ export function DashboardView({
       if (m.factBase !== null && m.factBase !== undefined) {
         sumFactBase += m.factBase
         if (m.factComp) sumFactComp += m.factComp
+        if (m.factBrutaBase) sumFactBrutaBase += m.factBrutaBase
+        if (m.factBrutaComp) sumFactBrutaComp += m.factBrutaComp
         if (m.cmgBase) sumCmgBase += m.cmgBase
         if (m.cmgComp) sumCmgComp += m.cmgComp
         if (m.costoBase) sumCostoBase += m.costoBase
@@ -364,6 +376,8 @@ export function DashboardView({
       ytdTotals: {
         factBase: sumFactBase,
         factComp: sumFactComp,
+        factBrutaBase: sumFactBrutaBase,
+        factBrutaComp: sumFactBrutaComp,
         varFactYtd: kpiVariacion(sumFactBase, sumFactComp),
         cmgBase: sumCmgBase,
         cmgComp: sumCmgComp,
@@ -383,15 +397,18 @@ export function DashboardView({
     return periodos.map((p) => {
       const c = cuadrosMap.get(p.key)
       if (!c) return null
+      const ventasSinIva = c.total.facturacion - c.total.iva
+      const cmg = ventasSinIva - c.total.costo
       return {
         key: p.key,
         label: (p.label || p.key).toUpperCase(),
-        facturacion: c.total.facturacion - c.total.iva,
+        facturacion: ventasSinIva,
+        facturacionBruta: c.total.facturacion,
         costo: c.total.costo,
-        cmg: c.total.resultadoFinal,
-        margenPct: c.total.cmg,
+        cmg,
+        margenPct: ventasSinIva > 0 ? (cmg / ventasSinIva) * 100 : c.total.cmg,
         cantidad: c.total.articulos,
-        value: c.total.facturacion - c.total.iva // Para trends
+        value: ventasSinIva // Para trends
       }
     }).filter(Boolean)
   }, [periodos, cuadrosMap])
@@ -537,12 +554,12 @@ export function DashboardView({
         {/* Grid de 4 KPIs Unificados */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 relative z-10 divide-y sm:divide-y-0 lg:divide-x divide-primary-foreground/20">
           
-          {/* KPI 1: Facturación YTD */}
+          {/* KPI 1: Ventas Netas YTD */}
           <div className="flex flex-col justify-between space-y-3 lg:pr-6">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/90 flex items-center gap-1.5">
                 <Banknote className="h-4 w-4 text-accent" />
-                Facturación YTD
+                Ventas s/IVA YTD
               </span>
               <DarkVariacionBadge actual={ytdTotals.factBase} anterior={ytdTotals.factComp} />
             </div>
@@ -551,7 +568,7 @@ export function DashboardView({
                 {loading ? "..." : formatCurrencyCompact(ytdTotals.factBase)}
               </div>
               <p className="mt-1 text-xs text-primary-foreground/80">
-                vs {anioComparacion.comparacion}: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(ytdTotals.factComp)}</span>
+                c/IVA: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(ytdTotals.factBrutaBase)}</span> · vs {anioComparacion.comparacion}: <span className="font-semibold text-primary-foreground">{formatCurrencyCompact(ytdTotals.factComp)}</span>
               </p>
             </div>
           </div>

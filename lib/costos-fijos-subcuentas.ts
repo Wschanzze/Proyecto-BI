@@ -1,4 +1,4 @@
-﻿// lib/costos-fijos-subcuentas.ts
+// lib/costos-fijos-subcuentas.ts
 // Gestión de subcuentas detalladas de Costos Fijos (15 cuentas) en modo DEMO autónomo.
 
 import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
@@ -104,7 +104,7 @@ export async function getCostosFijosSubcuentas(
 
   // Generación determinística basada en la facturación del período
   const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
-  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 5_970_000_000
   const totalCostosFijosEst = Math.round(ventasSinIva * 0.032) // ~3.2% ratio estándar
 
   const sub = {

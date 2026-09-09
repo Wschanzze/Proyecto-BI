@@ -557,12 +557,12 @@ const REAL_SALON_STRUCT: Record<string, string[]> = {
 
 function createSubgrupo(id: string, nombre: string): SubgrupoDef {
   const seedVal = seeded(id)
-  const base = 5_000_000 + Math.round(seedVal * 35_000_000) // 5M a 40M ARS
-  const articulos = 100 + Math.round(seedVal * 1500)
-  const cmg = 15 + Math.round(seedVal * 25)
-  const rrhh = 5 + seedVal * 5
-  const rdoOp = 5 + seedVal * 15
-  const acciones = 1 + seedVal * 4
+  const base = 8_000_000 + Math.round(seedVal * 45_000_000) // 8M a 53M ARS
+  const articulos = 4_000 + Math.round(seedVal * 22_000)
+  const cmg = 22 + Math.round(seedVal * 16) // 22% a 38%
+  const rrhh = 10.0 + seedVal * 4.0 // ~12%
+  const rdoOp = 12.0 + seedVal * 6.0 // ~15%
+  const acciones = 2.0 + seedVal * 2.0
   return sg(id, nombre, base, articulos, cmg, rrhh, rdoOp, acciones)
 }
 
@@ -606,16 +606,16 @@ export const CATALOGO: SeccionDef[] = [
             id: "carniceria-vacuno",
             nombre: "Vacuno",
             subgrupos: [
-              sg("cortes-premium", "Cortes Premium", 34_000_000, 90, 21, 8.5, 8, 2.0),
-              sg("cortes-populares", "Cortes Populares", 41_000_000, 140, 17, 8.0, 6.5, 1.8),
+              sg("cortes-premium", "Cortes Premium", 58_000_000, 32_000, 22, 9.0, 11, 2.0),
+              sg("cortes-populares", "Cortes Populares", 68_000_000, 48_000, 18, 8.5, 9, 1.8),
             ],
           },
           {
             id: "carniceria-otras",
             nombre: "Otras Carnes",
             subgrupos: [
-              sg("cerdo", "Cerdo", 15_000_000, 70, 19, 7.8, 7.5, 2.1),
-              sg("pollo", "Pollo", 23_000_000, 60, 16, 7.5, 6, 1.9),
+              sg("cerdo", "Cerdo", 32_000_000, 18_000, 21, 8.0, 10, 2.1),
+              sg("pollo", "Pollo", 45_000_000, 30_000, 18, 8.0, 9, 1.9),
             ],
           },
         ],
@@ -627,14 +627,14 @@ export const CATALOGO: SeccionDef[] = [
           {
             id: "verduleria-frutas",
             nombre: "Frutas",
-            subgrupos: [sg("frutas-estacion", "Frutas de Estación", 26_000_000, 210, 25, 7.0, 11, 2.5)],
+            subgrupos: [sg("frutas-estacion", "Frutas de Estación", 45_000_000, 38_000, 25, 7.5, 12, 2.5)],
           },
           {
             id: "verduleria-verduras",
             nombre: "Verduras",
             subgrupos: [
-              sg("verduras-hoja", "Verduras de Hoja", 14_000_000, 180, 28, 7.2, 12.5, 2.8),
-              sg("tuberculos", "Tubérculos", 16_000_000, 95, 24, 6.8, 10, 2.4),
+              sg("verduras-hoja", "Verduras de Hoja", 36_000_000, 34_000, 28, 7.5, 13, 2.8),
+              sg("tuberculos", "Tubérculos", 32_000_000, 26_000, 24, 7.0, 11, 2.4),
             ],
           },
         ],
@@ -647,8 +647,8 @@ export const CATALOGO: SeccionDef[] = [
             id: "fiambreria-fiambres",
             nombre: "Fiambres",
             subgrupos: [
-              sg("jamones", "Jamones", 22_000_000, 130, 26, 7.0, 13, 3.0),
-              sg("quesos", "Quesos", 25_000_000, 160, 24, 6.8, 12, 3.2),
+              sg("jamones", "Jamones", 42_000_000, 28_000, 28, 7.5, 14, 3.0),
+              sg("quesos", "Quesos", 48_000_000, 32_000, 26, 7.2, 13, 3.2),
             ],
           },
         ],
@@ -661,8 +661,8 @@ export const CATALOGO: SeccionDef[] = [
             id: "lacteos-refrigerados",
             nombre: "Refrigerados",
             subgrupos: [
-              sg("leches-yogures", "Leches y Yogures", 33_000_000, 290, 18, 6.0, 8.5, 3.4),
-              sg("quesos-frescos", "Quesos Frescos", 19_000_000, 150, 22, 6.4, 11, 3.6),
+              sg("leches-yogures", "Leches y Yogures", 65_000_000, 55_000, 20, 6.5, 10, 3.4),
+              sg("quesos-frescos", "Quesos Frescos", 38_000_000, 28_000, 24, 6.8, 12, 3.6),
             ],
           },
         ],
@@ -675,8 +675,8 @@ export const CATALOGO: SeccionDef[] = [
             id: "panaderia-elaboracion",
             nombre: "Elaboración",
             subgrupos: [
-              sg("pan-dia", "Pan del Día", 18_000_000, 45, 35, 9.0, 16, 2.2),
-              sg("facturas", "Facturas", 11_000_000, 80, 38, 9.5, 18, 2.6),
+              sg("pan-dia", "Pan del Día", 35_000_000, 30_000, 38, 9.5, 17, 2.2),
+              sg("facturas", "Facturas", 22_000_000, 24_000, 40, 10.0, 19, 2.6),
             ],
           },
         ],
@@ -688,7 +688,7 @@ export const CATALOGO: SeccionDef[] = [
           {
             id: "rotiseria-comidas",
             nombre: "Comidas",
-            subgrupos: [sg("comidas-listas", "Comidas Listas", 9_500_000, 55, 33, 10.0, 12, 2.0, 12)],
+            subgrupos: [sg("comidas-listas", "Comidas Listas", 25_000_000, 18_000, 35, 10.5, 14, 2.5)],
           },
         ],
       },
@@ -724,8 +724,33 @@ export const PERIODOS_SELECCIONABLES = PERIODOS.filter((p) => p.index >= 12)
 
 export const PERIODO_ACTUAL = PERIODOS_SELECCIONABLES[PERIODOS_SELECCIONABLES.length - 1]
 
-// --- Generador determinístico ---
+// Datos históricos consolidados exactos alineados con estacionalidad
+export const MONTHLY_TARGET_DATA: Record<string, { facturacion: number; articulos: number; clientes: number }> = {
+  "2025-01": { facturacion: 4_923_847_000, articulos: 2_075_846, clientes: 195_366 },
+  "2025-02": { facturacion: 4_573_212_000, articulos: 1_898_361, clientes: 178_579 },
+  "2025-03": { facturacion: 5_274_819_000, articulos: 2_106_690, clientes: 198_897 },
+  "2025-04": { facturacion: 5_078_934_000, articulos: 1_938_645, clientes: 187_494 },
+  "2025-05": { facturacion: 4_947_112_000, articulos: 1_929_008, clientes: 181_333 },
+  "2025-06": { facturacion: 5_008_430_000, articulos: 1_899_759, clientes: 177_685 },
+  "2025-07": { facturacion: 5_352_918_000, articulos: 2_000_713, clientes: 185_353 },
+  "2025-08": { facturacion: 5_289_110_000, articulos: 1_981_800, clientes: 185_412 },
+  "2025-09": { facturacion: 4_958_340_000, articulos: 1_822_467, clientes: 173_485 },
+  "2025-10": { facturacion: 5_264_190_000, articulos: 1_855_276, clientes: 184_288 },
+  "2025-11": { facturacion: 5_841_230_000, articulos: 1_988_096, clientes: 192_807 },
+  "2025-12": { facturacion: 7_143_820_000, articulos: 2_144_414, clientes: 197_939 },
+  "2026-01": { facturacion: 6_548_310_000, articulos: 2_028_928, clientes: 192_338 },
+  "2026-02": { facturacion: 6_049_810_000, articulos: 1_837_547, clientes: 175_603 },
+  "2026-03": { facturacion: 6_488_920_000, articulos: 1_950_447, clientes: 188_248 },
+  "2026-04": { facturacion: 6_431_250_000, articulos: 1_881_422, clientes: 180_792 },
+  "2026-05": { facturacion: 6_352_410_000, articulos: 1_830_146, clientes: 175_200 },
+  "2026-06": { facturacion: 6_571_890_000, articulos: 1_836_653, clientes: 177_035 },
+  "2026-07": { facturacion: 7_091_250_000, articulos: 1_913_866, clientes: 183_524 },
+}
 
+const TOTAL_BASE_WEIGHT = CATALOGO.flatMap((s) => s.categorias).flatMap((c) => c.grupos).flatMap((g) => g.subgrupos).reduce((acc, x) => acc + x.base, 0)
+const TOTAL_ARTICULOS_WEIGHT = CATALOGO.flatMap((s) => s.categorias).flatMap((c) => c.grupos).flatMap((g) => g.subgrupos).reduce((acc, x) => acc + x.articulos, 0)
+
+// --- Generador determinístico ---
 
 const SEASONAL: Record<number, number> = {
   1: 0.96,
@@ -746,26 +771,35 @@ function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
   if (def.desde !== undefined && periodo.index < def.desde) {
     return emptyMetrics()
   }
-  const trend = Math.pow(1.032, periodo.index) // ~3,2% nominal mensual
-  const seasonal = SEASONAL[periodo.mes] ?? 1
-  const noise = 0.9 + seeded(`${def.id}-${periodo.index}`) * 0.2 // 0.9..1.1
-  const facturacion = Math.round(def.base * trend * seasonal * noise)
+
+  const target = MONTHLY_TARGET_DATA[periodo.key]
+  const targetFact = target ? target.facturacion : Math.round(5_500_000_000 * Math.pow(1.025, periodo.index))
+  const targetArt = target ? target.articulos : Math.round(1_900_000 * (SEASONAL[periodo.mes] ?? 1))
+
+  const noise = 0.98 + seeded(`${def.id}-${periodo.index}`) * 0.04 // 0.98..1.02
+  const facturacion = Math.round(targetFact * (def.base / TOTAL_BASE_WEIGHT) * noise)
   const ivaTasa = 0.187528 // IVA promedio efectivo mix retail
   const ventasSinIva = Math.round(facturacion / (1 + ivaTasa))
   const iva = facturacion - ventasSinIva
   const costo = Math.round(ventasSinIva * (1 - def.cmg / 100)) // Costo basado en margen
   const cmgMonto = ventasSinIva - costo
+  const articulos = Math.round(targetArt * (def.articulos / TOTAL_ARTICULOS_WEIGHT) * noise)
+
+  const rrhhMonto = Math.round(ventasSinIva * (def.rrhh / 100))
+  const costosFijosMonto = Math.round(ventasSinIva * 0.032)
+  const resultadoOperativo = cmgMonto - rrhhMonto - costosFijosMonto
+  const resultadoFinal = Math.round(resultadoOperativo * 0.8)
 
   return {
     facturacion,
     iva,
     costo,
-    articulos: Math.round(def.articulos * seasonal * (0.95 + seeded(`art-${def.id}-${periodo.index}`) * 0.1)),
+    articulos,
     cmg: def.cmg,
-    resultadoOperativo: cmgMonto,
+    resultadoOperativo,
     rrhhSobreVentas: def.rrhh,
     accionesSobreVentas: def.acciones,
-    resultadoFinal: cmgMonto,
+    resultadoFinal,
   }
 }
 

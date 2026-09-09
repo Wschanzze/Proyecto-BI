@@ -1,15 +1,15 @@
-﻿// lib/metricas-admin.ts
+// lib/metricas-admin.ts
 // Gestión de métricas configurables en modo DEMO autónomo con persistencia en localStorage.
 
 import type { MetricaConfigurable, ConfiguracionPL } from './data'
 
-const STORAGE_KEY = 'monarca_demo_metricas'
+const STORAGE_KEY = 'monarca_demo_metricas_v3'
 
 const DEFAULT_METRICAS: MetricaConfigurable[] = [
   // Ratios P&L
   { id: 1, categoria: 'ratios', clave: 'iva_porcentaje', nombre: 'IVA General', descripcion: 'Impuesto al Valor Agregado aplicado a ventas', valor: 0.187528, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 2, categoria: 'ratios', clave: 'rrhh_porcentaje', nombre: 'RRHH sobre Ventas', descripcion: 'Recursos Humanos como porcentaje de ventas sin IVA', valor: 0.12, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
-  { id: 3, categoria: 'ratios', clave: 'gastos_comerciales_porcentaje', nombre: 'Gastos Comerciales', descripcion: 'Marketing y gastos de comercialización sobre ventas', valor: 0.03, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 3, categoria: 'ratios', clave: 'gastos_comerciales_porcentaje', nombre: 'Gastos Comerciales', descripcion: 'Costos fijos y gastos de comercialización sobre ventas', valor: 0.032, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 4, categoria: 'ratios', clave: 'impuestos_operativos_porcentaje', nombre: 'Impuestos Operativos', descripcion: 'Impuestos y cargas operativas sobre ventas', valor: 0.02, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 5, categoria: 'ratios', clave: 'gastos_generales_porcentaje', nombre: 'Gastos Generales', descripcion: 'Gastos operativos generales sobre ventas', valor: 0.04, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 6, categoria: 'ratios', clave: 'ingresos_financieros_porcentaje', nombre: 'Ingresos Financieros', descripcion: 'Ingresos financieros externos sobre ventas', valor: 0.005, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
@@ -21,12 +21,12 @@ const DEFAULT_METRICAS: MetricaConfigurable[] = [
   { id: 10, categoria: 'impuestos', clave: 'tuae_porcentaje', nombre: 'TUAE', descripcion: 'Tasa de Análisis de Expedientes', valor: 0.02, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 
   // Estimaciones
-  { id: 11, categoria: 'estimaciones', clave: 'cmv_salon_porcentaje', nombre: 'CMV Salón Estimado', descripcion: 'Costo estimado de Salón', valor: 0.75, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
-  { id: 12, categoria: 'estimaciones', clave: 'cmv_frescos_porcentaje', nombre: 'CMV Frescos Estimado', descripcion: 'Costo estimado de Frescos', valor: 0.68, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 11, categoria: 'estimaciones', clave: 'cmv_salon_porcentaje', nombre: 'CMV Salón Estimado', descripcion: 'Costo estimado de Salón', valor: 0.695, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 12, categoria: 'estimaciones', clave: 'cmv_frescos_porcentaje', nombre: 'CMV Frescos Estimado', descripcion: 'Costo estimado de Frescos', valor: 0.695, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 
   // KPIs
-  { id: 13, categoria: 'kpis', clave: 'ticket_promedio', nombre: 'Ticket Promedio', descripcion: 'Ticket promedio', valor: 2500, tipo: 'monto', unidad: 'ARS', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
-  { id: 14, categoria: 'kpis', clave: 'clientes_por_venta', nombre: 'Clientes por Venta', descripcion: 'Clientes por venta', valor: 25000, tipo: 'cantidad', unidad: 'clientes', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 13, categoria: 'kpis', clave: 'ticket_promedio', nombre: 'Ticket Promedio', descripcion: 'Ticket promedio en pesos ARS', valor: 36500, tipo: 'monto', unidad: 'ARS', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 14, categoria: 'kpis', clave: 'clientes_por_venta', nombre: 'Clientes por Venta', descripcion: 'Transacciones / Clientes mensuales promedio', valor: 185000, tipo: 'cantidad', unidad: 'clientes', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 15, categoria: 'kpis', clave: 'metros_totales', nombre: 'Metros Totales', descripcion: 'Metros totales', valor: 3200, tipo: 'cantidad', unidad: 'm²', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 16, categoria: 'kpis', clave: 'metros_salon', nombre: 'Metros Salón', descripcion: 'Metros de salón', valor: 2800, tipo: 'cantidad', unidad: 'm²', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 17, categoria: 'kpis', clave: 'sku_total', nombre: 'SKUs Totales', descripcion: 'SKUs totales', valor: 12500, tipo: 'cantidad', unidad: 'unidades', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
@@ -34,9 +34,9 @@ const DEFAULT_METRICAS: MetricaConfigurable[] = [
   { id: 19, categoria: 'kpis', clave: 'stockout_promedio', nombre: 'Stockout Promedio', descripcion: 'Quiebre de stock', valor: 2.3, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 ]
 
-// Generar proyecciones mes a mes 1..12
+// Generar proyecciones mes a mes 1..12 alineadas con ventas reales
 let autoId = 20
-const FACT_BASE = [110000000, 114000000, 122000000, 120000000, 125000000, 129000000, 134000000, 131000000, 128000000, 133000000, 138000000, 155000000]
+const FACT_BASE = [6450000000, 6000000000, 6420000000, 6380000000, 6300000000, 6520000000, 7050000000, 6950000000, 6800000000, 7200000000, 7850000000, 9500000000]
 
 for (let i = 1; i <= 12; i++) {
   DEFAULT_METRICAS.push({
@@ -62,7 +62,7 @@ for (let i = 1; i <= 12; i++) {
     clave: `proy_cmv_pct_m${i}`,
     nombre: `CMV Objetivo Mes ${i}`,
     descripcion: `CMV objetivo mes ${i}`,
-    valor: 0.70,
+    valor: 0.695,
     tipo: 'porcentaje',
     unidad: '%',
     activo: true,
@@ -96,7 +96,7 @@ for (let i = 1; i <= 12; i++) {
     clave: `proy_gastos_comerciales_pct_m${i}`,
     nombre: `Gastos Comerciales Mes ${i}`,
     descripcion: `Costos fijos objetivo mes ${i}`,
-    valor: 0.15,
+    valor: 0.032,
     tipo: 'porcentaje',
     unidad: '%',
     activo: true,
@@ -113,7 +113,7 @@ for (let i = 1; i <= 12; i++) {
     clave: `proy_mermas_pct_m${i}`,
     nombre: `Mermas Objetivo Mes ${i}`,
     descripcion: `Mermas objetivo mes ${i}`,
-    valor: 0.02,
+    valor: 0.016,
     tipo: 'porcentaje',
     unidad: '%',
     activo: true,
@@ -178,7 +178,7 @@ export async function getConfiguracionPL(sucursalId?: string): Promise<Configura
     ratios: {
       iva: getValor('ratios', 'iva_porcentaje', 0.187528),
       rrhh: getValor('ratios', 'rrhh_porcentaje', 0.12),
-      gastosComerciales: getValor('ratios', 'gastos_comerciales_porcentaje', 0.03),
+      gastosComerciales: getValor('ratios', 'gastos_comerciales_porcentaje', 0.032),
       impuestosOperativos: getValor('ratios', 'impuestos_operativos_porcentaje', 0.02),
       gastosGenerales: getValor('ratios', 'gastos_generales_porcentaje', 0.04),
       ingresosFinancieros: getValor('ratios', 'ingresos_financieros_porcentaje', 0.005),
@@ -190,12 +190,12 @@ export async function getConfiguracionPL(sucursalId?: string): Promise<Configura
       tuae: getValor('impuestos', 'tuae_porcentaje', 0.02),
     },
     estimaciones: {
-      cmvSalon: getValor('estimaciones', 'cmv_salon_porcentaje', 0.75),
-      cmvFrescos: getValor('estimaciones', 'cmv_frescos_porcentaje', 0.68),
+      cmvSalon: getValor('estimaciones', 'cmv_salon_porcentaje', 0.695),
+      cmvFrescos: getValor('estimaciones', 'cmv_frescos_porcentaje', 0.695),
     },
     kpis: {
-      ticketPromedio: getValor('kpis', 'ticket_promedio', 2500),
-      clientesPorVenta: getValor('kpis', 'clientes_por_venta', 25000),
+      ticketPromedio: getValor('kpis', 'ticket_promedio', 36500),
+      clientesPorVenta: getValor('kpis', 'clientes_por_venta', 185000),
       metrosTotales: getValor('kpis', 'metros_totales', 3200),
       metrosSalon: getValor('kpis', 'metros_salon', 2800),
       skuTotal: getValor('kpis', 'sku_total', 12500),
@@ -203,11 +203,11 @@ export async function getConfiguracionPL(sucursalId?: string): Promise<Configura
       stockoutPromedio: getValor('kpis', 'stockout_promedio', 2.3),
     },
     proyecciones: {
-      facturacionMensual: getMonthlyArray('proy_facturacion', 120000000),
-      cmvPctMensual: getMonthlyArray('proy_cmv_pct', 0.70),
+      facturacionMensual: getMonthlyArray('proy_facturacion', 6500000000),
+      cmvPctMensual: getMonthlyArray('proy_cmv_pct', 0.695),
       rrhhPctMensual: getMonthlyArray('proy_rrhh_pct', 0.12),
-      gastosComercialesPctMensual: getMonthlyArray('proy_gastos_comerciales_pct', 0.15),
-      mermasPctMensual: getMonthlyArray('proy_mermas_pct', 0.02),
+      gastosComercialesPctMensual: getMonthlyArray('proy_gastos_comerciales_pct', 0.032),
+      mermasPctMensual: getMonthlyArray('proy_mermas_pct', 0.016),
     },
   }
 }

@@ -187,6 +187,10 @@ export function calcularCuadroResultado(
 }
 // Generar KPIs complementarios usando configuración dinámica
 function generarKPIsComplementarios(ventasSinIva: number, config: ConfiguracionPL): KPIsComplementarios {
+  const ticketBase = config.kpis.ticketPromedio || 36500
+  const clientesActivos = Math.max(1, Math.round(ventasSinIva / ticketBase))
+  const ticketPromedio = Math.round(ventasSinIva / clientesActivos)
+
   return {
     sucursales: {
       activas: 5,
@@ -194,10 +198,10 @@ function generarKPIsComplementarios(ventasSinIva: number, config: ConfiguracionP
       nuevas: 0,
     },
     clientes: {
-      activos: Math.round(ventasSinIva / config.kpis.clientesPorVenta),
-      nuevos: Math.round(ventasSinIva / (config.kpis.clientesPorVenta * 4)),
-      recurrentes: Math.round(ventasSinIva / (config.kpis.clientesPorVenta * 1.2)),
-      ticketPromedio: config.kpis.ticketPromedio,
+      activos: clientesActivos,
+      nuevos: Math.round(clientesActivos * 0.15),
+      recurrentes: Math.round(clientesActivos * 0.85),
+      ticketPromedio,
     },
     articulos: {
       sku: config.kpis.skuTotal,

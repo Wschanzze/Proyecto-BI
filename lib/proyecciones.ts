@@ -1,4 +1,5 @@
 import type { ConfiguracionPL, CuadroResultadoLinea } from "./data"
+import { SUCURSAL_FACTORS } from "./data-db"
 
 export interface MesProyectado extends CuadroResultadoLinea {
   mes: number
@@ -7,52 +8,100 @@ export interface MesProyectado extends CuadroResultadoLinea {
   labelCorto: string
 }
 
-export function calcularProyeccionAnual(anio: number, config: ConfiguracionPL): MesProyectado[] {
+const FACT_BASE_2025 = [
+  4850000000, 4500000000, 5200000000, 5000000000, 4900000000, 4950000000,
+  5280000000, 5200000000, 4900000000, 5180000000, 5750000000, 7050000000
+]
+
+const FACT_BASE_2026 = [
+  6450000000, 6000000000, 6420000000, 6380000000, 6300000000, 6520000000,
+  7050000000, 6950000000, 6800000000, 7200000000, 7850000000, 9500000000
+]
+
+export function calcularProyeccionAnual(
+  anio: number,
+  config: ConfiguracionPL,
+  sucursalId: string = "__consolidado__"
+): MesProyectado[] {
   const proy = config.proyecciones
   const meses: MesProyectado[] = []
   
+  const branchFactor = (sucursalId && sucursalId !== "__consolidado__" && SUCURSAL_FACTORS[sucursalId])
+    ? SUCURSAL_FACTORS[sucursalId]
+    : 1.0
+  
   for (let mes = 1; mes <= 12; mes++) {
     const idx = mes - 1
-    const facturacion = proy.facturacionMensual[idx] || 0
+    let facturacionBase: number
+    
+    if (anio === 2025) {
+      facturacionBase = FACT_BASE_2025[idx]
+    } else if (anio === 2026) {
+      facturacionBase = proy.facturacionMensual[idx] || FACT_BASE_2026[idx]
+    } else {
+      // Proyección futura (ej. 2027) con crecimiento proyectado
+      const base2026 = proy.facturacionMensual[idx] || FACT_BASE_2026[idx]
+      facturacionBase = Math.round(base2026 * Math.pow(1.25, anio - 2026))
+    }
+    
+    const facturacion = Math.round(facturacionBase * branchFactor)
     
     // Usar tasa de IVA ponderada efectiva del mix real (Carnicería/Frescos al 10.5% + Salón al 21%)
     const ivaTasa = config.ratios.iva || 0.187528
-    const ventasSinIva = facturacion / (1 + ivaTasa)
+    const ventasSinIva = Math.round(facturacion / (1 + ivaTasa))
     const iva = facturacion - ventasSinIva
     
-    const cmv = ventasSinIva * (proy.cmvPctMensual[idx] || 0)
+    const cmvPct = proy.cmvPctMensual[idx] ?? 0.695
+    const cmv = Math.round(ventasSinIva * cmvPct)
     const contribucionMarginal = ventasSinIva - cmv
     
-    const rrhh = ventasSinIva * (proy.rrhhPctMensual[idx] || 0)
-    const costosFijos = ventasSinIva * (proy.gastosComercialesPctMensual[idx] || 0)
+    const rrhhPct = proy.rrhhPctMensual[idx] ?? 0.12
+    const rrhh = Math.round(ventasSinIva * rrhhPct)
+    
+    const costosFijosPct = proy.gastosComercialesPctMensual[idx] ?? 0.032
+    const costosFijos = Math.round(ventasSinIva * costosFijosPct)
     
     const resultadoOperativo = contribucionMarginal - rrhh - costosFijos
     
-    const impuestos = ventasSinIva * config.ratios.impuestosOperativos
-    const merma = ventasSinIva * (proy.mermasPctMensual[idx] || 0)
+    const impuestos = Math.round(ventasSinIva * (config.ratios.impuestosOperativos ?? 0.02))
+    const merma = Math.round(ventasSinIva * (proy.mermasPctMensual[idx] ?? 0.016))
     
     const resultadoSupermercado = resultadoOperativo - impuestos - merma
-    const ingresosFinancieros = ventasSinIva * config.ratios.ingresosFinancieros
+    const ingresosFinancieros = Math.round(ventasSinIva * (config.ratios.ingresosFinancieros ?? 0.005))
     
     const resultadoTotal = resultadoSupermercado + ingresosFinancieros
     
-    // Mocks para subcuentas (no se muestran completas en el proyectado simplificado, pero deben cumplir la interfaz)
-    const rrhhSubcuentas = { sueldos: rrhh * 0.7, cargas_sociales: rrhh * 0.3, indemnizaciones: 0, tabla_merito: 0 }
+    // Mocks para subcuentas estructuradas
+    const rrhhSubcuentas = {
+      sueldos: Math.round(rrhh * 0.70),
+      cargas_sociales: Math.round(rrhh * 0.26),
+      indemnizaciones: Math.round(rrhh * 0.025),
+      tabla_merito: Math.round(rrhh * 0.015),
+    }
     const costosFijosSubcuentas = { 
-      alquileres: costosFijos * 0.25, honorarios: costosFijos * 0.05, tasas_servicios: costosFijos * 0.1, 
-      mantenimiento_servicios_tecnicos: costosFijos * 0.08, perdida_gestion_inventarios: costosFijos * 0.05, 
-      seguridad_vigilancia: costosFijos * 0.07, otros_servicios: costosFijos * 0.05, gastos_personal: costosFijos * 0.03, 
-      otros_gastos: costosFijos * 0.07, comisiones_gastos_bancarios: costosFijos * 0.04, gastos_extraordinarios: costosFijos * 0.03, 
-      gastos_comercializacion: costosFijos * 0.1, gastos_administracion: costosFijos * 0.05, gastos_financiacion: costosFijos * 0.02, 
-      diferencias_caja_perdida: costosFijos * 0.01 
+      alquileres: Math.round(costosFijos * 0.25),
+      honorarios: Math.round(costosFijos * 0.05),
+      tasas_servicios: Math.round(costosFijos * 0.10), 
+      mantenimiento_servicios_tecnicos: Math.round(costosFijos * 0.08),
+      perdida_gestion_inventarios: Math.round(costosFijos * 0.05), 
+      seguridad_vigilancia: Math.round(costosFijos * 0.07),
+      otros_servicios: Math.round(costosFijos * 0.05),
+      gastos_personal: Math.round(costosFijos * 0.03), 
+      otros_gastos: Math.round(costosFijos * 0.07),
+      comisiones_gastos_bancarios: Math.round(costosFijos * 0.04),
+      gastos_extraordinarios: Math.round(costosFijos * 0.03), 
+      gastos_comercializacion: Math.round(costosFijos * 0.10),
+      gastos_administracion: Math.round(costosFijos * 0.05),
+      gastos_financiacion: Math.round(costosFijos * 0.02), 
+      diferencias_caja_perdida: Math.round(costosFijos * 0.01) 
     }
     const ingresosFinancierosSubcuentas = {
-      intereses_plazos_fijos: ingresosFinancieros * 0.5,
-      rendimientos_fci: ingresosFinancieros * 0.3,
-      descuentos_obtenidos: ingresosFinancieros * 0.1,
-      diferencia_cambio: ingresosFinancieros * 0.1,
-      operatoria_financiera: 0,
-      rendimientos_financieros: 0
+      intereses_plazos_fijos: Math.round(ingresosFinancieros * 0.5),
+      rendimientos_fci: Math.round(ingresosFinancieros * 0.3),
+      descuentos_obtenidos: Math.round(ingresosFinancieros * 0.1),
+      diferencia_cambio: Math.round(ingresosFinancieros * 0.1),
+      operatoria_financiera: Math.round(ingresosFinancieros * 0.7),
+      rendimientos_financieros: Math.round(ingresosFinancieros * 0.3),
     }
 
     meses.push({

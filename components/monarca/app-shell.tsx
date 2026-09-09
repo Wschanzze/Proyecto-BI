@@ -192,7 +192,13 @@ export function AppShell() {
                 sucursales={sucursales}
               />
             )}
-            {tab === "proyectado" && <ProyectadoView />}
+            {tab === "proyectado" && (
+              <ProyectadoView
+                sucursalId={sucursalId}
+                onSucursalChange={handleSucursalChange}
+                sucursales={sucursales}
+              />
+            )}
             {tab === "estacionalidad" && <EstacionalidadView />}
             {tab === "cargar" && <CargarDatos />}
           </>

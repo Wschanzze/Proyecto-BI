@@ -1,4 +1,4 @@
-﻿// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // lib/data-db.ts
 // Capa de datos simulada para modo DEMO autónomo.
 // Genera datos determinísticos coherentes por sucursal y período.
@@ -37,24 +37,38 @@ export const SUCURSAL_FACTORS: Record<string, number> = {
 const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 
 function scaleMetrics(m: MetricsConDerivados, factor: number): MetricsConDerivados {
+  const facturacion = Math.round(m.facturacion * factor)
+  const iva = Math.round(m.iva * factor)
+  const costo = Math.round(m.costo * factor)
+  const articulos = Math.round(m.articulos * factor)
+  const ventasSinIva = facturacion - iva
+  const cmg = ventasSinIva > 0 ? ((ventasSinIva - costo) / ventasSinIva) * 100 : m.cmg
   return {
     ...m,
-    facturacion: Math.round(m.facturacion * factor),
-    iva: Math.round(m.iva * factor),
-    costo: Math.round(m.costo * factor),
-    articulos: Math.round(m.articulos * factor),
+    facturacion,
+    iva,
+    costo,
+    articulos,
+    cmg,
     resultadoOperativo: Math.round(m.resultadoOperativo * factor),
     resultadoFinal: Math.round(m.resultadoFinal * factor),
   }
 }
 
 function scaleMetricsBase(m: Metrics, factor: number): Metrics {
+  const facturacion = Math.round(m.facturacion * factor)
+  const iva = Math.round(m.iva * factor)
+  const costo = Math.round(m.costo * factor)
+  const articulos = Math.round(m.articulos * factor)
+  const ventasSinIva = facturacion - iva
+  const cmg = ventasSinIva > 0 ? ((ventasSinIva - costo) / ventasSinIva) * 100 : m.cmg
   return {
     ...m,
-    facturacion: Math.round(m.facturacion * factor),
-    iva: Math.round(m.iva * factor),
-    costo: Math.round(m.costo * factor),
-    articulos: Math.round(m.articulos * factor),
+    facturacion,
+    iva,
+    costo,
+    articulos,
+    cmg,
     resultadoOperativo: Math.round(m.resultadoOperativo * factor),
     resultadoFinal: Math.round(m.resultadoFinal * factor),
   }

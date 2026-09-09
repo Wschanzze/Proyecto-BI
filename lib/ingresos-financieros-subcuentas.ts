@@ -1,4 +1,4 @@
-﻿// lib/ingresos-financieros-subcuentas.ts
+// lib/ingresos-financieros-subcuentas.ts
 // Gestión de subcuentas de Ingresos Financieros en modo DEMO autónomo.
 
 import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
@@ -60,7 +60,7 @@ export async function getIngresosFinancierosSubcuentas(
 
   // Generación determinística basada en facturación
   const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
-  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 5_970_000_000
   const totalIngresos = Math.round(ventasSinIva * 0.005) // ~0.5% ratio estándar
 
   const operatoria_financiera = Math.round(totalIngresos * 0.70)

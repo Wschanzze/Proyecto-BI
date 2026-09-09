@@ -1,4 +1,4 @@
-﻿// lib/rrhh-subcuentas.ts
+// lib/rrhh-subcuentas.ts
 // Gestión de subcuentas detalladas de RRHH en modo DEMO autónomo.
 
 import { SUCURSAL_FACTORS, SUCURSALES_DEMO, getCuadroFromDB } from './data-db'
@@ -71,7 +71,7 @@ export async function getRRHHSubcuentas(
 
   // Generación determinística basada en la facturación del período
   const cuadro = await getCuadroFromDB(periodoKey, sucursalId)
-  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 150_000_000
+  const ventasSinIva = cuadro ? cuadro.total.facturacion - cuadro.total.iva : 5_970_000_000
   const totalRrhhEst = Math.round(ventasSinIva * 0.12) // 12% ratio estándar
 
   const sueldos = Math.round(totalRrhhEst * 0.70)
