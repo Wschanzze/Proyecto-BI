@@ -234,7 +234,7 @@ export function CuadroDetallado({
             {/* Total general */}
             <tr className="border-t-2 border-primary bg-primary text-primary-foreground font-bold">
               <td className="sticky left-0 z-10 bg-primary px-4 py-3 min-w-[300px] whitespace-nowrap border-r border-white/20">TOTAL GENERAL</td>
-              <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.facturacion)}</td>
+              <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(cuadro.total.facturacion - cuadro.total.iva)}</td>
               <td className="px-3 py-3 text-right tabular-nums">100,0%</td>
               <td className="px-3 py-3 text-right tabular-nums text-primary-foreground/60">—</td>
               <td className="px-3 py-3 text-right tabular-nums">
@@ -292,7 +292,7 @@ function SeccionRows({
       })}
       <tr className="border-b border-border font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
         <td className="sticky left-0 z-10 px-4 py-2.5 text-primary min-w-[300px] whitespace-nowrap border-r border-border" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>Ganancia {seccionNombre}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.facturacion)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(total.facturacion - total.iva)}</td>
         <td colSpan={4} />
         <td className="px-3 py-2.5 text-right tabular-nums">{formatPercent(total.cmg)}</td>
         <td className={cn("px-3 py-2.5 text-right tabular-nums", varClass(total.resultadoFinal))}>

@@ -744,31 +744,23 @@ const SEASONAL: Record<number, number> = {
 
 function subgrupoMetrics(def: SubgrupoDef, periodo: Periodo): Metrics {
   if (def.desde !== undefined && periodo.index < def.desde) {
-    return {
-      facturacion: 0,
-      iva: 0,
-      costo: 0,
-      articulos: 0,
-      cmg: 0,
-      resultadoOperativo: 0,
-      rrhhSobreVentas: 0,
-      accionesSobreVentas: 0,
-      resultadoFinal: 0,
-    }
+    return emptyMetrics()
   }
   const trend = Math.pow(1.032, periodo.index) // ~3,2% nominal mensual
   const seasonal = SEASONAL[periodo.mes] ?? 1
   const noise = 0.9 + seeded(`${def.id}-${periodo.index}`) * 0.2 // 0.9..1.1
   const facturacion = Math.round(def.base * trend * seasonal * noise)
-  const ventasSinIva = facturacion - iva
+  const ivaTasa = 0.187528 // IVA promedio efectivo mix retail
+  const ventasSinIva = Math.round(facturacion / (1 + ivaTasa))
+  const iva = facturacion - ventasSinIva
   const costo = Math.round(ventasSinIva * (1 - def.cmg / 100)) // Costo basado en margen
   const cmgMonto = ventasSinIva - costo
 
   return {
-    facturacion: ventasSinIva,
+    facturacion,
     iva,
     costo,
-    articulos: def.articulos,
+    articulos: Math.round(def.articulos * seasonal * (0.95 + seeded(`art-${def.id}-${periodo.index}`) * 0.1)),
     cmg: def.cmg,
     resultadoOperativo: cmgMonto,
     rrhhSobreVentas: def.rrhh,
@@ -792,33 +784,31 @@ function emptyMetrics(): Metrics {
 }
 
 function aggregate(items: Metrics[]): Metrics {
-  const totalFact = items.reduce((s, m) => s + m.facturacion, 0)
   const acc = items.reduce(
     (a, m) => {
-      a.facturacion += m.facturacion
-      a.articulos += m.articulos
       a.facturacion += m.facturacion
       a.iva += m.iva
       a.costo += m.costo
       a.articulos += m.articulos
-      a.margenBruto += (m.facturacion * m.cmg) / 100
-      a.rrhhMonto += (m.facturacion * m.rrhhSobreVentas) / 100
+      a.margenBruto += (m.facturacion - m.iva) - m.costo
+      a.rrhhMonto += ((m.facturacion - m.iva) * m.rrhhSobreVentas) / 100
       a.resultadoOperativo += m.resultadoOperativo
-      a.acciones += (m.facturacion * m.accionesSobreVentas) / 100
+      a.acciones += ((m.facturacion - m.iva) * m.accionesSobreVentas) / 100
       a.resultadoFinal += m.resultadoFinal
       return a
     },
     { facturacion: 0, iva: 0, costo: 0, articulos: 0, margenBruto: 0, rrhhMonto: 0, resultadoOperativo: 0, acciones: 0, resultadoFinal: 0 },
   )
+  const totalVentasSinIva = acc.facturacion - acc.iva
   return {
     facturacion: acc.facturacion,
     iva: acc.iva,
     costo: acc.costo,
     articulos: acc.articulos,
-    cmg: totalFact ? (acc.margenBruto / totalFact) * 100 : 0,
+    cmg: totalVentasSinIva ? (acc.margenBruto / totalVentasSinIva) * 100 : 0,
     resultadoOperativo: acc.resultadoOperativo,
-    rrhhSobreVentas: totalFact ? (acc.rrhhMonto / totalFact) * 100 : 0,
-    accionesSobreVentas: totalFact ? (acc.acciones / totalFact) * 100 : 0,
+    rrhhSobreVentas: totalVentasSinIva ? (acc.rrhhMonto / totalVentasSinIva) * 100 : 0,
+    accionesSobreVentas: totalVentasSinIva ? (acc.acciones / totalVentasSinIva) * 100 : 0,
     resultadoFinal: acc.resultadoFinal,
   }
 }
@@ -879,14 +869,15 @@ function derivar(
   factMesAnterior: number | null,
   factAnioAnterior: number | null,
 ): MetricsConDerivados {
+  const ventasSinIva = metrics.facturacion - metrics.iva
   return {
     ...metrics,
     participacionFacturacion: totalFacturacion ? (metrics.facturacion / totalFacturacion) * 100 : 0,
     participacionResultadoOperativo: totalResultadoOperativo
       ? (metrics.resultadoOperativo / totalResultadoOperativo) * 100
       : 0,
-    rdoOperativoSobreVentas: metrics.facturacion ? (metrics.resultadoOperativo / metrics.facturacion) * 100 : 0,
-    rdoFinalSobreVentas: metrics.facturacion ? (metrics.resultadoFinal / metrics.facturacion) * 100 : 0,
+    rdoOperativoSobreVentas: ventasSinIva ? (metrics.resultadoOperativo / ventasSinIva) * 100 : 0,
+    rdoFinalSobreVentas: ventasSinIva ? (metrics.resultadoFinal / ventasSinIva) * 100 : 0,
     variacionMesAnterior: factMesAnterior ? ((metrics.facturacion - factMesAnterior) / factMesAnterior) * 100 : null,
     variacionAnioAnterior:
       factAnioAnterior ? ((metrics.facturacion - factAnioAnterior) / factAnioAnterior) * 100 : null,

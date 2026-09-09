@@ -536,7 +536,7 @@ export function GestionIngresosFinancieros() {
               <label className="text-xs font-semibold text-muted-foreground block mb-1">
                 Período a Cargar
               </label>
-              <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado}>
+              <Select value={periodoSeleccionado} onValueChange={(val) => val && setPeriodoSeleccionado(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar Período" />
                 </SelectTrigger>

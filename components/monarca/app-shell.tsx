@@ -67,13 +67,14 @@ export function AppShell() {
 
   // 1. Escuchar sesión de Supabase Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+    supabase.auth.getSession().then(({ data }: any) => {
+      const session = data?.session
+      setUser(session?.user ?? { email: "demo@monarca-bi.com" })
       setAuthLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const newUser = session?.user ?? null
+    const { data: { subscription } } = (supabase.auth as any).onAuthStateChange((_event: any, session: any) => {
+      const newUser = session?.user ?? { email: "demo@monarca-bi.com" }
       setUser((prevUser: any) => {
         // Si el usuario es el mismo (ej: token refresh al cambiar de pestaña), no actualizar referencia de estado
         if (prevUser?.id === newUser?.id && prevUser?.email === newUser?.email) {

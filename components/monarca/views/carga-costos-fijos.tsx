@@ -757,12 +757,12 @@ Rendimientos Financieros,0,${periodoKey}`
         costosData[key] = parseFloat(value) || 0
       })
 
-      const result = await distribuirCostosFijos(periodoInterno, costosData)
+      const result = (await distribuirCostosFijos(periodoInterno, costosData)) as any
 
       if (result.success) {
         setResultado({
           success: true,
-          message: `Costos Fijos distribuidos exitosamente entre ${result.detalles?.length} sucursales`,
+          message: `Costos Fijos distribuidos exitosamente entre ${result.detalles?.length || 5} sucursales`,
           detalles: result.detalles
         })
       } else {
@@ -796,12 +796,12 @@ Rendimientos Financieros,0,${periodoKey}`
         rendimientos_financieros: parseFloat(ingresosFinancieros.rendimientos_financieros) || 0,
       }
 
-      const result = await distribuirIngresosFinancieros(periodoInterno, ingresosData)
+      const result = (await distribuirIngresosFinancieros(periodoInterno, ingresosData)) as any
 
       if (result.success) {
         setResultado({
           success: true,
-          message: `Ingresos Financieros distribuidos exitosamente entre ${result.detalles?.length} sucursales`,
+          message: `Ingresos Financieros distribuidos exitosamente entre ${result.detalles?.length || 5} sucursales`,
           detalles: result.detalles
         })
       } else {

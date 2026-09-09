@@ -45,7 +45,7 @@ function DarkVariacionBadge({ actual, anterior, className }: { actual: number; a
 
 export function ProyectadoView() {
   const [loading, setLoading] = useState(true)
-  const [anioSeleccionado, setAnioSeleccionado] = useState<string>(new Date().getFullYear().toString())
+  const [anioSeleccionado, setAnioSeleccionado] = useState<string>("2026")
   const [mesesProyectados, setMesesProyectados] = useState<MesProyectado[]>([])
   const [realesPorMes, setRealesPorMes] = useState<Record<string, any>>({})
   

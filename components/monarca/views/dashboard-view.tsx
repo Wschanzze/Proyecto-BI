@@ -347,14 +347,16 @@ export function DashboardView({
     let sumCantBase = 0, sumCantComp = 0
 
     for (const m of monthsData) {
-      if (m.factBase) sumFactBase += m.factBase
-      if (m.factComp) sumFactComp += m.factComp
-      if (m.cmgBase) sumCmgBase += m.cmgBase
-      if (m.cmgComp) sumCmgComp += m.cmgComp
-      if (m.costoBase) sumCostoBase += m.costoBase
-      if (m.costoComp) sumCostoComp += m.costoComp
-      if (m.cantBase) sumCantBase += m.cantBase
-      if (m.cantComp) sumCantComp += m.cantComp
+      if (m.factBase !== null && m.factBase !== undefined) {
+        sumFactBase += m.factBase
+        if (m.factComp) sumFactComp += m.factComp
+        if (m.cmgBase) sumCmgBase += m.cmgBase
+        if (m.cmgComp) sumCmgComp += m.cmgComp
+        if (m.costoBase) sumCostoBase += m.costoBase
+        if (m.costoComp) sumCostoComp += m.costoComp
+        if (m.cantBase) sumCantBase += m.cantBase
+        if (m.cantComp) sumCantComp += m.cantComp
+      }
     }
 
     return {
@@ -384,12 +386,12 @@ export function DashboardView({
       return {
         key: p.key,
         label: (p.label || p.key).toUpperCase(),
-        facturacion: c.total.facturacion,
+        facturacion: c.total.facturacion - c.total.iva,
         costo: c.total.costo,
         cmg: c.total.resultadoFinal,
         margenPct: c.total.cmg,
         cantidad: c.total.articulos,
-        value: c.total.facturacion // Para trends
+        value: c.total.facturacion - c.total.iva // Para trends
       }
     }).filter(Boolean)
   }, [periodos, cuadrosMap])

@@ -472,7 +472,7 @@ export function GestionCargas() {
     <div className="space-y-6">
       <PageHeader
         title="Gestión de Cargas — RRHH"
-        description="Carga y distribución de subcuentas de Personal y Cargas Sociales (Sueldos, CCSS, Indemnizaciones y Tabla Mérito)"
+        subtitle="Carga y distribución de subcuentas de Personal y Cargas Sociales (Sueldos, CCSS, Indemnizaciones y Tabla Mérito)"
       />
 
       {/* Selector de Período y Modo Multi-período */}
@@ -488,7 +488,7 @@ export function GestionCargas() {
               </p>
             </div>
             <div className="w-full sm:w-[260px]">
-              <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado}>
+              <Select value={periodoSeleccionado} onValueChange={(val) => val && setPeriodoSeleccionado(val)}>
                 <SelectTrigger className="w-full font-medium">
                   <SelectValue placeholder="Seleccionar período" />
                 </SelectTrigger>
