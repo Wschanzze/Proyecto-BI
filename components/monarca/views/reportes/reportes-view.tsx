@@ -123,13 +123,44 @@ export function ReportesView() {
 
   return (
     <div className="space-y-6">
-      {/* Contenedor Superior de Navegación de Reportes */}
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
-        {/* Fila 1: Selector de Categorías (Pills) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Categoría:
+      {/* BANNER EJECUTIVO REPORTES - AZUL CORPORATIVO MONARCA CON DETALLES NARANJA */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-accent/40 bg-gradient-to-r from-primary via-primary/95 to-primary p-5 sm:p-6 text-primary-foreground shadow-2xl shadow-primary/30 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-accent space-y-4">
+        {/* Marca de Agua con Logo de Monarca */}
+        <img
+          src="/supermercados_monarca_logo-removebg-preview__2_-1777696368463.ico"
+          alt="Monarca Watermark"
+          className="absolute -right-6 top-1/2 -translate-y-1/2 h-56 w-56 sm:h-72 sm:w-72 object-contain opacity-15 pointer-events-none select-none filter brightness-200 contrast-125"
+        />
+
+        {/* Encabezado del Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-primary-foreground/20 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-accent-foreground shadow-md font-bold">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-primary-foreground flex items-center gap-2">
+                Centro de Reportes & Analytics
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/25 text-white border border-accent/40 shadow-xs lowercase">
+                  {REPORT_TEMPLATES.length} plantillas
+                </span>
+              </h2>
+              <p className="text-xs text-primary-foreground/80 mt-0.5">
+                Auditoría comercial de sucursales, quiebres operativos y administración contable
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-primary-foreground/90 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10 backdrop-blur-xs">
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <span className="font-semibold">Supermercados Monarca</span>
+          </div>
+        </div>
+
+        {/* Fila de Categorías y Flechas de Navegación */}
+        <div className="flex flex-wrap items-center justify-between gap-2 relative z-10">
+          <div className="flex flex-wrap items-center gap-1.5 bg-black/20 p-1.5 rounded-xl border border-white/10 backdrop-blur-xs">
+            <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-primary-foreground/75">
+              Categorías:
             </span>
             {CATEGORIES.map((cat) => {
               const isSelected = selectedCategory === cat.id
@@ -139,19 +170,21 @@ export function ReportesView() {
                   key={cat.id}
                   type="button"
                   onClick={() => handleSelectCategory(cat.id)}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                     isSelected
-                      ? "bg-accent text-accent-foreground shadow-sm"
+                      ? "bg-accent text-accent-foreground shadow-md font-bold ring-1 ring-white/40"
                       : cat.highlight
-                      ? "border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 font-bold"
-                      : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-accent/20 text-white hover:bg-accent/30 font-bold border border-accent/40"
+                      : "text-primary-foreground/85 hover:text-white hover:bg-white/10"
                   }`}
                 >
-                  {cat.highlight && <Sparkles className="h-3 w-3 text-amber-500 animate-pulse" />}
+                  {cat.highlight && <Sparkles className="h-3 w-3 text-amber-300 animate-pulse" />}
                   <span>{cat.label}</span>
                   <span
-                    className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${
-                      isSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                      isSelected
+                        ? "bg-black/25 text-white"
+                        : "bg-white/15 text-primary-foreground/90"
                     }`}
                   >
                     {count}
@@ -161,39 +194,42 @@ export function ReportesView() {
             })}
           </div>
 
-          {/* Controles de desplazamiento horizontal (flechas) */}
-          <div className="hidden sm:flex items-center gap-1">
+          {/* Flechas de desplazamiento lateral */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-black/20 p-1 rounded-xl border border-white/10 backdrop-blur-xs">
             <button
               type="button"
               onClick={() => scroll("left")}
               disabled={!canScrollLeft}
               aria-label="Desplazar a la izquierda"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-primary-foreground/80 hover:text-white hover:bg-white/15 disabled:opacity-30 disabled:pointer-events-none transition"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+            <span className="text-[10px] font-semibold text-primary-foreground/60 px-1 select-none">
+              Desplazar
+            </span>
             <button
               type="button"
               onClick={() => scroll("right")}
               disabled={!canScrollRight}
               aria-label="Desplazar a la derecha"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-primary-foreground/80 hover:text-white hover:bg-white/15 disabled:opacity-30 disabled:pointer-events-none transition"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* Fila 2: Carrusel horizontal con scroll visible y botones de reportes */}
-        <div className="relative">
+        {/* Carrusel de Reportes / Tabs dentro del Banner */}
+        <div className="relative z-10 pt-1">
           <div
             ref={scrollRef}
             onScroll={checkScroll}
             onWheel={handleWheel}
-            className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scroll-smooth"
+            className="flex items-center gap-2 overflow-x-auto pb-2 scroll-smooth"
             style={{
               scrollbarWidth: "thin",
-              scrollbarColor: "var(--border) transparent",
+              scrollbarColor: "rgba(255, 255, 255, 0.3) transparent",
             }}
           >
             {visibleTemplates.map((tpl) => {
@@ -206,12 +242,12 @@ export function ReportesView() {
                   key={tpl.id}
                   type="button"
                   onClick={() => setSelectedReport(tpl)}
-                  className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
                     isSelected
-                      ? "bg-accent text-accent-foreground shadow-md ring-2 ring-accent/30"
+                      ? "bg-accent text-accent-foreground shadow-lg font-bold ring-2 ring-white/50 scale-[1.02]"
                       : isContabilidad
-                      ? "border border-accent/40 bg-card hover:bg-accent/10 text-foreground"
-                      : "border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+                      ? "border border-accent/50 bg-black/30 hover:bg-accent/25 text-white backdrop-blur-xs"
+                      : "border border-white/15 bg-black/20 hover:bg-white/15 text-primary-foreground/90 hover:text-white backdrop-blur-xs"
                   }`}
                 >
                   <IconComp
@@ -220,20 +256,20 @@ export function ReportesView() {
                         ? "text-accent-foreground"
                         : isContabilidad
                         ? "text-accent"
-                        : "text-muted-foreground"
+                        : "text-primary-foreground/80"
                     }`}
                   />
                   <span className="whitespace-nowrap">{tpl.title}</span>
                   {tpl.badge && (
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-tight ${
+                      className={`rounded px-1.5 py-0.2 text-[10px] font-black uppercase tracking-tight ${
                         isSelected
-                          ? "bg-white/25 text-white"
+                          ? "bg-black/25 text-white"
                           : tpl.badge === "Crítico"
-                          ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                          ? "bg-red-500/90 text-white font-bold"
                           : tpl.badge === "Nuevo"
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                          : "bg-accent/15 text-accent"
+                          ? "bg-emerald-500/90 text-white font-bold"
+                          : "bg-accent text-accent-foreground font-bold"
                       }`}
                     >
                       {tpl.badge}
@@ -244,12 +280,12 @@ export function ReportesView() {
             })}
           </div>
 
-          {/* Indicador sutil de degradado si hay más contenido a la derecha */}
+          {/* Fades a los costados para indicar scroll */}
           {canScrollRight && (
-            <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-card to-transparent" />
+            <div className="pointer-events-none absolute right-0 top-1 bottom-2 w-12 bg-gradient-to-l from-primary to-transparent rounded-r-xl" />
           )}
           {canScrollLeft && (
-            <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-10 bg-gradient-to-r from-card to-transparent" />
+            <div className="pointer-events-none absolute left-0 top-1 bottom-2 w-12 bg-gradient-to-r from-primary to-transparent rounded-l-xl" />
           )}
         </div>
       </div>
