@@ -13,6 +13,10 @@ import {
   DollarSign,
   Layers,
   Flame,
+  Wallet,
+  Receipt,
+  CalendarClock,
+  Trophy,
   type LucideIcon,
 } from "lucide-react"
 import { REPORT_TEMPLATES, type ReportTemplateDef } from "@/lib/reportes-data"
@@ -20,6 +24,7 @@ import { ParticipacionSucursalesPanel } from "./participacion-sucursales-panel"
 import { QuiebresCarniceriaPanel } from "./quiebres-carniceria-panel"
 import { ControlSurtidoPanel } from "./control-surtido-panel"
 import { ReporteEstandarPanel } from "./reporte-estandar-panel"
+import { ProveedoresPanel } from "./proveedores-panel"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   PieChart,
@@ -32,6 +37,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Clock,
   DollarSign,
   FileText,
+  Wallet,
+  Receipt,
+  CalendarClock,
+  Trophy,
 }
 
 export function ReportesView() {
@@ -87,6 +96,8 @@ export function ReportesView() {
         <QuiebresCarniceriaPanel />
       ) : selectedReport.id === "control-surtido" ? (
         <ControlSurtidoPanel />
+      ) : selectedReport.category === "Contabilidad" ? (
+        <ProveedoresPanel template={selectedReport} />
       ) : (
         <ReporteEstandarPanel template={selectedReport} />
       )}

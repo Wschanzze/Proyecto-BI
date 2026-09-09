@@ -4,7 +4,7 @@
 export interface ReportTemplateDef {
   id: string
   title: string
-  category: "Ventas" | "Stock" | "Promociones" | "Operativo"
+  category: "Ventas" | "Stock" | "Promociones" | "Operativo" | "Contabilidad"
   description: string
   iconName: string
   queryType: string
@@ -88,6 +88,41 @@ export const REPORT_TEMPLATES: ReportTemplateDef[] = [
     description: "Métricas de gasto promedio por cliente, mínimo y máximo valor por sucursal.",
     iconName: "DollarSign",
     queryType: "ticketPromedio",
+  },
+  // ── CONTABILIDAD ────────────────────────────────────────────
+  {
+    id: "cuentas-corrientes",
+    title: "Cuentas Corrientes de Proveedores",
+    category: "Contabilidad",
+    description: "Saldo actual por proveedor, deuda vencida, próximos vencimientos y límite de crédito disponible.",
+    iconName: "Wallet",
+    queryType: "cuentasCorrientes",
+    badge: "Nuevo",
+  },
+  {
+    id: "facturas-pendientes",
+    title: "Facturas Pendientes de Pago",
+    category: "Contabilidad",
+    description: "Listado de facturas A y B sin cancelar, con detalle de importe, IVA discriminado, retenciones y vencimiento.",
+    iconName: "Receipt",
+    queryType: "facturasPendientes",
+    badge: "Crítico",
+  },
+  {
+    id: "antiguedad-saldos",
+    title: "Antigüedad de Saldos por Proveedor",
+    category: "Contabilidad",
+    description: "Análisis de deuda clasificada en franjas de vencimiento: Corriente, 1-30, 31-60, 61-90 y +90 días.",
+    iconName: "CalendarClock",
+    queryType: "antiguedadSaldos",
+  },
+  {
+    id: "ranking-proveedores",
+    title: "Ranking de Proveedores por Compra",
+    category: "Contabilidad",
+    description: "Top proveedores ordenados por importe facturado en el período, con participación porcentual y tendencia interanual.",
+    iconName: "Trophy",
+    queryType: "rankingProveedores",
   },
 ]
 
@@ -579,4 +614,185 @@ export function getControlSurtidoDemo(): { ok: boolean; data: SurtidoItem[] } {
     { sucursal: "Monarca Virtual", int: "10115", ean: "7791234567890", producto: "COCA COLA REGULAR 2.25L", categoria: "Bebidas", grupo: "Gaseosas", stockActual: 85, diasSinVenta: 0, estado: "OPTIMO" },
   ]
   return { ok: true, data: items }
+}
+
+// ─────────────────────────────────────────────────────────────
+// DATOS DEMO – CONTABILIDAD / PROVEEDORES
+// ─────────────────────────────────────────────────────────────
+
+export interface ProveedorCuentaCorriente {
+  codProveedor: string
+  razonSocial: string
+  cuit: string
+  condicionIva: "Responsable Inscripto" | "Monotributista"
+  limiteCredito: number
+  saldoActual: number    // monto total adeudado (positivo = deuda nuestra)
+  deudaVencida: number
+  deudaVigente: number
+  creditoDisponible: number
+  ultimaFactura: string  // fecha ISO
+  ultimoPago: string     // fecha ISO
+  diasUltimoMovimiento: number
+  estado: "CORRIENTE" | "EN MORA" | "BLOQUEADO"
+  cantFacturasAbiertas: number
+}
+
+export function getCuentasCorrientesDemo(): { ok: boolean; data: ProveedorCuentaCorriente[] } {
+  const today = new Date()
+  const offset = (days: number) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() - days)
+    return d.toISOString().split("T")[0]
+  }
+
+  const data: ProveedorCuentaCorriente[] = [
+    { codProveedor: "PRV-0012", razonSocial: "DISTRIBUIDORA CAGNOLI S.A.", cuit: "30-54889102-3", condicionIva: "Responsable Inscripto", limiteCredito: 800000, saldoActual: 312450.80, deudaVencida: 0, deudaVigente: 312450.80, creditoDisponible: 487549.20, ultimaFactura: offset(5), ultimoPago: offset(18), diasUltimoMovimiento: 5, estado: "CORRIENTE", cantFacturasAbiertas: 3 },
+    { codProveedor: "PRV-0031", razonSocial: "ARCOR S.A.I.C.", cuit: "30-50073851-4", condicionIva: "Responsable Inscripto", limiteCredito: 1500000, saldoActual: 689320.00, deudaVencida: 124800.00, deudaVigente: 564520.00, creditoDisponible: 810680.00, ultimaFactura: offset(2), ultimoPago: offset(45), diasUltimoMovimiento: 2, estado: "EN MORA", cantFacturasAbiertas: 7 },
+    { codProveedor: "PRV-0048", razonSocial: "MOLINOS RIO DE LA PLATA S.A.", cuit: "30-50091728-1", condicionIva: "Responsable Inscripto", limiteCredito: 1200000, saldoActual: 445000.00, deudaVencida: 0, deudaVigente: 445000.00, creditoDisponible: 755000.00, ultimaFactura: offset(8), ultimoPago: offset(22), diasUltimoMovimiento: 8, estado: "CORRIENTE", cantFacturasAbiertas: 4 },
+    { codProveedor: "PRV-0055", razonSocial: "LA SERENÍSIMA S.A.", cuit: "30-60729485-7", condicionIva: "Responsable Inscripto", limiteCredito: 600000, saldoActual: 198750.50, deudaVencida: 0, deudaVigente: 198750.50, creditoDisponible: 401249.50, ultimaFactura: offset(1), ultimoPago: offset(10), diasUltimoMovimiento: 1, estado: "CORRIENTE", cantFacturasAbiertas: 5 },
+    { codProveedor: "PRV-0063", razonSocial: "MASTELLONE HNOS. S.A.", cuit: "30-50065541-8", condicionIva: "Responsable Inscripto", limiteCredito: 700000, saldoActual: 521000.00, deudaVencida: 310500.00, deudaVigente: 210500.00, creditoDisponible: 0, ultimaFactura: offset(12), ultimoPago: offset(72), diasUltimoMovimiento: 12, estado: "BLOQUEADO", cantFacturasAbiertas: 6 },
+    { codProveedor: "PRV-0071", razonSocial: "DISTRIBUIDORA QUILMES S.A.", cuit: "30-71234567-1", condicionIva: "Responsable Inscripto", limiteCredito: 900000, saldoActual: 375000.00, deudaVencida: 62500.00, deudaVigente: 312500.00, creditoDisponible: 525000.00, ultimaFactura: offset(3), ultimoPago: offset(38), diasUltimoMovimiento: 3, estado: "EN MORA", cantFacturasAbiertas: 4 },
+    { codProveedor: "PRV-0085", razonSocial: "UNILEVER DE ARGENTINA S.A.", cuit: "30-50034215-6", condicionIva: "Responsable Inscripto", limiteCredito: 1000000, saldoActual: 289600.00, deudaVencida: 0, deudaVigente: 289600.00, creditoDisponible: 710400.00, ultimaFactura: offset(6), ultimoPago: offset(20), diasUltimoMovimiento: 6, estado: "CORRIENTE", cantFacturasAbiertas: 3 },
+    { codProveedor: "PRV-0093", razonSocial: "FARGO S.A.", cuit: "30-59123455-9", condicionIva: "Responsable Inscripto", limiteCredito: 400000, saldoActual: 145000.00, deudaVencida: 0, deudaVigente: 145000.00, creditoDisponible: 255000.00, ultimaFactura: offset(4), ultimoPago: offset(15), diasUltimoMovimiento: 4, estado: "CORRIENTE", cantFacturasAbiertas: 2 },
+    { codProveedor: "PRV-0102", razonSocial: "COCA-COLA FEMSA S.A.", cuit: "30-68823500-2", condicionIva: "Responsable Inscripto", limiteCredito: 2000000, saldoActual: 1180000.00, deudaVencida: 480000.00, deudaVigente: 700000.00, creditoDisponible: 820000.00, ultimaFactura: offset(2), ultimoPago: offset(55), diasUltimoMovimiento: 2, estado: "EN MORA", cantFacturasAbiertas: 9 },
+    { codProveedor: "PRV-0117", razonSocial: "DANONE ARGENTINA S.A.", cuit: "30-67884300-5", condicionIva: "Responsable Inscripto", limiteCredito: 550000, saldoActual: 87400.00, deudaVencida: 0, deudaVigente: 87400.00, creditoDisponible: 462600.00, ultimaFactura: offset(9), ultimoPago: offset(12), diasUltimoMovimiento: 9, estado: "CORRIENTE", cantFacturasAbiertas: 1 },
+    { codProveedor: "PRV-0134", razonSocial: "PRODUCTS RECKITT S.A.", cuit: "30-51547329-0", condicionIva: "Responsable Inscripto", limiteCredito: 300000, saldoActual: 301500.00, deudaVencida: 301500.00, deudaVigente: 0, creditoDisponible: 0, ultimaFactura: offset(30), ultimoPago: offset(90), diasUltimoMovimiento: 30, estado: "BLOQUEADO", cantFacturasAbiertas: 5 },
+    { codProveedor: "PRV-0145", razonSocial: "DISTRIBUIDORA PATAGÓNICA S.R.L.", cuit: "30-71897654-2", condicionIva: "Responsable Inscripto", limiteCredito: 250000, saldoActual: 98000.00, deudaVencida: 0, deudaVigente: 98000.00, creditoDisponible: 152000.00, ultimaFactura: offset(14), ultimoPago: offset(28), diasUltimoMovimiento: 14, estado: "CORRIENTE", cantFacturasAbiertas: 2 },
+  ]
+  return { ok: true, data }
+}
+
+// ─── Facturas Pendientes ────────────────────────────────────
+export interface FacturaPendiente {
+  nroFactura: string
+  tipoFactura: "A" | "B" | "C" | "E"
+  codProveedor: string
+  proveedor: string
+  fechaEmision: string
+  fechaVencimiento: string
+  diasVencimiento: number   // negativo = ya venció
+  netoGravado: number
+  iva21: number
+  iva105: number
+  retenciones: number
+  totalFactura: number
+  saldoPendiente: number
+  estado: "VIGENTE" | "VENCIDA" | "VENCE HOY" | "VENCE PRONTO"
+  observaciones: string
+}
+
+export function getFacturasPendientesDemo(): { ok: boolean; data: FacturaPendiente[] } {
+  const today = new Date()
+  const addDays = (days: number) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() + days)
+    return d.toISOString().split("T")[0]
+  }
+  const subDays = (days: number) => addDays(-days)
+
+  const raw: Omit<FacturaPendiente, "estado">[] = [
+    { nroFactura: "A-0001-00018452", tipoFactura: "A", codProveedor: "PRV-0031", proveedor: "ARCOR S.A.I.C.", fechaEmision: subDays(45), fechaVencimiento: subDays(15), diasVencimiento: -15, netoGravado: 103140, iva21: 21659.40, iva105: 0, retenciones: 5157, totalFactura: 124800, saldoPendiente: 124800, observaciones: "2° vto. impago" },
+    { nroFactura: "A-0001-00018890", tipoFactura: "A", codProveedor: "PRV-0031", proveedor: "ARCOR S.A.I.C.", fechaEmision: subDays(30), fechaVencimiento: addDays(0), diasVencimiento: 0, netoGravado: 148760, iva21: 31239.60, iva105: 0, retenciones: 7438, totalFactura: 179999.60, saldoPendiente: 179999.60, observaciones: "Vence hoy" },
+    { nroFactura: "A-0001-00019100", tipoFactura: "A", codProveedor: "PRV-0031", proveedor: "ARCOR S.A.I.C.", fechaEmision: subDays(10), fechaVencimiento: addDays(20), diasVencimiento: 20, netoGravado: 102950, iva21: 21619.50, iva105: 0, retenciones: 5147.50, totalFactura: 119522.00, saldoPendiente: 119522.00, observaciones: "" },
+    { nroFactura: "A-0003-00044512", tipoFactura: "A", codProveedor: "PRV-0063", proveedor: "MASTELLONE HNOS. S.A.", fechaEmision: subDays(72), fechaVencimiento: subDays(42), diasVencimiento: -42, netoGravado: 256612, iva21: 53888.52, iva105: 0, retenciones: 12830.60, totalFactura: 310500, saldoPendiente: 310500, observaciones: "Proveedor BLOQUEADO" },
+    { nroFactura: "B-0002-00122340", tipoFactura: "B", codProveedor: "PRV-0055", proveedor: "LA SERENÍSIMA S.A.", fechaEmision: subDays(1), fechaVencimiento: addDays(29), diasVencimiento: 29, netoGravado: 164257, iva21: 34493.97, iva105: 0, retenciones: 8212.85, totalFactura: 198750.50, saldoPendiente: 198750.50, observaciones: "" },
+    { nroFactura: "A-0001-00087654", tipoFactura: "A", codProveedor: "PRV-0102", proveedor: "COCA-COLA FEMSA S.A.", fechaEmision: subDays(55), fechaVencimiento: subDays(25), diasVencimiento: -25, netoGravado: 396694, iva21: 83305.74, iva105: 0, retenciones: 19834.74, totalFactura: 480000, saldoPendiente: 480000, observaciones: "Urgente regularizar" },
+    { nroFactura: "A-0001-00089200", tipoFactura: "A", codProveedor: "PRV-0102", proveedor: "COCA-COLA FEMSA S.A.", fechaEmision: subDays(2), fechaVencimiento: addDays(28), diasVencimiento: 28, netoGravado: 578512, iva21: 121487.52, iva105: 0, retenciones: 28925.52, totalFactura: 700000, saldoPendiente: 700000, observaciones: "" },
+    { nroFactura: "A-0005-00031122", tipoFactura: "A", codProveedor: "PRV-0071", proveedor: "DISTRIBUIDORA QUILMES S.A.", fechaEmision: subDays(38), fechaVencimiento: subDays(8), diasVencimiento: -8, netoGravado: 51653, iva21: 10846.93, iva105: 0, retenciones: 2582.65, totalFactura: 62500, saldoPendiente: 62500, observaciones: "Nota de débito asociada" },
+    { nroFactura: "A-0005-00031890", tipoFactura: "A", codProveedor: "PRV-0071", proveedor: "DISTRIBUIDORA QUILMES S.A.", fechaEmision: subDays(3), fechaVencimiento: addDays(27), diasVencimiento: 27, netoGravado: 258264, iva21: 54235.44, iva105: 0, retenciones: 12913.44, totalFactura: 312500, saldoPendiente: 312500, observaciones: "" },
+    { nroFactura: "A-0002-00010034", tipoFactura: "A", codProveedor: "PRV-0048", proveedor: "MOLINOS RIO DE LA PLATA S.A.", fechaEmision: subDays(8), fechaVencimiento: addDays(7), diasVencimiento: 7, netoGravado: 367769, iva21: 77231.49, iva105: 0, retenciones: 18388.49, totalFactura: 445000, saldoPendiente: 445000, observaciones: "Vence pronto" },
+    { nroFactura: "A-0009-00055321", tipoFactura: "A", codProveedor: "PRV-0134", proveedor: "PRODUCTS RECKITT S.A.", fechaEmision: subDays(90), fechaVencimiento: subDays(60), diasVencimiento: -60, netoGravado: 249173, iva21: 52326.33, iva105: 0, retenciones: 12458.63, totalFactura: 301500, saldoPendiente: 301500, observaciones: "Deuda antigua – revisar" },
+    { nroFactura: "A-0001-00034556", tipoFactura: "A", codProveedor: "PRV-0012", proveedor: "DISTRIBUIDORA CAGNOLI S.A.", fechaEmision: subDays(5), fechaVencimiento: addDays(25), diasVencimiento: 25, netoGravado: 258223, iva21: 54226.83, iva105: 0, retenciones: 12911.03, totalFactura: 312450.80, saldoPendiente: 312450.80, observaciones: "" },
+    { nroFactura: "A-0004-00067890", tipoFactura: "A", codProveedor: "PRV-0085", proveedor: "UNILEVER DE ARGENTINA S.A.", fechaEmision: subDays(6), fechaVencimiento: addDays(24), diasVencimiento: 24, netoGravado: 239339, iva21: 50261.19, iva105: 0, retenciones: 11967, totalFactura: 289600, saldoPendiente: 289600, observaciones: "" },
+  ]
+
+  const data: FacturaPendiente[] = raw.map((f) => ({
+    ...f,
+    estado:
+      f.diasVencimiento < 0
+        ? "VENCIDA"
+        : f.diasVencimiento === 0
+        ? "VENCE HOY"
+        : f.diasVencimiento <= 10
+        ? "VENCE PRONTO"
+        : "VIGENTE",
+  }))
+
+  return { ok: true, data }
+}
+
+// ─── Antigüedad de Saldos ────────────────────────────────────
+export interface AntiguedadSaldoItem {
+  codProveedor: string
+  proveedor: string
+  corriente: number
+  dias1_30: number
+  dias31_60: number
+  dias61_90: number
+  diasMas90: number
+  totalDeuda: number
+  porcentajeMora: number
+}
+
+export function getAntiguedadSaldosDemo(): { ok: boolean; data: AntiguedadSaldoItem[] } {
+  const data: AntiguedadSaldoItem[] = [
+    { codProveedor: "PRV-0031", proveedor: "ARCOR S.A.I.C.", corriente: 119522, dias1_30: 179999.60, dias31_60: 0, dias61_90: 124800, diasMas90: 0, totalDeuda: 424321.60, porcentajeMora: 29.41 },
+    { codProveedor: "PRV-0048", proveedor: "MOLINOS RIO DE LA PLATA S.A.", corriente: 0, dias1_30: 445000, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 445000, porcentajeMora: 0 },
+    { codProveedor: "PRV-0055", proveedor: "LA SERENÍSIMA S.A.", corriente: 198750.50, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 198750.50, porcentajeMora: 0 },
+    { codProveedor: "PRV-0063", proveedor: "MASTELLONE HNOS. S.A.", corriente: 210500, dias1_30: 0, dias31_60: 0, dias61_90: 310500, diasMas90: 0, totalDeuda: 521000, porcentajeMora: 59.60 },
+    { codProveedor: "PRV-0071", proveedor: "DISTRIBUIDORA QUILMES S.A.", corriente: 312500, dias1_30: 62500, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 375000, porcentajeMora: 16.67 },
+    { codProveedor: "PRV-0085", proveedor: "UNILEVER DE ARGENTINA S.A.", corriente: 289600, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 289600, porcentajeMora: 0 },
+    { codProveedor: "PRV-0102", proveedor: "COCA-COLA FEMSA S.A.", corriente: 700000, dias1_30: 0, dias31_60: 480000, dias61_90: 0, diasMas90: 0, totalDeuda: 1180000, porcentajeMora: 40.68 },
+    { codProveedor: "PRV-0012", proveedor: "DISTRIBUIDORA CAGNOLI S.A.", corriente: 312450.80, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 312450.80, porcentajeMora: 0 },
+    { codProveedor: "PRV-0134", proveedor: "PRODUCTS RECKITT S.A.", corriente: 0, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 301500, totalDeuda: 301500, porcentajeMora: 100 },
+    { codProveedor: "PRV-0117", proveedor: "DANONE ARGENTINA S.A.", corriente: 87400, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 87400, porcentajeMora: 0 },
+    { codProveedor: "PRV-0093", proveedor: "FARGO S.A.", corriente: 145000, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 145000, porcentajeMora: 0 },
+    { codProveedor: "PRV-0145", proveedor: "DISTRIBUIDORA PATAGÓNICA S.R.L.", corriente: 98000, dias1_30: 0, dias31_60: 0, dias61_90: 0, diasMas90: 0, totalDeuda: 98000, porcentajeMora: 0 },
+  ]
+  return { ok: true, data }
+}
+
+// ─── Ranking de Proveedores ──────────────────────────────────
+export interface RankingProveedorItem {
+  posicion: number
+  codProveedor: string
+  proveedor: string
+  rubro: string
+  cantFacturas: number
+  importeTotal: number
+  porcentaje: number
+  importeAnoAnterior: number
+  variacion: number   // % vs año anterior
+  ticketPromedio: number
+}
+
+export function getRankingProveedoresDemo(): { ok: boolean; data: RankingProveedorItem[] } {
+  const base = [
+    { cod: "PRV-0102", nom: "COCA-COLA FEMSA S.A.", rubro: "Bebidas", fact: 52, imp: 4820000 },
+    { cod: "PRV-0031", nom: "ARCOR S.A.I.C.", rubro: "Almacén", fact: 47, imp: 3960000 },
+    { cod: "PRV-0048", nom: "MOLINOS RIO DE LA PLATA S.A.", rubro: "Almacén", fact: 38, imp: 3240000 },
+    { cod: "PRV-0085", nom: "UNILEVER DE ARGENTINA S.A.", rubro: "Limpieza/Higiene", fact: 34, imp: 2980000 },
+    { cod: "PRV-0063", nom: "MASTELLONE HNOS. S.A.", rubro: "Lácteos", fact: 44, imp: 2710000 },
+    { cod: "PRV-0055", nom: "LA SERENÍSIMA S.A.", rubro: "Lácteos", fact: 40, imp: 2540000 },
+    { cod: "PRV-0071", nom: "DISTRIBUIDORA QUILMES S.A.", rubro: "Bebidas", fact: 28, imp: 1950000 },
+    { cod: "PRV-0012", nom: "DISTRIBUIDORA CAGNOLI S.A.", rubro: "Almacén", fact: 22, imp: 1620000 },
+    { cod: "PRV-0117", nom: "DANONE ARGENTINA S.A.", rubro: "Lácteos/Frescos", fact: 19, imp: 1280000 },
+    { cod: "PRV-0093", nom: "FARGO S.A.", rubro: "Panadería", fact: 18, imp: 980000 },
+    { cod: "PRV-0134", nom: "PRODUCTS RECKITT S.A.", rubro: "Limpieza", fact: 12, imp: 745000 },
+    { cod: "PRV-0145", nom: "DISTRIBUIDORA PATAGÓNICA S.R.L.", rubro: "Regional", fact: 10, imp: 520000 },
+  ]
+  const total = base.reduce((s, b) => s + b.imp, 0)
+  const data: RankingProveedorItem[] = base.map((b, i) => ({
+    posicion: i + 1,
+    codProveedor: b.cod,
+    proveedor: b.nom,
+    rubro: b.rubro,
+    cantFacturas: b.fact,
+    importeTotal: b.imp,
+    porcentaje: parseFloat(((b.imp / total) * 100).toFixed(2)),
+    importeAnoAnterior: parseFloat((b.imp * (0.75 + Math.random() * 0.3)).toFixed(0)),
+    variacion: parseFloat((((b.imp - b.imp * (0.75 + Math.random() * 0.3)) / (b.imp * (0.75 + Math.random() * 0.3))) * 100).toFixed(1)),
+    ticketPromedio: parseFloat((b.imp / b.fact).toFixed(0)),
+  }))
+  return { ok: true, data }
 }
