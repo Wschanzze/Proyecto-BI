@@ -16,7 +16,7 @@ import {
   ChevronRight,
   Store,
 } from "lucide-react"
-import * as XLSX from "xlsx"
+import { exportarExcelProfesional } from "@/lib/excel-styler"
 import type { QuiebreCarniceriaItem } from "@/lib/reportes-data"
 
 export function QuiebresCarniceriaPanel() {
@@ -97,26 +97,37 @@ export function QuiebresCarniceriaPanel() {
     return filteredData.slice(start, start + pageSize)
   }, [filteredData, currentPage, pageSize])
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredData.length === 0) return
 
-    const rows = filteredData.map((r) => ({
-      "Fecha": r.fecha,
-      "Sucursal": r.sucursal,
-      "Cód. Barra": r.codBarra,
-      "Producto": r.producto,
-      "1ª Compra": r.primeraCompra,
-      "Última Compra": r.ultimaCompra,
-      "Kilos Vendidos": r.totalKilosVendidos,
-      "Tickets": r.ticketsVendidos,
-      "Estado Diagnóstico": r.estadoQuiebre,
-      "Observación Operativa": r.observacion,
-    }))
-
-    const worksheet = XLSX.utils.json_to_sheet(rows)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Quiebres Carnicería")
-    XLSX.writeFile(workbook, `quiebres-carniceria-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    await exportarExcelProfesional({
+      titulo: "Reporte de Quiebres de Carnicería (Carne Vacuna)",
+      subtitulo: `Sucursal: ${sucursal} | Evaluados: ${resumen?.totalEvaluados || filteredData.length} registros | Tasa de Quiebre: ${resumen?.tasaQuiebrePct || 0}%`,
+      nombreArchivo: `quiebres-carniceria-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      nombreHoja: "Quiebres Carnicería",
+      kpis: resumen
+        ? [
+            { label: "Cortes Evaluados", value: String(resumen.totalEvaluados) },
+            { label: "Quiebres Críticos", value: String(resumen.quiebresCriticos) },
+            { label: "Alertas Tempranas", value: String(resumen.alertasTempranas) },
+            { label: "Cobertura Óptima", value: String(resumen.coberturaNormal) },
+            { label: "Tasa de Quiebre", value: `${resumen.tasaQuiebrePct}%` },
+          ]
+        : undefined,
+      columnas: [
+        { key: "fecha", header: "Fecha", width: 14, type: "date", align: "center" },
+        { key: "sucursal", header: "Sucursal", width: 18, type: "text", align: "left" },
+        { key: "codBarra", header: "Cód. Barra", width: 16, type: "text", align: "center" },
+        { key: "producto", header: "Corte / Producto", width: 34, type: "text", align: "left" },
+        { key: "primeraCompra", header: "1ª Compra", width: 14, type: "time", align: "center" },
+        { key: "ultimaCompra", header: "Última Compra", width: 15, type: "time", align: "center" },
+        { key: "totalKilosVendidos", header: "Kilos Vendidos", width: 16, type: "number", align: "right" },
+        { key: "ticketsVendidos", header: "Tickets", width: 12, type: "number", align: "right" },
+        { key: "estadoQuiebre", header: "Estado Diagnóstico", width: 22, type: "status", align: "center" },
+        { key: "observacion", header: "Observación Operativa", width: 45, type: "text", align: "left" },
+      ],
+      datos: filteredData,
+    })
   }
 
   return (

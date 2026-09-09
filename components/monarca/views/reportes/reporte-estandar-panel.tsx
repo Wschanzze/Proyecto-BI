@@ -16,7 +16,7 @@ import {
   Store,
   Calendar,
 } from "lucide-react"
-import * as XLSX from "xlsx"
+import { exportarExcelProfesional, type ExcelColumnDef } from "@/lib/excel-styler"
 import type { ReportTemplateDef } from "@/lib/reportes-data"
 
 interface ReporteEstandarPanelProps {
@@ -164,12 +164,50 @@ export function ReporteEstandarPanel({ template }: ReporteEstandarPanelProps) {
     ]
   }, [data, template.id])
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredData.length === 0) return
-    const ws = XLSX.utils.json_to_sheet(filteredData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte")
-    XLSX.writeFile(wb, `reporte-monarca-${template.id}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+
+    const sampleRow = filteredData[0]
+    const cols: ExcelColumnDef[] = Object.keys(sampleRow).map((colName) => {
+      const lower = colName.toLowerCase()
+      const sampleVal = sampleRow[colName]
+      const isNum = typeof sampleVal === "number"
+
+      const isMoney =
+        lower.includes("venta") ||
+        lower.includes("importe") ||
+        lower.includes("precio") ||
+        lower.includes("ticketpromedio") ||
+        lower.includes("ticketminimo") ||
+        lower.includes("ticketmaximo")
+
+      if (isMoney && isNum) {
+        return { key: colName, header: colName, type: "currency", align: "right" }
+      }
+      if (lower.includes("fecha")) {
+        return { key: colName, header: colName, type: "date", align: "center", width: 14 }
+      }
+      if (lower.includes("hora")) {
+        return { key: colName, header: colName, type: "time", align: "center", width: 14 }
+      }
+      if (lower.includes("porcentaje") || lower.includes("pct")) {
+        return { key: colName, header: colName, type: "percent", align: "right" }
+      }
+      if (isNum) {
+        return { key: colName, header: colName, type: "number", align: "right" }
+      }
+      return { key: colName, header: colName, type: "text", align: "left" }
+    })
+
+    await exportarExcelProfesional({
+      titulo: template.title,
+      subtitulo: `Filtro Sucursal: ${sucursal} | Registros: ${filteredData.length} | Monarca Analytics BI`,
+      nombreArchivo: `reporte-monarca-${template.id}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      nombreHoja: template.title.slice(0, 30),
+      kpis: kpis.length > 0 ? kpis.map((k) => ({ label: k.label, value: k.value })) : undefined,
+      columnas: cols,
+      datos: filteredData,
+    })
   }
 
   const handleExportCSV = () => {

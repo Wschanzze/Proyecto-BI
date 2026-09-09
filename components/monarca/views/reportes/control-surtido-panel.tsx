@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import * as XLSX from "xlsx"
+import { exportarExcelProfesional } from "@/lib/excel-styler"
 import { getControlSurtidoDemo, type SurtidoItem } from "@/lib/reportes-data"
 
 export function ControlSurtidoPanel() {
@@ -86,25 +87,27 @@ export function ControlSurtidoPanel() {
     })
   }, [data, searchTerm, filtroSucursal])
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredData.length === 0) return
 
-    const rows = filteredData.map((r) => ({
-      "Sucursal": r.sucursal,
-      "Int": r.int,
-      "EAN": r.ean,
-      "Producto": r.producto,
-      "Categoría": r.categoria,
-      "Grupo": r.grupo,
-      "Stock Actual": r.stockActual,
-      "Días sin Venta": r.diasSinVenta,
-      "Estado": r.estado,
-    }))
-
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Control Surtido")
-    XLSX.writeFile(wb, `control-surtido-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    await exportarExcelProfesional({
+      titulo: "Control de Surtido y Stock General",
+      subtitulo: `Filtro Sucursal: ${filtroSucursal} | Artículos Evaluados: ${filteredData.length} | Monarca Analytics BI`,
+      nombreArchivo: `control-surtido-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      nombreHoja: "Control Surtido",
+      columnas: [
+        { key: "sucursal", header: "Sucursal", width: 18, type: "text", align: "left" },
+        { key: "int", header: "Int", width: 12, type: "text", align: "center" },
+        { key: "ean", header: "EAN", width: 18, type: "text", align: "center" },
+        { key: "producto", header: "Producto", width: 36, type: "text", align: "left" },
+        { key: "categoria", header: "Categoría", width: 20, type: "text", align: "left" },
+        { key: "grupo", header: "Grupo", width: 20, type: "text", align: "left" },
+        { key: "stockActual", header: "Stock Actual", width: 15, type: "number", align: "right" },
+        { key: "diasSinVenta", header: "Días sin Venta", width: 15, type: "number", align: "right" },
+        { key: "estado", header: "Estado", width: 16, type: "status", align: "center" },
+      ],
+      datos: filteredData,
+    })
   }
 
   return (

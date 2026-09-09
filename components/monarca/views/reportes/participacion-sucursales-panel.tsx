@@ -28,7 +28,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts"
-import * as XLSX from "xlsx"
+import { exportarExcelProfesional } from "@/lib/excel-styler"
 import type { ParticipacionReporteResponse, ParticipacionSucursalItem } from "@/lib/reportes-data"
 
 const PALETA_COLORES = [
@@ -103,22 +103,38 @@ export function ParticipacionSucursalesPanel() {
     }
   }
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!resultData || !resultData.data || resultData.data.length === 0) return
 
-    const rowsParaExcel = resultData.data.map((r) => ({
-      "Posición": r.posicion,
-      "Sucursal": r.sucursal,
-      "Venta Total ($)": r.ventaTotal,
-      "Participación (%)": `${r.porcentaje}%`,
-      "Tickets Emitidos": r.tickets,
-      "Ticket Promedio ($)": r.ticketPromedio,
-    }))
-
-    const worksheet = XLSX.utils.json_to_sheet(rowsParaExcel)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Participación")
-    XLSX.writeFile(workbook, `participacion-sucursales-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    await exportarExcelProfesional({
+      titulo: "Reporte de Participación de Sucursales",
+      subtitulo: `Período: ${resultData.periodo.desde} al ${resultData.periodo.hasta} | Sucursales Activas: ${resultData.sucursalesEvaluadas}`,
+      nombreArchivo: `participacion-sucursales-monarca-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      nombreHoja: "Participación",
+      kpis: [
+        { label: "Facturación Total", value: `$${(resultData.totalVenta / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })}M` },
+        { label: "Tickets Emitidos", value: resultData.totalTickets.toLocaleString("es-AR") },
+        { label: "Ticket Promedio", value: `$${resultData.ticketPromedio.toLocaleString("es-AR", { maximumFractionDigits: 0 })}` },
+        { label: "Sucursal Líder", value: `${resultData.data[0]?.sucursal || "-"} (${resultData.data[0]?.porcentajeTexto || "0%"})` },
+      ],
+      columnas: [
+        { key: "posicion", header: "Posición", width: 12, type: "number", align: "center" },
+        { key: "sucursal", header: "Sucursal", width: 26, type: "text", align: "left" },
+        { key: "ventaTotal", header: "Venta Total ($)", width: 22, type: "currency", align: "right" },
+        { key: "porcentaje", header: "Participación (%)", width: 18, type: "percent", align: "right" },
+        { key: "tickets", header: "Tickets Emitidos", width: 18, type: "number", align: "right" },
+        { key: "ticketPromedio", header: "Ticket Promedio ($)", width: 20, type: "currency", align: "right" },
+      ],
+      datos: resultData.data,
+      totales: {
+        posicion: "-",
+        sucursal: "TOTAL CONSOLIDADO",
+        ventaTotal: resultData.totalVenta,
+        porcentaje: 100,
+        tickets: resultData.totalTickets,
+        ticketPromedio: resultData.ticketPromedio,
+      },
+    })
   }
 
   const chartData = useMemo(() => {
