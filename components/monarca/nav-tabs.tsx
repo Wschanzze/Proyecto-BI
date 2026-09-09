@@ -1,5 +1,5 @@
 "use client"
-
+import { useRef } from "react"
 import { LayoutDashboard, Table2, LineChart, TrendingUp, Calendar, FileText, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -15,10 +15,23 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
 ]
 
 export function NavTabs({ active, onChange }: { active: TabId; onChange: (id: TabId) => void }) {
+  const ulRef = useRef<HTMLUListElement>(null)
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (ulRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      ulRef.current.scrollLeft += e.deltaY
+    }
+  }
+
   return (
     <nav className="border-b border-border bg-card">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 md:px-6">
-        <ul className="flex flex-1 items-center gap-1 overflow-x-auto">
+        <ul
+          ref={ulRef}
+          onWheel={handleWheel}
+          className="flex flex-1 items-center gap-1 overflow-x-auto scroll-smooth py-0.5"
+          style={{ scrollbarWidth: "thin" }}
+        >
           {TABS.map((tab) => {
             const isActive = tab.id === active
             const Icon = tab.icon
