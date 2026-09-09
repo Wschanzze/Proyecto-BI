@@ -3,7 +3,7 @@
 
 import type { MetricaConfigurable, ConfiguracionPL } from './data'
 
-const STORAGE_KEY = 'monarca_demo_metricas_v3'
+const STORAGE_KEY = 'monarca_demo_metricas_v4' // v4: CMV 0.695→0.65 (CMG ~35%), FACT_BASE sincronizado
 
 const DEFAULT_METRICAS: MetricaConfigurable[] = [
   // Ratios P&L
@@ -20,9 +20,9 @@ const DEFAULT_METRICAS: MetricaConfigurable[] = [
   { id: 9, categoria: 'impuestos', clave: 'iibb_porcentaje', nombre: 'Ingresos Brutos', descripcion: 'Impuesto sobre Ingresos Brutos', valor: 0.03, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
   { id: 10, categoria: 'impuestos', clave: 'tuae_porcentaje', nombre: 'TUAE', descripcion: 'Tasa de Análisis de Expedientes', valor: 0.02, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 
-  // Estimaciones
-  { id: 11, categoria: 'estimaciones', clave: 'cmv_salon_porcentaje', nombre: 'CMV Salón Estimado', descripcion: 'Costo estimado de Salón', valor: 0.695, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
-  { id: 12, categoria: 'estimaciones', clave: 'cmv_frescos_porcentaje', nombre: 'CMV Frescos Estimado', descripcion: 'Costo estimado de Frescos', valor: 0.695, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  // Estimaciones de CMV (coherente con CMG objetivo ~35%: CMV = 1 - 0.35 = 0.65)
+  { id: 11, categoria: 'estimaciones', clave: 'cmv_salon_porcentaje', nombre: 'CMV Salón Estimado', descripcion: 'Costo estimado de Salón (CMG objetivo ~35%)', valor: 0.65, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
+  { id: 12, categoria: 'estimaciones', clave: 'cmv_frescos_porcentaje', nombre: 'CMV Frescos Estimado', descripcion: 'Costo estimado de Frescos (CMG objetivo ~35%)', valor: 0.65, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 
   // KPIs
   { id: 13, categoria: 'kpis', clave: 'ticket_promedio', nombre: 'Ticket Promedio', descripcion: 'Ticket promedio en pesos ARS', valor: 36500, tipo: 'monto', unidad: 'ARS', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
@@ -34,9 +34,23 @@ const DEFAULT_METRICAS: MetricaConfigurable[] = [
   { id: 19, categoria: 'kpis', clave: 'stockout_promedio', nombre: 'Stockout Promedio', descripcion: 'Quiebre de stock', valor: 2.3, tipo: 'porcentaje', unidad: '%', activo: true, sucursal_id: null, fecha_desde: '2026-01-01', fecha_hasta: null, creado_en: '2026-01-01T00:00:00Z', actualizado_en: '2026-01-01T00:00:00Z', creado_por: 'demo@monarca.com' },
 ]
 
-// Generar proyecciones mes a mes 1..12 alineadas con ventas reales
+// Generar proyecciones mes a mes 1..12 alineadas con MONTHLY_TARGET_DATA de data.ts
+// Meses 1-7: valores exactos de 2026 real. Meses 8-12: estimados con tendencia navideña.
 let autoId = 20
-const FACT_BASE = [6450000000, 6000000000, 6420000000, 6380000000, 6300000000, 6520000000, 7050000000, 6950000000, 6800000000, 7200000000, 7850000000, 9500000000]
+const FACT_BASE = [
+  6_548_310_000, // Enero 2026  (real)
+  6_049_810_000, // Febrero 2026 (real)
+  6_488_920_000, // Marzo 2026  (real)
+  6_431_250_000, // Abril 2026  (real)
+  6_352_410_000, // Mayo 2026   (real)
+  6_571_890_000, // Junio 2026  (real)
+  7_091_250_000, // Julio 2026  (real)
+  7_050_000_000, // Agosto 2026 (estimado)
+  6_900_000_000, // Septiembre 2026 (estimado, baja estacional)
+  7_380_000_000, // Octubre 2026 (estimado)
+  8_150_000_000, // Noviembre 2026 (estimado, pre-navideño)
+  9_800_000_000, // Diciembre 2026 (estimado, pico navideño)
+]
 
 for (let i = 1; i <= 12; i++) {
   DEFAULT_METRICAS.push({
@@ -62,7 +76,7 @@ for (let i = 1; i <= 12; i++) {
     clave: `proy_cmv_pct_m${i}`,
     nombre: `CMV Objetivo Mes ${i}`,
     descripcion: `CMV objetivo mes ${i}`,
-    valor: 0.695,
+    valor: 0.65, // CMV objetivo = 1 - CMG 35%
     tipo: 'porcentaje',
     unidad: '%',
     activo: true,
